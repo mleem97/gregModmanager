@@ -66,8 +66,10 @@
 
   <ItemGroup>
     <Compile Remove="GregModmanager.Tests\**\*.cs" />
+    <Compile Remove="GregModmanager.Avalonia\**\*.cs" />
     <Compile Remove="**\obj\**\*.cs" />
     <Compile Remove="**\bin\**\*.cs" />
+    <None Remove="GregModmanager.Avalonia\**\*.axaml" />
   </ItemGroup>
 
 </Project>

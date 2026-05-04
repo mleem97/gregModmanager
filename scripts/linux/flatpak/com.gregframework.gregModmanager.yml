@@ -1,0 +1,27 @@
+app-id: com.gregframework.gregModmanager
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: gregmodmanager
+finish-args:
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+modules:
+  - name: gregmodmanager
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 gregmodmanager /app/bin/gregmodmanager
+      - mkdir -p /app/lib/gregmodmanager
+      - cp -r publish/* /app/lib/gregmodmanager/
+      - install -Dm644 com.gregframework.gregModmanager.desktop /app/share/applications/com.gregframework.gregModmanager.desktop
+    sources:
+      - type: dir
+        path: publish
+      - type: file
+        path: scripts/linux/flatpak/gregmodmanager-flatpak-launcher.sh
+        dest-filename: gregmodmanager
+      - type: file
+        path: scripts/linux/flatpak/com.gregframework.gregModmanager.desktop

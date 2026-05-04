@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=gregModmanager
+Comment=gregModmanager desktop application
+Exec=/usr/bin/gregmodmanager
+Terminal=false
+Categories=Utility;Development;
+Keywords=greg;modmanager;steam;avalonia;

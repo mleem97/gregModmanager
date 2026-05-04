@@ -57,7 +57,6 @@
     <Setter Property="Foreground" Value="{DynamicResource OnSurfaceVariant}" />
     <Setter Property="BorderBrush" Value="#2A3B49" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="4" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="FontSize" Value="11" />
   </Style>
@@ -76,7 +75,6 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="6" />
     <Setter Property="Foreground" Value="{DynamicResource OnSurfaceVariant}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="Padding" Value="10,7" />
@@ -121,17 +119,29 @@
     <Setter Property="Padding" Value="8,6" />
   </Style>
 
-  <Style Selector="TextBox.input-terminal, ComboBox.input-terminal">
+  <Style Selector="TextBox.input-terminal">
     <Setter Property="Background" Value="#05172A" />
     <Setter Property="BorderBrush" Value="#355265" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="4" />
     <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
     <Setter Property="Padding" Value="10,7" />
     <Setter Property="FontSize" Value="12" />
   </Style>
 
-  <Style Selector="TextBox.input-terminal:focus, ComboBox.input-terminal:focus">
+  <Style Selector="ComboBox.input-terminal">
+    <Setter Property="Background" Value="#05172A" />
+    <Setter Property="BorderBrush" Value="#355265" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
+  <Style Selector="TextBox.input-terminal:focus">
+    <Setter Property="BorderBrush" Value="{DynamicResource Secondary}" />
+  </Style>
+
+  <Style Selector="ComboBox.input-terminal:focus">
     <Setter Property="BorderBrush" Value="{DynamicResource Secondary}" />
   </Style>
 
@@ -140,7 +150,6 @@
     <Setter Property="Foreground" Value="#062235" />
     <Setter Property="BorderBrush" Value="#8AEBFF" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="6" />
     <Setter Property="FontSize" Value="11" />
     <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Padding" Value="16,10" />
