@@ -19,8 +19,30 @@ It is a management client around the framework ecosystem.
 - Main project: `GregModmanager.csproj`
 
 ## Quick Start
+
+### Scripts und Automation
+Alle Build-, Deployment- und Development-Aufgaben sind in **`scripts/`** organisiert:
+
 ```powershell
-Set-Location "c:\Users\marvi\source\repos\gregFramework\gregModmanager"
+# Schneller Start zum Entwickeln
+.\run.ps1
+
+# Build + Installer
+.\build.ps1
+
+# Lokale Installation (schnell)
+.\install-local.ps1
+
+# Weitere Scripts und Helpers
+cd scripts
+Get-Content README.md  # Siehe scripts/README.md für vollständige Übersicht
+```
+
+**👉 Siehe [`scripts/README.md`](scripts/README.md) für vollständige Dokumentation aller verfügbaren Scripts.**
+
+### Manuelle Kompilierung
+```powershell
+Set-Location "c:\Users\marvi\Desktop\gregModmanager"
 dotnet build "GregModmanager.csproj" -c Debug
 ```
 
