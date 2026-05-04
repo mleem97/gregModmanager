@@ -12,20 +12,19 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
     
-    [ValidateSet('win10-x64', 'win11-x64', 'win10-arm64')]
-    [string]$Platform = 'win10-x64'
+    [ValidateSet('win-x64', 'win-arm64')]
+    [string]$Platform = 'win-x64'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$buildPath = Join-Path $repoRoot "bin\$Configuration\net9.0-windows10.0.19041.0\$Platform\publish"
+$buildPath = Join-Path $repoRoot "bin\$Configuration\net9.0-windows10.0.19041.0\$Platform"
 $exePath = Join-Path $buildPath 'GregModmanager.exe'
 
 if (-not (Test-Path $exePath)) {
-    Write-Error "GregModmanager.exe nicht gefunden: $exePath`n" +
-                "Bitte zuerst bauen mit: .\build.ps1"
+    Write-Error ("GregModmanager.exe nicht gefunden: $exePath`nBitte zuerst bauen mit: .\build.ps1")
     exit 1
 }
 

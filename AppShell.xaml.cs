@@ -131,12 +131,17 @@ public partial class AppShell : Shell
                 _steamStatusTimerStarted = true;
                 Loaded -= OnShellLoaded;
                 UpdateSteamConnectionUi();
+                UpdateGregApiConnectionUi();
                 var dispatcher = Application.Current?.Dispatcher;
                 if (dispatcher is null) return;
 
                 dispatcher.StartTimer(TimeSpan.FromSeconds(2), () =>
                 {
-                        MainThread.BeginInvokeOnMainThread(UpdateSteamConnectionUi);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            UpdateSteamConnectionUi();
+                            UpdateGregApiConnectionUi();
+                        });
                         return true;
                 });
         }
@@ -151,7 +156,7 @@ public partial class AppShell : Shell
                         AuthStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#61F4D8"));
                         AuthLogoTile.BackgroundColor = Color.FromArgb("#0D3835");
                         AuthStatusText.TextColor = Color.FromArgb("#C0FCF6");
-                        AuthStatusText.Text = _session.CurrentSession?.User?.DisplayName ?? "Authenticated";
+                        AuthStatusText.Text = $"Logged in as {_session.CurrentSession?.User?.DisplayName ?? "User"}";
                         break;
                     case SessionState.LoginPending:
                     case SessionState.Refreshing:
@@ -164,7 +169,7 @@ public partial class AppShell : Shell
                         AuthStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#D7383B"));
                         AuthLogoTile.BackgroundColor = Color.FromArgb("#1A2A1012");
                         AuthStatusText.TextColor = Color.FromArgb("#7FBFB8");
-                        AuthStatusText.Text = "Login to gregFramework";
+                        AuthStatusText.Text = "Login To Datacentermods.com";
                         break;
                 }
             });
@@ -177,30 +182,32 @@ public partial class AppShell : Shell
                         SteamStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#61F4D8"));
                         SteamLogoTile.BackgroundColor = Color.FromArgb("#0D3835");
                         SteamStatusText.TextColor = Color.FromArgb("#C0FCF6");
-                        SteamStatusText.Text = string.IsNullOrEmpty(userName)
-                                ? S.Get("Steam_Ok")
-                                : S.Format("Steam_User", userName);
+                        SteamStatusText.Text = "Steam Connected";
                 }
                 else
                 {
                         SteamStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#D7383B"));
                         SteamLogoTile.BackgroundColor = Color.FromArgb("#1A2A1012");
                         SteamStatusText.TextColor = Color.FromArgb("#7FBFB8");
-                        var hint = _steam.LastSteamConnectionHint;
-                        if (string.IsNullOrWhiteSpace(hint))
-                        {
-                                SteamStatusText.Text = S.Get("Steam_Offline");
-                        }
-                        else
-                        {
-                                const int maxLen = 72;
-                                if (hint.Length > maxLen)
-                                {
-                                        hint = hint[..maxLen] + "…";
-                                }
+                        SteamStatusText.Text = "Steam Disconnected";
+                }
+        }
 
-                                SteamStatusText.Text = S.Format("Steam_Hint", hint);
-                        }
+        private void UpdateGregApiConnectionUi()
+        {
+                if (_session.State == SessionState.Authenticated && _session.CurrentSession != null)
+                {
+                        GregApiStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#61F4D8"));
+                        GregApiLogoTile.BackgroundColor = Color.FromArgb("#0D3835");
+                        GregApiStatusText.TextColor = Color.FromArgb("#C0FCF6");
+                        GregApiStatusText.Text = "gregAPI Online";
+                }
+                else
+                {
+                        GregApiStatusLed.Fill = new SolidColorBrush(Color.FromArgb("#D7383B"));
+                        GregApiLogoTile.BackgroundColor = Color.FromArgb("#1A2A1012");
+                        GregApiStatusText.TextColor = Color.FromArgb("#7FBFB8");
+                        GregApiStatusText.Text = "gregAPI Offline";
                 }
         }
 }

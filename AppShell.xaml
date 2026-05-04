@@ -52,6 +52,33 @@
                 </HorizontalStackLayout>
             </Border>
 
+            <!-- GREGAPI CONNECTION TILE -->
+            <Border
+                x:Name="GregApiLogoTile"
+                Padding="10,6"
+                Margin="0,8,0,0"
+                BackgroundColor="{DynamicResource SurfaceVariant}"
+                StrokeThickness="0">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="6" />
+                </Border.StrokeShape>
+                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                    <Ellipse
+                        x:Name="GregApiStatusLed"
+                        WidthRequest="8"
+                        HeightRequest="8"
+                        VerticalOptions="Center" />
+                    <Label
+                        x:Name="GregApiStatusText"
+                        FontFamily="SpaceGrotesk-Regular"
+                        FontSize="11"
+                        LineBreakMode="NoWrap"
+                        Text="gregAPI Offline"
+                        TextColor="{DynamicResource OnSurfaceDim}"
+                        VerticalOptions="Center" />
+                </HorizontalStackLayout>
+            </Border>
+
             <!-- AUTH ACCOUNT TILE -->
             <Border
                 x:Name="AuthLogoTile"
@@ -77,7 +104,7 @@
                         FontFamily="SpaceGrotesk-Regular"
                         FontSize="11"
                         LineBreakMode="NoWrap"
-                        Text="Log into gregFramework"
+                        Text="Login To Datacentermods.com"
                         TextColor="{DynamicResource OnSurfaceDim}"
                         VerticalOptions="Center" />
                 </HorizontalStackLayout>

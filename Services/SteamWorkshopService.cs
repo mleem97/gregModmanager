@@ -166,6 +166,12 @@ public sealed class SteamWorkshopService
 			editor = editor.WithChangeLog(changeLog);
 		}
 
+		if (!SteamPublishRateLimiter.Shared.TryAcquire(out var retryAfter))
+		{
+			var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
+		}
+
 		editor = ApplyVisibility(editor, metadata.Visibility);
 
 		log?.Report(metadata.PublishedFileId == 0
