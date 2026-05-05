@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Web;
-using Microsoft.Maui.Controls;
-using Microsoft.Maui.Dispatching;
 using GregModmanager.Models.Install;
 using GregModmanager.Services.Auth;
 using GregModmanager.Models.Auth;
@@ -52,15 +50,7 @@ public class InstallIntentClient : IInstallIntentClient
             {
                 AppFileLog.Warn($"Install intent validation failed for package {intent.PackageId}: {validationError}");
 
-                await InvokeOnMainThreadSafeAsync(async () => {
-                    if (Shell.Current != null)
-                    {
-                        await Shell.Current.DisplayAlert(
-                            "Installation Failed",
-                            $"Security validation blocked this request:\n\n{validationError}",
-                            "Dismiss");
-                    }
-                });
+                AppFileLog.Warn($"Install intent validation failed: {validationError}");
                 return;
             }
 
@@ -69,15 +59,7 @@ public class InstallIntentClient : IInstallIntentClient
 
             // Phase 3 specifies: never silently install untrusted content
             // If non-Steam package install is not fully implemented yet, display safe intent.
-            await InvokeOnMainThreadSafeAsync(async () => {
-                if (Shell.Current != null)
-                {
-                    await Shell.Current.DisplayAlert(
-                        "Installation Queued",
-                        $"The package '{intent.PackageId}' has been securely verified and queued for installation.\n\n(Full non-Steam execution arriving in Phase 4)",
-                        "OK");
-                }
-            });
+            AppFileLog.Info($"Installation queued for package '{intent.PackageId}'.");
         }
         catch (Exception ex)
         {
@@ -137,15 +119,4 @@ public class InstallIntentClient : IInstallIntentClient
         return Task.FromResult<string?>(null); // Null means valid!
     }
 
-    private async Task InvokeOnMainThreadSafeAsync(Func<Task> action)
-    {
-        if (Application.Current?.Dispatcher is { } dispatcher)
-        {
-            await dispatcher.DispatchAsync(action);
-        }
-        else
-        {
-            await action();
-        }
-    }
 }

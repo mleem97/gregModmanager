@@ -24,7 +24,7 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\$AppFolderName"
 }
 
-$publishRel = Join-Path $repoRoot "bin\Release\net9.0-windows10.0.19041.0\win10-x64\publish"
+$publishRel = Join-Path $repoRoot "GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish"
 $exePath = Join-Path $InstallDir $ExeName
 $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
 $startMenuPrograms = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
@@ -53,7 +53,7 @@ if ($Uninstall) {
 
 if (-not $SkipPublish) {
     Write-Host '[install-local] dotnet publish -c Release ...'
-    & dotnet publish (Join-Path $repoRoot 'GregModmanager.csproj') -c Release
+    & dotnet publish (Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Release -r win-x64
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.MyUploadsPage">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18">
+    <StackPanel Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="WORKSHOP" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="My Uploads" Classes="headline" />
+      <TextBlock Text="Manage and import your published workshop items." Classes="subtext" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
+      <Button Content="Refresh" Classes="btn-primary" Click="OnRefresh" />
+      <Button Content="Import Selected" Classes="btn-primary" Click="OnImportSelected" />
+      <TextBlock x:Name="SelectionCountLabel" VerticalAlignment="Center" Classes="subtext" />
+    </StackPanel>
+
+    <Border Grid.Row="2" Classes="panel">
+      <ScrollViewer>
+        <ListBox x:Name="UploadsList" SelectionMode="Multiple" SelectionChanged="OnUploadsSelectionChanged">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                  <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <Button Content="Download" Classes="btn-primary" Click="OnDownloadClicked" />
+                  <Button Content="View on Steam" Click="OnViewOnSteam" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </ScrollViewer>
+    </Border>
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <Button x:Name="PrevBtn" Content="Prev" Click="OnPrev" />
+      <TextBlock x:Name="PageLabel" VerticalAlignment="Center" />
+      <Button x:Name="NextBtn" Content="Next" Click="OnNext" />
+    </StackPanel>
+  </Grid>
+</UserControl>

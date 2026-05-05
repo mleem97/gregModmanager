@@ -1,23 +1,148 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
+using Avalonia.Threading;
+using GregModmanager.Avalonia.Views;
+using GregModmanager.Models.Auth;
+using GregModmanager.Services;
+using GregModmanager.Services.Auth;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GregModmanager.Avalonia;
 
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly IServiceProvider _services;
+    private readonly SteamWorkshopService _steam;
+    private readonly ISessionManager _session;
+    private Control? _currentPage;
+
+    public MainWindow(IServiceProvider services, SteamWorkshopService steam, ISessionManager session)
     {
         InitializeComponent();
+        _services = services;
+        _steam = steam;
+        _session = session;
+
+        if (AppSettings.IsModStoreEnabled())
+            BtnModStore.IsVisible = true;
+
+        _session.StateChanged += () => Dispatcher.UIThread.Post(UpdateStatusIndicators);
+        Loaded += OnLoaded;
+    }
+
+    private async void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        await _session.InitializeAsync();
+        var args = Environment.GetCommandLineArgs();
+        foreach (var arg in args)
+        {
+            if (arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (arg.Contains("/auth/callback"))
+                    await _session.HandleProtocolCallbackAsync(arg);
+                else if (arg.Contains("/install/intent"))
+                {
+                    var installClient = _services.GetRequiredService<GregModmanager.Services.Install.IInstallIntentClient>();
+                    await installClient.HandleIntentAsync(arg);
+                }
+            }
+        }
+
+        var timer = new System.Timers.Timer(2000);
+        timer.Elapsed += (_, _) => Dispatcher.UIThread.Post(UpdateStatusIndicators);
+        timer.AutoReset = true;
+        timer.Start();
+
+        NavigateTo<ProjectsPage>();
+    }
+
+    private void UpdateStatusIndicators()
+    {
+        if (_steam.TryGetSteamReady(out var userName))
+        {
+            SteamStatusLed.Fill = new SolidColorBrush(Color.Parse("#61F4D8"));
+            SteamStatusText.Text = "Steam Connected";
+        }
+        else
+        {
+            SteamStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
+            SteamStatusText.Text = "Steam Disconnected";
+        }
+
+        if (_session.State == SessionState.Authenticated && _session.CurrentSession != null)
+        {
+            GregApiStatusLed.Fill = new SolidColorBrush(Color.Parse("#61F4D8"));
+            GregApiStatusText.Text = "gregAPI Online";
+            AuthStatusLed.Fill = new SolidColorBrush(Color.Parse("#61F4D8"));
+            AuthStatusText.Text = $"Logged in as {_session.CurrentSession.User?.DisplayName ?? "User"}";
+        }
+        else
+        {
+            GregApiStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
+            GregApiStatusText.Text = "gregAPI Offline";
+            AuthStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
+            AuthStatusText.Text = "Login To Datacentermods.com";
+        }
+    }
+
+    private void SetNavActive(Button active)
+    {
+        foreach (var child in NavPanel.Children)
+        {
+            if (child is Button btn)
+                btn.Classes.Remove("active");
+        }
+        active.Classes.Add("active");
+    }
+
+    private void OnNavProjects(object? sender, RoutedEventArgs e)
+    {
+        SetNavActive(BtnProjects);
+        NavigateTo<ProjectsPage>();
+    }
+
+    private void OnNavNewProject(object? sender, RoutedEventArgs e)
+    {
+        SetNavActive(BtnNewProject);
+        NavigateTo<NewProjectPage>();
+    }
+
+    private void OnNavMyUploads(object? sender, RoutedEventArgs e)
+    {
+        SetNavActive(BtnMyUploads);
+        NavigateTo<MyUploadsPage>();
+    }
+
+    private void OnNavModStore(object? sender, RoutedEventArgs e)
+    {
+        SetNavActive(BtnModStore);
+        NavigateTo<ModManagerPage>();
+    }
+
+    private void OnNavSettings(object? sender, RoutedEventArgs e)
+    {
+        SetNavActive(BtnSettings);
+        NavigateTo<SettingsPage>();
+    }
+
+    public void NavigateTo<T>() where T : Control
+    {
+        _currentPage = _services.GetRequiredService<T>();
+        MainContent.Content = _currentPage;
+    }
+
+    public void NavigateTo(Control page)
+    {
+        _currentPage = page;
+        MainContent.Content = page;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
             BeginMoveDrag(e);
-        }
     }
 
     private void OnMinimizeClicked(object? sender, RoutedEventArgs e)

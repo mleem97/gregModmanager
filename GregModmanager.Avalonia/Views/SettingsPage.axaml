@@ -1,0 +1,64 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.SettingsPage">
+  <StackPanel Margin="18" Spacing="14" MaxWidth="700" HorizontalAlignment="Left">
+    <StackPanel Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="SYSTEM" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="Settings" Classes="headline" />
+      <TextBlock Text="Configure paths, language and features." Classes="subtext" />
+    </StackPanel>
+
+    <Border Classes="panel">
+      <StackPanel Spacing="12">
+        <TextBlock Text="GAME ROOT PATH" Classes="micro-label" />
+        <TextBlock x:Name="CurrentGameRootLabel" Classes="subtext" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox x:Name="GameRootEntry" Classes="input-terminal" Width="400" />
+          <Button Content="Browse" Classes="btn-primary" Click="OnBrowseGameRoot" />
+          <Button Content="Apply" Classes="btn-primary" Click="OnApplyGameRoot" />
+          <Button Content="Reset" Click="OnResetGameRoot" />
+        </StackPanel>
+        <TextBlock x:Name="GameRootHint" Foreground="{DynamicResource Error}" FontSize="11" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="panel">
+      <StackPanel Spacing="12">
+        <TextBlock Text="WORKSPACE PATH" Classes="micro-label" />
+        <TextBlock x:Name="CurrentPathLabel" Classes="subtext" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBox x:Name="CustomPathEntry" Classes="input-terminal" Width="400" />
+          <Button Content="Browse" Classes="btn-primary" Click="OnBrowseWorkspace" />
+          <Button Content="Apply" Classes="btn-primary" Click="OnApplyPath" />
+          <Button Content="Reset" Click="OnResetPath" />
+        </StackPanel>
+        <TextBlock x:Name="PathHint" Foreground="{DynamicResource Error}" FontSize="11" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="panel">
+      <StackPanel Spacing="12">
+        <TextBlock Text="LANGUAGE" Classes="micro-label" />
+        <ComboBox x:Name="LanguagePicker" Classes="input-terminal" SelectionChanged="OnLanguageChanged" />
+        <TextBlock x:Name="LanguageHint" Foreground="{DynamicResource Error}" FontSize="11" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="panel">
+      <StackPanel Spacing="12">
+        <TextBlock Text="FEATURES" Classes="micro-label" />
+        <CheckBox x:Name="ModStoreSwitch" Content="Enable Mod Store" Click="OnModStoreToggled" />
+        <TextBlock x:Name="ModStoreHint" Foreground="{DynamicResource Error}" FontSize="11" />
+      </StackPanel>
+    </Border>
+
+    <StackPanel Orientation="Horizontal" Spacing="8">
+      <Button Content="Open Logs" Click="OnOpenLogs" />
+      <Button Content="Create Repro Bundle" Click="OnCreateReproBundle" />
+      <Button Content="Restart App" Classes="btn-primary" Click="OnRestartApp" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>

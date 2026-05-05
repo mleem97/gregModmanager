@@ -5,6 +5,6 @@
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <fluent:FluentTheme />
-    <StyleInclude Source="avares://GregModmanager.Avalonia/Styles/TerminalCore.axaml" />
+    <StyleInclude Source="avares://GregModmanager/Styles/TerminalCore.axaml" />
   </Application.Styles>
 </Application>

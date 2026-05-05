@@ -1,0 +1,165 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.EditorPage">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="18">
+    <StackPanel Grid.Row="0" Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="EDITOR" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock x:Name="TitleLabel" Text="Workshop Item" Classes="headline" />
+      <TextBlock x:Name="PathLabel" Classes="subtext" />
+      <TextBlock x:Name="SyncStatusLabel" Classes="subtext" Foreground="{DynamicResource Primary}" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
+      <Button x:Name="TabBtnDetails" Content="Details" Click="OnTabDetails" />
+      <Button x:Name="TabBtnAssets" Content="Assets" Click="OnTabAssets" />
+      <Button x:Name="TabBtnPublish" Content="Publish" Click="OnTabPublish" />
+      <Button Content="Reload from Disk" Click="OnReloadFromDisk" />
+      <Button Content="Open in Explorer" Click="OnOpenInExplorer" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="2" x:Name="PanelDetails" IsVisible="True">
+      <StackPanel Spacing="12">
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="TITLE" Classes="micro-label" />
+            <TextBox x:Name="TitleEntry" Classes="input-terminal" TextChanged="OnTitleChanged" />
+            <TextBlock x:Name="TitleCountLabel" Classes="subtext" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="DESCRIPTION" Classes="micro-label" />
+            <TextBox x:Name="DescriptionEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="180" TextChanged="OnDescriptionChanged" />
+            <TextBlock x:Name="DescriptionCountLabel" Classes="subtext" />
+            <WrapPanel Orientation="Horizontal">
+              <Button Content="B" Click="OnBbBold" />
+              <Button Content="I" Click="OnBbItalic" />
+              <Button Content="U" Click="OnBbUnderline" />
+              <Button Content="S" Click="OnBbStrike" />
+              <Button Content="H1" Click="OnBbH1" />
+              <Button Content="H2" Click="OnBbH2" />
+              <Button Content="H3" Click="OnBbH3" />
+              <Button Content="Code" Click="OnBbCode" />
+              <Button Content="Quote" Click="OnBbQuote" />
+              <Button Content="Spoiler" Click="OnBbSpoiler" />
+              <Button Content="URL" Click="OnBbUrl" />
+              <Button Content="IMG" Click="OnBbImg" />
+              <Button Content="List" Click="OnBbList" />
+              <Button Content="HR" Click="OnBbHr" />
+              <Button Content="Table" Click="OnBbTable" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="TAGS" Classes="micro-label" />
+            <TextBox x:Name="TagsEntry" Classes="input-terminal" TextChanged="OnTagsChanged" />
+            <TextBlock x:Name="TagsHintLabel" Classes="subtext" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="VISIBILITY" Classes="micro-label" />
+            <ComboBox x:Name="VisibilityPicker" Classes="input-terminal" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="OPTIONS" Classes="micro-label" />
+            <CheckBox x:Name="NeedsgregSwitch" Content="Needs gregCoreModFramework" Click="OnNeedsgregToggled" />
+            <CheckBox x:Name="NeedsMelonLoaderSwitch" Content="Needs MelonLoader" Click="OnNeedsMelonLoaderToggled" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Native profile:" VerticalAlignment="Center" />
+              <ComboBox x:Name="NativeProfilePicker" Classes="input-terminal" SelectionChanged="OnNativeProfileChanged" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="WORKSHOP DEPENDENCIES" Classes="micro-label" />
+            <StackPanel x:Name="WorkshopDepStack" Spacing="4" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBox x:Name="WorkshopDepIdEntry" Classes="input-terminal" Watermark="Workshop ID" Width="200" />
+              <Button Content="Add by ID" Classes="btn-primary" Click="OnWorkshopDepAddById" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="PREVIEW IMAGE" Classes="micro-label" />
+            <TextBlock x:Name="PreviewPathLabel" Classes="subtext" TextWrapping="Wrap" />
+            <Button Content="Pick Preview" Classes="btn-primary" Click="OnPickPreview" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="CONTENT" Classes="micro-label" />
+            <TextBlock x:Name="ContentStatusLabel" Classes="subtext" />
+            <TextBlock x:Name="ContentSizeBody" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <ScrollViewer Grid.Row="2" x:Name="PanelAssets" IsVisible="False">
+      <StackPanel Spacing="12">
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="SCREENSHOTS" Classes="micro-label" />
+            <TextBlock x:Name="ScreenshotCountLabel" Classes="subtext" />
+            <StackPanel x:Name="ScreenshotsGallery" Spacing="4" />
+            <Button Content="Add Screenshot" Classes="btn-primary" Click="OnAddScreenshot" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <ScrollViewer Grid.Row="2" x:Name="PanelPublish" IsVisible="False">
+      <StackPanel Spacing="12">
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock x:Name="PublishedIdLabel" Classes="subtext" />
+            <TextBlock Text="CHANGELOG" Classes="micro-label" />
+            <TextBox x:Name="ChangeLogEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="120" TextChanged="OnChangeLogTextChanged" />
+            <TextBlock x:Name="ChangeLogHintLabel" Classes="subtext" />
+            <Button x:Name="ViewOnSteamBtn" Content="View on Steam" Click="OnViewOnSteam" IsVisible="False" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="panel">
+          <StackPanel Spacing="8">
+            <TextBlock Text="UPLOAD CHECKS" Classes="micro-label" />
+            <ItemsControl x:Name="CheckResultsList">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel Margin="0,0,0,6">
+                    <TextBlock Text="{Binding Label}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding Detail}" FontSize="11" />
+                    <TextBlock Text="{Binding Severity}" FontSize="10" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="ReadinessStatusLabel" FontWeight="Bold" />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button Content="Save" Classes="btn-primary" Click="OnSave" />
+          <Button Content="Save &amp; Upload" Classes="btn-primary" Click="OnSaveAndUpload" />
+          <Button Content="Export ZIP" Click="OnExportContentZip" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

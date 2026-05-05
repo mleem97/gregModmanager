@@ -1,0 +1,357 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: 'Signing mode: auto = PFX when secret exists, else self-signed'
+        type: choice
+        options:
+          - auto
+          - self-signed
+          - pfx
+          - none
+        default: 'auto'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  AVALONIA_PROJECT: 'GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+  CORE_PROJECT: 'GregModmanager.Core.csproj'
+  SOLUTION: 'GregModmanager.sln'
+
+permissions:
+  contents: read
+  attestations: write
+  id-token: write
+
+jobs:
+  version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      numeric_version: ${{ steps.resolve.outputs.numeric_version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: resolve
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
+          $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
+          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.0.0' }
+          $numeric = $ver -replace '-.*$',''
+          if ($numeric -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+            if ($numeric -match '^\d+\.\d+\.\d+$') { $numeric += '.0' }
+            else { $numeric = '1.0.0.0' }
+          }
+          $isRelease = if ($env:GITHUB_REF_NAME -match '^v\d') { 'true' } else { 'false' }
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "numeric_version=$numeric" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "is_release=$isRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Version=$ver Numeric=$numeric IsRelease=$isRelease"
+
+  test:
+    name: Test
+    needs: [version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet restore ${{ env.SOLUTION }}
+      - run: dotnet build ${{ env.SOLUTION }} --no-restore -c Release
+      - run: dotnet test ${{ env.SOLUTION }} --no-build -c Release --verbosity normal
+
+  build-windows:
+    name: Build Windows
+    needs: [version, test]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    outputs:
+      setup_name: ${{ steps.package.outputs.setup_name }}
+      portable_name: ${{ steps.package.outputs.portable_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Determine signing mode
+        id: signing
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+          SIGNING_INPUT: ${{ inputs.signing || 'auto' }}
+        run: |
+          $mode = $env:SIGNING_INPUT
+          $hasPfx = -not [string]::IsNullOrWhiteSpace($env:PFX_BASE64)
+          if ($mode -eq 'auto') { $mode = if ($hasPfx) { 'pfx' } else { 'self-signed' } }
+          if ($mode -eq 'none') { $mode = '' }
+          "signing_mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Signing mode: $mode"
+
+      - name: Decode PFX certificate
+        if: steps.signing.outputs.signing_mode == 'pfx'
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+          PFX_PWD: ${{ secrets.CODE_SIGN_PFX_PASSWORD }}
+        run: |
+          $pfxBytes = [System.Convert]::FromBase64String($env:PFX_BASE64)
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'code-signing.pfx'
+          [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+          "CODE_SIGN_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "CODE_SIGN_PFX_PASSWORD=$($env:PFX_PWD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Create self-signed certificate
+        if: steps.signing.outputs.signing_mode == 'self-signed'
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=GregTools CI" `
+            -KeyUsage DigitalSignature -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
+            -NotAfter (Get-Date).AddDays(7) -CertStoreLocation Cert:\CurrentUser\My -FriendlyName "GregTools CI"
+          "CODE_SIGN_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build & Package
+        id: package
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          NUMERIC_VERSION: ${{ needs.version.outputs.numeric_version }}
+        run: |
+          $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
+          if ($sign) {
+            .\build.ps1 -Sign
+          } else {
+            .\build.ps1
+          }
+          $setup = Get-ChildItem -Path 'installer\Output\gregModmanager-*-Setup.exe' | Select-Object -First 1
+          $portable = Get-ChildItem -Path 'installer\Output\win64-v*-portable.zip' | Select-Object -First 1
+          if (-not $setup) { throw "Setup EXE not found" }
+          if (-not $portable) { throw "Portable ZIP not found" }
+          "setup_name=$($setup.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "portable_name=$($portable.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Setup: $($setup.Name)"
+          Write-Host "Portable: $($portable.Name)"
+
+      - name: Upload Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: installer/Output/gregModmanager-*-Setup.exe
+          if-no-files-found: error
+
+      - name: Upload Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: installer/Output/win64-v*-portable.zip
+          if-no-files-found: error
+
+      - name: Attest Windows Build
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            installer/Output/gregModmanager-*-Setup.exe
+            installer/Output/win64-v*-portable.zip
+
+  build-linux:
+    name: Build Linux
+    needs: [version, test]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+    outputs:
+      tar_name: ${{ steps.package.outputs.tar_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Publish Linux x64
+        run: |
+          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
+            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
+            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
+            -o ./publish/linux-x64
+
+      - name: Create tarball
+        id: package
+        run: |
+          mkdir -p ./artifacts
+          chmod +x ./publish/linux-x64/GregModmanager
+          tar -czf "./artifacts/gregmodmanager-${{ needs.version.outputs.version }}-linux-x64.tar.gz" -C ./publish/linux-x64 .
+          echo "tar_name=gregmodmanager-${{ needs.version.outputs.version }}-linux-x64.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-portable
+          path: artifacts/gregmodmanager-*-linux-x64.tar.gz
+          if-no-files-found: error
+
+      - name: Attest Linux Build
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: artifacts/gregmodmanager-*-linux-x64.tar.gz
+
+  build-linux-packages:
+    name: Build Linux Packages (DEB/RPM/APK/Arch)
+    needs: [version, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install nfpm
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://repo.goreleaser.com/gpg.key | sudo tee /etc/apt/keyrings/goreleaser.asc >/dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/goreleaser.asc] https://repo.goreleaser.com/apt/ stable main" | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+
+      - name: Publish Linux x64
+        run: |
+          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
+            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
+            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
+            -o ./artifacts/publish
+
+      - name: Build packages
+        run: |
+          chmod +x ./scripts/linux/build-avalonia-packages.sh
+          ./scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }}
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: artifacts/packages/*
+          if-no-files-found: error
+
+      - name: Build & Push GHCR Container
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/gregmodmanager
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t "$IMAGE_NAME:${{ needs.version.outputs.version }}" -t "$IMAGE_NAME:latest" -f - . <<'EOF'
+          FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
+          WORKDIR /opt/gregmodmanager
+          COPY artifacts/publish/ ./
+          RUN chmod +x /opt/gregmodmanager/GregModmanager
+          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
+          EOF
+          docker push "$IMAGE_NAME:${{ needs.version.outputs.version }}"
+          docker push "$IMAGE_NAME:latest"
+
+  release:
+    name: Release
+    needs: [version, build-windows, build-linux, build-linux-packages]
+    runs-on: ubuntu-latest
+    if: needs.version.outputs.is_release == 'true' && github.event_name != 'pull_request'
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      attestations: write
+    environment: release
+    steps:
+      - name: Download Windows Setup
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-setup
+          path: ./dist
+
+      - name: Download Windows Portable
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-portable
+          path: ./dist
+
+      - name: Download Linux Portable
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-portable
+          path: ./dist
+
+      - name: Download Linux Packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-packages
+          path: ./dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ./dist/**
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+
+      - name: Attest Release
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: ./dist/**

@@ -2,12 +2,13 @@ name: Discord Release Notification
 
 on:
   workflow_run:
-    workflows: ["gregModmanager Build & Sign"]
-    types: [completed]
+    workflows: [ "gregModmanager Build & Sign" ]
+    types: [ completed ]
 
 jobs:
   select-linux-runner:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'release' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'release' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     outputs:
@@ -62,9 +63,10 @@ jobs:
             core.setOutput('runs_on', selected);
 
   notify-discord:
-    needs: [select-linux-runner]
+    needs: [ select-linux-runner ]
     runs-on: ${{ fromJSON(needs.select-linux-runner.outputs.runs_on) }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'release' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'release' }}
     permissions:
       contents: read
       actions: read
@@ -175,4 +177,3 @@ jobs:
           curl -sS -X POST "$DISCORD_WEBHOOK_URL" \
             -H "Content-Type: application/json" \
             -d "$payload"
-

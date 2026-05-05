@@ -1,8 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Microsoft.Maui.ApplicationModel;
-using Microsoft.Maui.Storage;
+using GregModmanager.Localization;
 using GregModmanager.Services;
 using GregModmanager.Models.Auth;
 
@@ -33,7 +32,7 @@ public class SessionManager : ISessionManager
             ProtocolInvoked?.Invoke(uri);
         });
 
-        var refresh = await SecureStorage.GetAsync("greg_refresh_token");
+        var refresh = S.Preferences.GetString("greg_refresh_token", "");
         if (!string.IsNullOrEmpty(refresh))
         {
             State = SessionState.Refreshing;
@@ -65,7 +64,7 @@ public class SessionManager : ISessionManager
         {
             try
             {
-                await Browser.Default.OpenAsync(loginUrl, BrowserLaunchMode.External);
+                await SafeProcess.OpenUrlAsync(loginUrl);
             }
             catch (Exception ex)
             {
@@ -109,7 +108,7 @@ public class SessionManager : ISessionManager
             {
                 CurrentSession = session;
                 State = SessionState.Authenticated;
-                await SecureStorage.SetAsync("greg_refresh_token", "mock_refresh"); // from real response
+                S.Preferences.SetString("greg_refresh_token", "mock_refresh"); // from real response
                 StateChanged?.Invoke();
                 AppFileLog.Info("User session authenticated successfully.");
             }
@@ -134,7 +133,7 @@ public class SessionManager : ISessionManager
         {
             await _apiClient.EndSessionAsync(CurrentSession.AccessToken);
         }
-        SecureStorage.Remove("greg_refresh_token");
+        S.Preferences.Remove("greg_refresh_token");
         CurrentSession = null;
         State = SessionState.Anonymous;
         StateChanged?.Invoke();

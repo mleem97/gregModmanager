@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using Microsoft.Maui.ApplicationModel;
 
 namespace GregModmanager.Services;
 
@@ -19,7 +18,11 @@ public static class SafeProcess
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
                 (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
             {
-                await Browser.Default.OpenAsync(uri, BrowserLaunchMode.External);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = uri.ToString(),
+                    UseShellExecute = true
+                });
             }
             else
             {

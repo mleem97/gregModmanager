@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.NewProjectPage">
+  <StackPanel Margin="18" Spacing="14" MaxWidth="600" HorizontalAlignment="Left">
+    <StackPanel Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="CREATE" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="New Project" Classes="headline" />
+      <TextBlock Text="Create a new workshop project from a template." Classes="subtext" />
+    </StackPanel>
+
+    <Border Classes="panel">
+      <StackPanel Spacing="12">
+        <StackPanel Spacing="4">
+          <TextBlock Text="PROJECT NAME" Classes="micro-label" />
+          <TextBox x:Name="NameEntry" Text="MyWorkshopMod" Classes="input-terminal" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+          <TextBlock Text="TEMPLATE" Classes="micro-label" />
+          <ComboBox x:Name="TemplatePicker" Classes="input-terminal" SelectedIndex="0">
+            <ComboBoxItem Content="Vanilla" />
+            <ComboBoxItem Content="Modded" />
+            <ComboBoxItem Content="GCF" />
+            <ComboBoxItem Content="Uxml" />
+            <ComboBoxItem Content="Model" />
+            <ComboBoxItem Content="Texture" />
+            <ComboBoxItem Content="Audio" />
+          </ComboBox>
+        </StackPanel>
+
+        <Button Content="CREATE TEMPLATE" Classes="btn-primary" HorizontalAlignment="Left" Click="OnCreateTemplate" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

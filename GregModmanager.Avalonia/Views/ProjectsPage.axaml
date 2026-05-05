@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.ProjectsPage">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18">
+    <StackPanel Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="WORKSPACE" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="Projects" Classes="headline" />
+      <TextBlock Text="Manage your local workshop projects." Classes="subtext" />
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
+      <TextBox x:Name="SearchBox" Watermark="Search projects..." Width="300" Classes="input-terminal" TextChanged="OnSearchTextChanged" />
+      <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshProjects" />
+    </StackPanel>
+
+    <Border Grid.Row="2" Classes="panel">
+      <ScrollViewer>
+        <ItemsControl x:Name="ProjectList">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8" PointerPressed="OnProjectTapped">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Bold" />
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="11" />
+                    <TextBlock Text="{Binding Tags}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="10" IsVisible="{Binding HasTags}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                      <TextBlock Text="{Binding ReadinessText}" FontSize="10" Foreground="{Binding ReadinessColor}" />
+                      <TextBlock Text="{Binding PublishedStatus}" FontSize="10" Foreground="{DynamicResource Primary}" IsVisible="{Binding IsPublished}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <StackPanel Grid.Row="3" Margin="0,8,0,0" Spacing="4">
+      <TextBlock x:Name="WorkspacePathLabel" Classes="mono-data" />
+      <Border x:Name="LogPanel" Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" IsVisible="True">
+        <ScrollViewer MaxHeight="120">
+          <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap" />
+        </ScrollViewer>
+      </Border>
+    </StackPanel>
+  </Grid>
+</UserControl>

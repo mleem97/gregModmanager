@@ -1,7 +1,10 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
+
+[assembly: InternalsVisibleTo("GregModmanager")]
 
 namespace GregModmanager.Steam;
 

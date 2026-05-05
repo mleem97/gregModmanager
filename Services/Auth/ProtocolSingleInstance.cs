@@ -3,7 +3,6 @@ using System.IO;
 using System.IO.Pipes;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Maui.Dispatching;
 using GregModmanager.Services;
 
 namespace GregModmanager.Services.Auth;

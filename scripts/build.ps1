@@ -344,11 +344,11 @@ Nach der Installation ggf. PowerShell neu starten.
 "@
 }
 
-$projPath = Join-Path $repoRoot 'GregModmanager.csproj'
+$projPath = Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
 $csproj = [xml](Get-Content -LiteralPath $projPath -Raw)
 $ver = (
     $csproj.Project.PropertyGroup |
-    ForEach-Object { $_.ApplicationDisplayVersion } |
+    ForEach-Object { $_.Version } |
     Where-Object { $_ } |
     Select-Object -First 1
 ).Trim()
@@ -356,7 +356,7 @@ if ([string]::IsNullOrWhiteSpace($ver)) {
     $ver = '1.0.0'
 }
 
-$publishDir = Join-Path $repoRoot 'bin\Release\net9.0-windows10.0.19041.0\win-x64\publish'
+$publishDir = Join-Path $repoRoot 'GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
 $iss = Join-Path $repoRoot 'installer\gregModmanager.iss'
 $outDir = Join-Path $repoRoot 'installer\Output'
 $linuxRequested = $LinuxDistros.Count -gt 0
@@ -375,7 +375,7 @@ if (-not $isWindowsHost) {
     New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
     if (-not $linuxRequested) {
-        Write-Host '[build] Non-Windows host: kein Windows-MAUI-Build moeglich. Uebergib -LinuxDistros Debian,Kali,... fuer Linux-Source-Bundles.'
+        Write-Host '[build] Non-Windows host: kein Windows-Build moeglich. Uebergib -LinuxDistros Debian,Kali,... fuer Linux-Source-Bundles.'
         exit 0
     }
 
@@ -391,8 +391,8 @@ if (-not $SkipPublish) {
         Write-Host "[build] Bereinige alte Publish-Ausgabe: $publishDir"
         Remove-Item -LiteralPath $publishDir -Recurse -Force
     }
-    Write-Host '[build] dotnet publish -c Release -f net9.0-windows10.0.19041.0 ...'
-    & dotnet publish $projPath -c Release -f net9.0-windows10.0.19041.0
+    Write-Host '[build] dotnet publish -c Release -r win-x64 ...'
+    & dotnet publish $projPath -c Release -r win-x64
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
     Write-Warning "-SkipPublish aktiv: Es wird eine bestehende Publish-Ausgabe verpackt. Bei Startproblemen bitte ohne -SkipPublish neu bauen."

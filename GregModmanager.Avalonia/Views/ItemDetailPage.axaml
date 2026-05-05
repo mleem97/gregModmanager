@@ -1,0 +1,93 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.ItemDetailPage">
+  <Grid RowDefinitions="Auto,*" Margin="18">
+    <StackPanel Grid.Row="0" Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="WORKSHOP" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="Item Detail" Classes="headline" />
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="12">
+        <TextBlock x:Name="LoadingLabel" Text="Loading..." Classes="subtext" />
+
+        <StackPanel x:Name="ContentPanel" Spacing="12" IsVisible="False">
+          <Border Classes="panel">
+            <StackPanel Spacing="8">
+              <TextBlock x:Name="ItemTitle" Classes="headline" />
+              <TextBlock x:Name="AuthorLabel" Classes="subtext" />
+              <TextBlock x:Name="SourceBadge" Classes="micro-label" Padding="6,2" Background="{DynamicResource Primary}" Foreground="{DynamicResource OnPrimary}" />
+              <TextBlock x:Name="VisibilityLabel" Classes="subtext" />
+              <TextBlock x:Name="FileIdLabel" Classes="subtext" FontSize="10" />
+              <TextBlock x:Name="PreviewUrlLabel" Classes="subtext" FontSize="10" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="panel">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Subscriptions:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="0" Grid.Column="1" x:Name="SubsCount" />
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Favorites:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="1" Grid.Column="1" x:Name="FavsCount" />
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Votes:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="2" Grid.Column="1" x:Name="VotesLabel" />
+
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Size:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="3" Grid.Column="1" x:Name="SizeLabel" />
+
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Score:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ScoreLabel" />
+
+              <TextBlock Grid.Row="5" Grid.Column="0" Text="Comments:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CommentsCount" />
+
+              <TextBlock Grid.Row="6" Grid.Column="0" Text="Updated:" Classes="micro-label" Margin="0,0,12,4" />
+              <TextBlock Grid.Row="6" Grid.Column="1" x:Name="UpdatedLabel" />
+            </Grid>
+          </Border>
+
+          <Border Classes="panel">
+            <StackPanel Spacing="8">
+              <TextBlock Text="DESCRIPTION" Classes="micro-label" />
+              <TextBlock x:Name="DescriptionLabel" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border x:Name="DependencyCard" Classes="panel" IsVisible="False">
+            <StackPanel Spacing="8">
+              <TextBlock Text="DEPENDENCIES" Classes="micro-label" />
+              <TextBlock x:Name="DependenciesBodyLabel" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="panel">
+            <StackPanel Spacing="8">
+              <TextBlock Text="TAGS" Classes="micro-label" />
+              <WrapPanel x:Name="TagsPanel" Orientation="Horizontal" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="SubscribeBtn" Content="Subscribe" Classes="btn-primary" Click="OnSubscribeToggle" />
+            <Button x:Name="FavoriteBtn" Content="Favorite" Click="OnFavoriteToggle" />
+            <Button Content="Vote Up" Click="OnVoteUp" />
+            <Button Content="Vote Down" Click="OnVoteDown" />
+            <Button Content="Open in Steam" Click="OnOpenInSteam" />
+          </StackPanel>
+
+          <TextBlock x:Name="StatusLabel" Classes="subtext" />
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Changelog" Click="OnOpenChangelog" />
+            <Button Content="Comments" Click="OnOpenComments" />
+          </StackPanel>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

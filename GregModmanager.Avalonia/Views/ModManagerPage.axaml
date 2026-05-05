@@ -1,0 +1,171 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GregModmanager.Avalonia.Views.ModManagerPage">
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="18">
+    <StackPanel Grid.Row="0" Spacing="4">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
+        <TextBlock Text="MODS" Classes="micro-label cyan" />
+      </StackPanel>
+      <TextBlock Text="Mod Manager" Classes="headline" />
+      <TextBlock Text="Browse, manage and check your mods." Classes="subtext" />
+    </StackPanel>
+
+    <Border x:Name="SyncStatusBar" Grid.Row="1" Background="#001E1C" Padding="8" Margin="0,8,0,0" IsVisible="False">
+      <TextBlock x:Name="SyncStatusLabel" />
+    </Border>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
+      <Button x:Name="TabStore" Content="Store" Click="OnTabStore" />
+      <Button x:Name="TabInstalled" Content="Installed" Click="OnTabInstalled" />
+      <Button x:Name="TabFavorites" Content="Favorites" Click="OnTabFavorites" />
+      <Button x:Name="TabHealth" Content="Health" Click="OnTabHealth" />
+      <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshCurrentTab" />
+    </StackPanel>
+
+    <!-- Store -->
+    <Border x:Name="StorePanel" Grid.Row="3" Classes="panel" IsVisible="True">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+          <TextBox x:Name="SearchEntry" Watermark="Search..." Width="250" Classes="input-terminal" />
+          <Button Content="Search" Classes="btn-primary" Click="OnSearchSubmit" />
+          <ComboBox x:Name="SortPicker" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />
+          <ComboBox x:Name="TagFilter" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1">
+          <ItemsControl x:Name="StoreList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                      <Button Content="Subscribe" Classes="btn-primary" Click="OnQuickSubscribe" />
+                      <Button Content="Details" Click="OnStoreItemTapped" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+          <Button x:Name="StorePrevBtn" Content="Prev" Click="OnStorePrev" />
+          <TextBlock x:Name="StorePageLabel" VerticalAlignment="Center" />
+          <Button x:Name="StoreNextBtn" Content="Next" Click="OnStoreNext" />
+          <TextBlock x:Name="StoreStatusLabel" VerticalAlignment="Center" Classes="subtext" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Installed -->
+    <Border x:Name="InstalledPanel" Grid.Row="3" Classes="panel" IsVisible="False">
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer>
+          <ItemsControl x:Name="InstalledList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Unsubscribe" Classes="btn-primary" Click="OnQuickUnsubscribe" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+          <Button x:Name="InstalledPrevBtn" Content="Prev" Click="OnInstalledPrev" />
+          <TextBlock x:Name="InstalledPageLabel" VerticalAlignment="Center" />
+          <Button x:Name="InstalledNextBtn" Content="Next" Click="OnInstalledNext" />
+          <TextBlock x:Name="InstalledStatusLabel" VerticalAlignment="Center" Classes="subtext" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Favorites -->
+    <Border x:Name="FavoritesPanel" Grid.Row="3" Classes="panel" IsVisible="False">
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer>
+          <ItemsControl x:Name="FavoritesList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Unfavorite" Classes="btn-primary" Click="OnQuickUnfavorite" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+          <Button x:Name="FavoritesPrevBtn" Content="Prev" Click="OnFavoritesPrev" />
+          <TextBlock x:Name="FavoritesPageLabel" VerticalAlignment="Center" />
+          <Button x:Name="FavoritesNextBtn" Content="Next" Click="OnFavoritesNext" />
+          <TextBlock x:Name="FavoritesStatusLabel" VerticalAlignment="Center" Classes="subtext" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Health -->
+    <Border x:Name="HealthPanel" Grid.Row="3" Classes="panel" IsVisible="False">
+      <ScrollViewer>
+        <StackPanel Spacing="14">
+          <TextBlock Text="DEPENDENCY CHECKS" Classes="micro-label" />
+          <TextBlock x:Name="MelonStatusLabel" Classes="subtext" />
+          <ItemsControl x:Name="ChecksList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Label}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Open" Click="OnOpenFolder" CommandParameter="{Binding Path}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="PLUGIN CHANNELS" Classes="micro-label" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="ChannelPicker" Classes="input-terminal" Width="150" SelectionChanged="OnChannelChanged" />
+            <Button Content="Refresh Checks" Classes="btn-primary" Click="OnRefreshChecks" />
+          </StackPanel>
+          <TextBlock x:Name="ChannelInfoLabel" Classes="subtext" />
+          <ItemsControl x:Name="PluginsList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding PluginId}" FontWeight="Bold" />
+                    <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Open Game Folder" Click="OnOpenGameFolder" />
+            <Button Content="MelonLoader Download" Click="OnMelonLoaderDownload" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

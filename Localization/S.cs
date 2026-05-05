@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Resources;
+using GregModmanager.Services;
 
 namespace GregModmanager.Localization;
 
@@ -15,6 +16,8 @@ public static class S
 	private static readonly ResourceManager Rm =
 		new("GregModmanager.Resources.Strings.AppStrings", typeof(S).Assembly);
 
+	public static IPreferences Preferences { get; set; } = new JsonFilePreferences();
+
 	public static string Get(string key)
 		=> Rm.GetString(key, CultureInfo.CurrentUICulture) ?? key;
 
@@ -27,8 +30,7 @@ public static class S
 	/// </summary>
 	public static void ApplySavedCulture()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var saved = Preferences.Default.Get(LanguagePreferenceKey, "");
+		var saved = Preferences.GetString(LanguagePreferenceKey, "");
 		if (string.IsNullOrWhiteSpace(saved)) return;
 
 		try
@@ -43,22 +45,15 @@ public static class S
 		{
 			// invalid culture string — ignore, keep system default
 		}
-#endif
 	}
 
 	public static void SetLanguage(string cultureCode)
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		Preferences.Default.Set(LanguagePreferenceKey, cultureCode);
-#endif
+		Preferences.SetString(LanguagePreferenceKey, cultureCode);
 	}
 
 	public static string GetSavedLanguage()
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		=> Preferences.Default.Get(LanguagePreferenceKey, "");
-#else
-		=> "";
-#endif
+		=> Preferences.GetString(LanguagePreferenceKey, "");
 
 	public static readonly (string Code, string DisplayName)[] SupportedLanguages =
 	[
@@ -73,4 +68,3 @@ public static class S
 		("zh", "中文"),
 	];
 }
-
