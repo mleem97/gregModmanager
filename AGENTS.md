@@ -196,3 +196,123 @@ Publish settings must include:
 ## Wiki Currency Check (Mandatory)
 - At the end of every change request, verify whether relevant wiki pages are up to date.
 - If updates are required, list the pages and include them in follow-up recommendations.
+
+---
+
+## 9. Versioning, Commits & Changelog
+
+### 9.1 Semantic Versioning (SemVer)
+
+This project follows [Semantic Versioning 2.0.0](https://semver.org/).
+
+- **Single source of truth:** `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` `<Version>` property.
+- Format: `MAJOR.MINOR.PATCH[-prerelease]` (e.g. `1.5.0`, `1.6.0-alpha1`).
+- **Bump rules:**
+  - `MAJOR` — breaking API or behavior changes (public interfaces, save-data formats, CLI arguments).
+  - `MINOR` — new features, new mod content types, new UI pages, backward-compatible additions.
+  - `PATCH` — bug fixes, security patches, performance improvements, docs corrections.
+  - Prerelease identifiers (`-alpha`, `-beta`, `-pre`) produce artifacts with `-pre` suffix.
+
+### 9.2 Conventional Commits
+
+All commits **MUST** follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+**Structure:**
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types and SemVer mapping:**
+
+| Type | SemVer impact | Use for |
+|------|---------------|---------|
+| `feat` | MINOR | New features, new UI pages, new public APIs |
+| `fix` | PATCH | Bug fixes, crash fixes, security patches |
+| `perf` | PATCH | Performance improvements |
+| `refactor` | PATCH | Code restructuring without behavior change |
+| `docs` | — | Documentation and comment changes |
+| `style` | — | Formatting, whitespace, semicolons |
+| `test` | — | Adding or correcting tests |
+| `build` | — | Build scripts, CI, dependencies |
+| `ci` | — | GitHub Actions, workflow changes |
+| `chore` | — | Routine maintenance, dependency bumps |
+
+**Breaking changes:**
+- Append `!` after type/scope: `feat(api)!: remove legacy upload endpoint`
+- OR add footer: `BREAKING CHANGE: old mod format no longer supported`
+- Breaking changes **always** trigger a **MAJOR** bump.
+
+**Examples:**
+```
+feat(workshop): add PlacableObject mod type routing
+
+Implements subdirectory routing for PlacableObject mods
+to {GameRoot}/Mods/Workshop/{id}/.
+
+Refs: #42
+```
+```
+fix(steam): prevent rate limit bypass in rapid publish
+
+SteamPublishRateLimiter now correctly resets the rolling
+window after 10 minutes.
+```
+```
+feat(auth)!: replace username/password with Steam OpenID
+
+BREAKING CHANGE: local credential store is no longer read.
+Users must re-authenticate via Steam.
+```
+
+**Agent rules when generating commits:**
+- Every commit must have a type prefix.
+- Scope is recommended for commits touching `Steam`, `Workshop`, `UI`, `Build`, `CI`.
+- Description uses imperative mood (`add`, not `added` or `adds`).
+- Body explains **why**, not just what.
+- Footer references issues/PRs with `Refs: #123`, `Closes: #456`, `Fixes: #789`.
+- **Never** combine unrelated changes in a single commit.
+
+### 9.3 Changelog Maintenance
+
+This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+- **File:** `CHANGELOG.md` at repository root.
+- **Format:** Markdown with `## [Version] - YYYY-MM-DD` headers.
+- **Sections per version:** `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+
+**Agent workflow:**
+1. When implementing a feature/fix, add an entry to the `[Unreleased]` section immediately.
+2. Entries should be concise, user-facing descriptions (not commit messages).
+3. Group related entries under the correct subsection.
+4. **Do not** edit released version sections.
+
+**Release promotion:**
+- The `[Unreleased]` header is promoted to a versioned header **only** by the automated workflow (`.github/workflows/promote-changelog.yml`).
+- The workflow is triggered manually via `workflow_dispatch` with the target version.
+- The workflow:
+  1. Renames `[Unreleased]` to `## [x.y.z] - YYYY-MM-DD`.
+  2. Inserts a new empty `[Unreleased]` block at the top.
+  3. Bumps `<Version>` in `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`.
+  4. Commits to `main` and pushes.
+  5. Optionally creates and pushes git tag `vx.y.z` (if `create_tag` is true).
+- After promotion, the `build-and-release.yml` workflow triggers automatically from the tag.
+
+**Manual emergency override:**
+If the automated workflow is unavailable, an agent **may** perform the promotion manually by editing `CHANGELOG.md` and the `.csproj` file in a single commit with message:
+```
+chore(release): promote changelog and bump version to x.y.z
+```
+
+### 9.4 Release Checklist (Agent Responsibility)
+
+Before triggering the promote workflow:
+- [ ] `CHANGELOG.md` `[Unreleased]` section is complete and accurate.
+- [ ] All referenced issues/PRs are closed or documented.
+- [ ] `AGENTS.md` updated if architecture or workflow changed.
+- [ ] `EXTERNAL_DEPENDENCIES.md` updated if new packages added.
+- [ ] Version in `.csproj` matches intended release (workflow will overwrite anyway, but verify).
+- [ ] `main` branch CI is green.

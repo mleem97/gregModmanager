@@ -1,0 +1,111 @@
+name: Promote Changelog
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Target version to release (e.g. 1.6.0)'
+        required: true
+      create_tag:
+        description: 'Create and push git tag v{version}'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    name: Promote Changelog & Bump Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        shell: pwsh
+        run: |
+          $ver = '${{ github.event.inputs.version }}'
+          if ($ver -notmatch '^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$') {
+            throw "Invalid version format: $ver. Expected: x.y.z or x.y.z-prerelease"
+          }
+          Write-Host "Version format OK: $ver"
+
+      - name: Promote CHANGELOG.md
+        shell: pwsh
+        run: |
+          $ver = '${{ github.event.inputs.version }}'
+          $date = (Get-Date -Format 'yyyy-MM-dd')
+          $changelogPath = 'CHANGELOG.md'
+          $content = Get-Content -Raw -LiteralPath $changelogPath
+
+          # Verify [Unreleased] exists
+          if ($content -notmatch '## \[Unreleased\]') {
+            throw "CHANGELOG.md does not contain a [Unreleased] section. Nothing to promote."
+          }
+
+          # Build new unreleased template to insert at the top
+          $newUnreleased = @"
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+"@
+
+          # Replace [Unreleased] with versioned header
+          $versionedHeader = "## [$ver] - $date"
+          $content = $content -replace '## \[Unreleased\]', $versionedHeader
+
+          # Insert new [Unreleased] block right after the title / compare links
+          # We insert after the first "## [" which is now our new version header
+          $content = $content -replace "(## \[$ver\] - $date\r?\n)", "`$1`n$newUnreleased"
+
+          Set-Content -LiteralPath $changelogPath -Value $content -NoNewline -Encoding utf8
+          Write-Host "Promoted [Unreleased] to [$ver] - $date"
+
+      - name: Bump .csproj version
+        shell: pwsh
+        run: |
+          $ver = '${{ github.event.inputs.version }}'
+          $csproj = 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+          [xml]$xml = Get-Content -LiteralPath $csproj
+          $prop = $xml.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1
+          if (-not $prop) {
+            $prop = $xml.Project.PropertyGroup | Select-Object -First 1
+          }
+          $oldVer = $prop.Version
+          $prop.Version = $ver
+          $xml.Save($csproj)
+          Write-Host "Bumped version in .csproj: $oldVer -> $ver"
+
+      - name: Commit and push to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+          git commit -m "chore(release): promote changelog and bump version to ${{ github.event.inputs.version }}"
+          git push origin main
+
+      - name: Create and push tag
+        if: ${{ github.event.inputs.create_tag == 'true' }}
+        run: |
+          $ver = '${{ github.event.inputs.version }}'
+          $tag = "v$ver"
+          git tag "$tag"
+          git push origin "$tag"
+        shell: bash
