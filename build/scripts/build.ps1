@@ -393,7 +393,8 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
             Write-Host '[build] Baue Linux-Packages (DEB/RPM/Arch) via WSL ...'
             $pkgOut = Join-Path $artifactsDir 'avalonia-linux'
             try {
-                & $linuxPkgScript -OutputDir $pkgOut -Version $ver -WslDistro $WslDistro
+                $preFlag = if ($verInfo.IsPre) { $true } else { $false }
+                & $linuxPkgScript -OutputDir $pkgOut -Version $ver -WslDistro $WslDistro -IsPre:$preFlag
                 if ($LASTEXITCODE -ne 0) { throw 'Linux-Packages fehlgeschlagen.' }
                 $pkgDir = Join-Path $pkgOut 'packages'
                 if (Test-Path -LiteralPath $pkgDir) {

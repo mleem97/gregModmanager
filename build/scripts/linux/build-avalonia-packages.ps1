@@ -3,7 +3,8 @@
 param(
     [string]$OutputDir = "",
     [string]$Version = "1.5.0",
-    [string]$WslDistro = ""
+    [string]$WslDistro = "",
+    [switch]$IsPre
 )
 
 Set-StrictMode -Version Latest
@@ -48,7 +49,8 @@ if (-not [string]::IsNullOrWhiteSpace($WslDistro)) {
     $wslArgs += @('-d', $WslDistro)
 }
 
-$bashCommand = "set -euo pipefail; bash '$wslScript' '$wslOutput' '$Version'"
+$preFlag = if ($IsPre) { 'true' } else { 'false' }
+$bashCommand = "set -euo pipefail; bash '$wslScript' '$wslOutput' '$Version' '$preFlag'"
 & wsl.exe @wslArgs bash -lc $bashCommand
 
 if ($LASTEXITCODE -ne 0) {
