@@ -30,6 +30,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      is_pre: ${{ steps.resolve.outputs.is_pre }}
     steps:
       - uses: actions/checkout@v4
       - id: resolve
@@ -38,7 +39,9 @@ jobs:
           [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
           $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
           if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.5.0' }
+          $isPre = if ($ver -match '-' -or ($env:GITHUB_REF_NAME -ne 'main' -and $env:GITHUB_REF_NAME -ne 'master')) { 'true' } else { 'false' }
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "is_pre=$isPre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
   build-packages:
     needs: [version]
@@ -72,20 +75,20 @@ jobs:
       - name: Build packages
         run: |
           chmod +x ./build/scripts/linux/build-avalonia-packages.sh
-          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }}
+          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-packages-detailed
-          path: artifacts/avalonia-linux/packages/*
+          path: artifacts/avalonia-linux/packages/gregModmanager-*
           if-no-files-found: error
 
       - name: Attest packages
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: artifacts/avalonia-linux/packages/*
+          subject-path: artifacts/avalonia-linux/packages/gregModmanager-*
 
       - name: Build GHCR container
         if: github.event_name != 'pull_request'

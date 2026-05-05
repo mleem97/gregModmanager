@@ -5,7 +5,13 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROJECT_PATH="$REPO_ROOT/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj"
 OUTPUT_ROOT="${1:-$REPO_ROOT/artifacts/avalonia-linux}"
 VERSION="${2:-1.1.0}"
+IS_PRE="${3:-false}"
 RID="linux-x64"
+
+PRE_SUFFIX=""
+if [ "$IS_PRE" = "true" ] || [ "$IS_PRE" = "1" ]; then
+  PRE_SUFFIX="-pre"
+fi
 
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 PKG_DIR="$OUTPUT_ROOT/packages"
@@ -13,11 +19,11 @@ mkdir -p "$PUBLISH_DIR" "$PKG_DIR"
 
 dotnet publish "$PROJECT_PATH" -c Release -r "$RID" --self-contained true -o "$PUBLISH_DIR"
 
-tar -C "$PUBLISH_DIR" -czf "$PKG_DIR/gregmodmanager-avalonia-${VERSION}-${RID}.tar.gz" .
+tar -C "$PUBLISH_DIR" -czf "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.tar.gz" .
 
 NFP_CONFIG="$OUTPUT_ROOT/nfpm.yaml"
 cat > "$NFP_CONFIG" <<EOF
-name: gregmodmanager-avalonia
+name: gregmodmanager
 arch: amd64
 platform: linux
 version: ${VERSION}
@@ -56,8 +62,8 @@ build_nfpm() {
   exit 1
 }
 
-build_nfpm deb "$PKG_DIR/gregmodmanager-avalonia_${VERSION}_amd64.deb"
-build_nfpm rpm "$PKG_DIR/gregmodmanager-avalonia-${VERSION}-1.x86_64.rpm"
-build_nfpm archlinux "$PKG_DIR/gregmodmanager-avalonia-${VERSION}-1-x86_64.pkg.tar.zst"
+build_nfpm deb "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.deb"
+build_nfpm rpm "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.rpm"
+build_nfpm archlinux "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.pkg.tar.zst"
 
 echo "Artifacts ready in: $OUTPUT_ROOT"

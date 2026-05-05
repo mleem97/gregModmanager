@@ -10,6 +10,10 @@
 #define MyAppNumericVersion "1.5.0.0"
 #endif
 
+#ifndef MyAppOutputBaseFilename
+#define MyAppOutputBaseFilename "gregModmanager-{#MyAppVersion}-Windows"
+#endif
+
 #define MyAppName "gregModmanager"
 #define MyAppPublisher "GregFramework"
 #define MyAppExeName "GregModmanager.exe"
@@ -34,7 +38,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=Output
-OutputBaseFilename=gregModmanager-{#MyAppVersion}-Setup
+OutputBaseFilename={#MyAppOutputBaseFilename}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

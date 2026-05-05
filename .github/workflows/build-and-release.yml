@@ -42,6 +42,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       numeric_version: ${{ steps.resolve.outputs.numeric_version }}
       is_release: ${{ steps.resolve.outputs.is_release }}
+      is_pre: ${{ steps.resolve.outputs.is_pre }}
     steps:
       - uses: actions/checkout@v4
       - id: resolve
@@ -56,10 +57,12 @@ jobs:
             else { $numeric = '1.5.0.0' }
           }
           $isRelease = if ($env:GITHUB_REF_NAME -match '^v\d') { 'true' } else { 'false' }
+          $isPre = if ($ver -match '-' -or ($env:GITHUB_REF_NAME -ne 'main' -and $env:GITHUB_REF_NAME -ne 'master' -and -not ($env:GITHUB_REF_NAME -match '^v\d'))) { 'true' } else { 'false' }
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "numeric_version=$numeric" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "is_release=$isRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "Version=$ver Numeric=$numeric IsRelease=$isRelease"
+          "is_pre=$isPre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Version=$ver Numeric=$numeric IsRelease=$isRelease IsPre=$isPre"
 
   test:
     name: Test
@@ -153,6 +156,7 @@ jobs:
         env:
           VERSION: ${{ needs.version.outputs.version }}
           NUMERIC_VERSION: ${{ needs.version.outputs.numeric_version }}
+          IS_PRE: ${{ needs.version.outputs.is_pre }}
         run: |
           $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
           if ($sign) {
@@ -160,8 +164,9 @@ jobs:
           } else {
             .\build\scripts\build.ps1 -SkipTest -SkipLinux
           }
-          $setup = Get-ChildItem -Path 'build\installer\Output\gregModmanager-*-Setup.exe' | Select-Object -First 1
-          $portable = Get-ChildItem -Path 'build\installer\Output\win64-v*-portable.zip' | Select-Object -First 1
+          $preSuffix = if ($env:IS_PRE -eq 'true') { '-pre' } else { '' }
+          $setup = Get-ChildItem -Path ("build\installer\Output\gregModmanager-*{0}-Windows.exe" -f $preSuffix) | Select-Object -First 1
+          $portable = Get-ChildItem -Path ("build\installer\Output\gregModmanager-*{0}-Windows.zip" -f $preSuffix) | Select-Object -First 1
           if (-not $setup) { throw "Setup EXE not found" }
           if (-not $portable) { throw "Portable ZIP not found" }
           "setup_name=$($setup.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -173,14 +178,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: build/installer/Output/gregModmanager-*-Setup.exe
+          path: build/installer/Output/gregModmanager-*-Windows.exe
           if-no-files-found: error
 
       - name: Upload Portable
         uses: actions/upload-artifact@v4
         with:
           name: windows-portable
-          path: build/installer/Output/win64-v*-portable.zip
+          path: build/installer/Output/gregModmanager-*-Windows.zip
           if-no-files-found: error
 
       - name: Attest Windows Build
@@ -188,8 +193,8 @@ jobs:
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
-            build/installer/Output/gregModmanager-*-Setup.exe
-            build/installer/Output/win64-v*-portable.zip
+            build/installer/Output/gregModmanager-*-Windows.exe
+            build/installer/Output/gregModmanager-*-Windows.zip
 
   build-linux:
     name: Build Linux
@@ -225,24 +230,29 @@ jobs:
 
       - name: Create tarball
         id: package
+        env:
+          IS_PRE: ${{ needs.version.outputs.is_pre }}
         run: |
           mkdir -p ./artifacts
           chmod +x ./publish/linux-x64/GregModmanager
-          tar -czf "./artifacts/gregmodmanager-${{ needs.version.outputs.version }}-linux-x64.tar.gz" -C ./publish/linux-x64 .
-          echo "tar_name=gregmodmanager-${{ needs.version.outputs.version }}-linux-x64.tar.gz" >> "$GITHUB_OUTPUT"
+          preSuffix=""
+          if [ "$IS_PRE" = "true" ]; then preSuffix="-pre"; fi
+          tarName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.tar.gz"
+          tar -czf "./artifacts/${tarName}" -C ./publish/linux-x64 .
+          echo "tar_name=${tarName}" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball
         uses: actions/upload-artifact@v4
         with:
           name: linux-portable
-          path: artifacts/gregmodmanager-*-linux-x64.tar.gz
+          path: artifacts/gregModmanager-*-Linux.tar.gz
           if-no-files-found: error
 
       - name: Attest Linux Build
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: artifacts/gregmodmanager-*-linux-x64.tar.gz
+          subject-path: artifacts/gregModmanager-*-Linux.tar.gz
 
   build-linux-packages:
     name: Build Linux Packages (DEB/RPM/APK/Arch)
@@ -282,13 +292,13 @@ jobs:
       - name: Build packages
         run: |
           chmod +x ./build/scripts/linux/build-avalonia-packages.sh
-          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }}
+          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
           name: linux-packages
-          path: artifacts/packages/*
+          path: artifacts/packages/gregModmanager-*
           if-no-files-found: error
 
       - name: Build & Push GHCR Container

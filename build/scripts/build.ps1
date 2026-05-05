@@ -55,9 +55,21 @@ function Get-ProjectVersion {
         else { $numeric = '1.5.0.0' }
     }
 
+    $isPre = $ver -match '-'
+    if (-not $isPre) {
+        try {
+            $branch = & git -C $repoRoot rev-parse --abbrev-ref HEAD 2>$null
+            if ($LASTEXITCODE -eq 0 -and $branch -ne 'main' -and $branch -ne 'master') {
+                $isPre = $true
+            }
+        } catch { }
+    }
+
     return [PSCustomObject]@{
         Version        = $ver
         NumericVersion = $numeric
+        IsPre          = $isPre
+        PreSuffix      = if ($isPre) { '-pre' } else { '' }
     }
 }
 
@@ -274,7 +286,7 @@ if ($isWindowsHost -and -not $SkipWindows) {
 
     if (-not (Test-Path -LiteralPath $winPublishDir)) { throw "Windows Publish-Ausgabe nicht gefunden: $winPublishDir" }
 
-    $portableZipPath = Join-Path $installerOutDir ("win64-v{0}-portable.zip" -f $ver)
+    $portableZipPath = Join-Path $installerOutDir ("gregModmanager-{0}{1}-Windows.zip" -f $ver, $verInfo.PreSuffix)
     if (Test-Path -LiteralPath $portableZipPath) { Remove-Item -LiteralPath $portableZipPath -Force }
 
     if ($wantSign) {
@@ -300,11 +312,12 @@ if ($isWindowsHost -and -not $SkipWindows) {
     } else {
         if (-not (Test-Path -LiteralPath $iss)) { throw "Inno-Skript fehlt: $iss" }
         Write-Host "[build] Inno Setup ($iscc) - Version $ver ..."
-        $argList = @($iss, "/DMyAppVersion=$ver", "/DMyAppNumericVersion=$numericVer")
+        $outputBaseName = "gregModmanager-$ver$($verInfo.PreSuffix)-Windows"
+        $argList = @($iss, "/DMyAppVersion=$ver", "/DMyAppNumericVersion=$numericVer", "/DMyAppOutputBaseFilename=$outputBaseName")
         & $iscc @argList
         if ($LASTEXITCODE -ne 0) { throw "ISCC beendet mit Code $LASTEXITCODE" }
 
-        $setupName = "gregModmanager-$ver-Setup.exe"
+        $setupName = "gregModmanager-$ver$($verInfo.PreSuffix)-Windows.exe"
         $setupPath = Join-Path $installerOutDir $setupName
         if (Test-Path -LiteralPath $setupPath) {
             $mb = [math]::Round((Get-Item -LiteralPath $setupPath).Length / 1MB, 2)
@@ -348,7 +361,7 @@ if (-not $SkipLinux) {
     $linuxBin = Join-Path $linuxPublishDir 'GregModmanager'
     if (-not (Test-Path -LiteralPath $linuxBin)) { throw "Linux-Binary nicht gefunden: $linuxBin" }
 
-    $tarName = "gregmodmanager-$ver-linux-x64.tar.gz"
+    $tarName = "gregModmanager-$ver$($verInfo.PreSuffix)-Linux.tar.gz"
     $tarPath = Join-Path $artifactsDir $tarName
     if (Test-Path -LiteralPath $tarPath) { Remove-Item -LiteralPath $tarPath -Force }
 

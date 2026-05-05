@@ -6,6 +6,9 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 ![Steam](https://img.shields.io/badge/Steam-Workshop-1b2838?style=for-the-badge&logo=steam)
+<br>
+![Build & Release](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/build-and-release.yml?style=for-the-badge&label=Build%20%26%20Release)
+![Linux Packages](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/linux-packages.yml?style=for-the-badge&label=Linux%20Packages)
 
 **Current Version:** `v1.5.1`
 
