@@ -360,7 +360,7 @@ $publishDir = Join-Path $repoRoot 'GregModmanager.Avalonia\bin\Release\net9.0\wi
 $iss = Join-Path $repoRoot 'installer\gregModmanager.iss'
 $outDir = Join-Path $repoRoot 'installer\Output'
 $linuxRequested = $LinuxDistros.Count -gt 0
-$wantSign = $false
+$wantSign = $Sign
 
 if (-not $isWindowsHost) {
     if ($Sign) {

@@ -2,7 +2,7 @@ name: Discord Release Notification
 
 on:
   workflow_run:
-    workflows: [ "gregModmanager Build & Sign" ]
+    workflows: [ "Build & Release" ]
     types: [ completed ]
 
 jobs:

@@ -3,57 +3,103 @@ name: Avalonia Linux Packages
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - "GregModmanager.Avalonia/**"
-      - "scripts/linux/**"
-      - ".github/workflows/avalonia-linux-packages.yml"
+      - 'GregModmanager.Avalonia/**'
+      - 'GregModmanager.Core/**'
+      - 'scripts/linux/**'
+      - '.github/workflows/avalonia-linux-packages.yml'
 
 permissions:
-  contents: write
+  contents: read
   packages: write
+  attestations: write
+  id-token: write
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  AVALONIA_PROJECT: 'GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-24.04
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
-
-      - name: Build Linux packages
+      - uses: actions/checkout@v4
+      - id: resolve
+        shell: pwsh
         run: |
-          chmod +x scripts/linux/build-avalonia-packages.sh scripts/linux/gregmodmanager
-          ./scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux 1.1.0
+          [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
+          $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
+          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.1.0' }
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  build-packages:
+    needs: [version]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install nfpm
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://repo.goreleaser.com/gpg.key | sudo tee /etc/apt/keyrings/goreleaser.asc >/dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/goreleaser.asc] https://repo.goreleaser.com/apt/ stable main" | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
+
+      - name: Build packages
+        run: |
+          chmod +x ./scripts/linux/build-avalonia-packages.sh
+          ./scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gregmodmanager-avalonia-linux
+          name: linux-packages-detailed
           path: artifacts/avalonia-linux/packages/*
+          if-no-files-found: error
+
+      - name: Attest packages
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: artifacts/avalonia-linux/packages/*
 
       - name: Build GHCR container
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/gregmodmanager
         run: |
-          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/gregmodmanager-avalonia"
-          docker build -t "$IMAGE_NAME:latest" -f - . <<'EOF'
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t "$IMAGE_NAME:${{ needs.version.outputs.version }}" -t "$IMAGE_NAME:latest" -f - . <<'EOF'
           FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
           WORKDIR /opt/gregmodmanager
           COPY artifacts/avalonia-linux/publish/ ./
-          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager.Avalonia"]
+          RUN chmod +x /opt/gregmodmanager/GregModmanager
+          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
           EOF
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push GHCR image
-        run: |
-          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/gregmodmanager-avalonia"
+          docker push "$IMAGE_NAME:${{ needs.version.outputs.version }}"
           docker push "$IMAGE_NAME:latest"
