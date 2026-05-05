@@ -188,7 +188,7 @@ function Invoke-SignWindowsPayloadBinaries {
     param([Parameter(Mandatory)][string]$PublishDirectory)
 
     $files = Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File |
-        Where-Object { $_.Extension -in @('.exe', '.dll') } |
+        Where-Object { $_.Extension -in @('.exe', '.dll') -and $_.Name -ne 'steam_api64.dll' } |
         Sort-Object FullName
 
     foreach ($file in $files) {
@@ -198,7 +198,11 @@ function Invoke-SignWindowsPayloadBinaries {
             continue
         }
 
-        Invoke-BuildSign -TargetPath $file.FullName
+        try {
+            Invoke-BuildSign -TargetPath $file.FullName
+        } catch {
+            Write-Warning "[build] Signieren fehlgeschlagen fuer $($file.Name): $($_.Exception.Message)"
+        }
     }
 }
 
