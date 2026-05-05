@@ -13,18 +13,20 @@ Read this before modifying code, building, or creating pull requests.
 - **Primary RID**: `win-x64` (Windows), `linux-x64` (Linux).
 - **Steam AppID**: `4170200` (Data Center).
 - **Solution**: `GregModmanager.sln`
-- **Executable Project**: `GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`
-- **Shared Library**: `GregModmanager.Core.csproj`
+- **Executable Project**: `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`
+- **Shared Library**: `src/GregModmanager.Core/GregModmanager.Core.csproj`
 
 ---
 
 ## 2. Architecture Rules
 
 ### 2.1 Project Layout
-- `GregModmanager.Avalonia/` — Avalonia executable, Views, DI setup, custom chrome window.
-- `GregModmanager.Core/` — Shared services, models, Steam integration, localization.
-- `scripts/` — All build and automation scripts.
-- `installer/` — Inno Setup script (`gregModmanager.iss`).
+- `src/GregModmanager.Avalonia/` — Avalonia executable, Views, DI setup, custom chrome window.
+- `src/GregModmanager.Core/` — Shared services, models, Steam integration, localization.
+- `src/SubDirectoryFixer/` — net6.0 helper project (MelonLoader plugin).
+- `tests/GregModmanager.Tests/` — xUnit test project.
+- `build/scripts/` — All build and automation scripts.
+- `build/installer/` — Inno Setup script (`gregModmanager.iss`) and signing tools.
 - `wiki/` — **Git submodule** pointing to `https://github.com/mleem97/gregModmanager.wiki.git`.
   - Do NOT commit wiki contents into the main repo.
   - Update the submodule pointer after wiki changes.
@@ -111,18 +113,18 @@ Publish settings must include:
 - Avoid adding large native dependencies without measuring publish output.
 
 ### 5.2 Build Orchestration
-- **Local builds**: use `scripts/build.ps1` (mirrors CI exactly).
-- **Interactive builder**: use `scripts/builder.ps1` or `scripts/builder.sh`.
+- **Local builds**: use `build/scripts/build.ps1` (mirrors CI exactly).
+- **Interactive builder**: use `build/builder.ps1` or `build/builder.sh`.
 - CI workflow: `.github/workflows/build-and-release.yml`.
 - The PowerShell script and the GitHub Actions workflow must stay in sync.
 
 ### 5.3 Signing
-- Windows binaries: Authenticode via `installer/sign-authenticode.ps1`.
+- Windows binaries: Authenticode via `build/installer/sign-authenticode.ps1`.
 - Environment: `CODE_SIGN_THUMBPRINT` (store cert) or `CODE_SIGN_PFX` + `CODE_SIGN_PFX_PASSWORD`.
 - If no cert is configured, the build script creates an ephemeral self-signed cert.
 
 ### 5.4 Versioning
-- Version lives in `GregModmanager.Avalonia.csproj` `<Version>` property.
+- Version lives in `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` `<Version>` property.
 - Numeric version: `x.y.z` → `x.y.z.0` for Inno Setup.
 - Single source of truth: the `.csproj` file.
 
