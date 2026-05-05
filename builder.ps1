@@ -4,7 +4,7 @@
 # Styled CLI UI for local builds, run, and test workflows.
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$repoRoot = $PSScriptRoot
 Set-Location $repoRoot
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ function Invoke-BuildAll {
     Write-Host '  [BUILD ALL]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & (Join-Path $PSScriptRoot 'build.ps1')
+        & (Join-Path $PSScriptRoot 'scripts\build.ps1')
         Write-Host ''
         Write-Host '  Build completed successfully.' -ForegroundColor $CSecondary
     } catch {
@@ -106,7 +106,7 @@ function Invoke-BuildWindows {
     Write-Host '  [BUILD WINDOWS]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & (Join-Path $PSScriptRoot 'build.ps1') -SkipLinux -SkipLinuxPackages
+        & (Join-Path $PSScriptRoot 'scripts\build.ps1') -SkipLinux -SkipLinuxPackages
         Write-Host ''
         Write-Host '  Windows build completed.' -ForegroundColor $CSecondary
     } catch {
@@ -121,7 +121,7 @@ function Invoke-BuildLinux {
     Write-Host '  [BUILD LINUX]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & (Join-Path $PSScriptRoot 'build.ps1') -SkipWindows -SkipLinuxPackages
+        & (Join-Path $PSScriptRoot 'scripts\build.ps1') -SkipWindows -SkipLinuxPackages
         Write-Host ''
         Write-Host '  Linux build completed.' -ForegroundColor $CSecondary
     } catch {
@@ -136,7 +136,7 @@ function Invoke-BuildLinuxPackages {
     Write-Host '  [BUILD LINUX PACKAGES]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & (Join-Path $PSScriptRoot 'build.ps1') -SkipWindows
+        & (Join-Path $PSScriptRoot 'scripts\build.ps1') -SkipWindows
         Write-Host ''
         Write-Host '  Linux packages built.' -ForegroundColor $CSecondary
     } catch {
@@ -214,7 +214,7 @@ function Invoke-InstallLocal {
     Write-Host '  [INSTALL LOCAL]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & (Join-Path $PSScriptRoot 'install-local.ps1')
+        & (Join-Path $PSScriptRoot 'scripts\install-local.ps1')
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }

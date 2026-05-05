@@ -20,8 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="DebugNdjsonSessionLog.cs" />
-    <Compile Include="DebugSessionLog.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Models\**\*.cs" />
     <Compile Include="Services\**\*.cs" />
