@@ -4,7 +4,7 @@
 # Styled CLI UI for local builds, run, and test workflows.
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = $PSScriptRoot
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ function Invoke-RunDebug {
     Write-Host '  [RUN DEBUG]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & dotnet run --project (Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Debug
+        & dotnet run --project (Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Debug
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
@@ -163,7 +163,7 @@ function Invoke-RunRelease {
     Write-Host '  [RUN RELEASE]' -ForegroundColor $CPrimary
     Write-Host ''
     try {
-        & dotnet run --project (Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Release
+        & dotnet run --project (Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Release
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
@@ -191,11 +191,15 @@ function Invoke-Clean {
     Write-Host ''
     $dirs = @(
         'artifacts',
-        'installer\Output',
-        'GregModmanager.Avalonia\bin',
-        'GregModmanager.Avalonia\obj',
-        'bin',
-        'obj'
+        'build\installer\Output',
+        'src\GregModmanager.Avalonia\bin',
+        'src\GregModmanager.Avalonia\obj',
+        'src\GregModmanager.Core\bin',
+        'src\GregModmanager.Core\obj',
+        'src\SubDirectoryFixer\bin',
+        'src\SubDirectoryFixer\obj',
+        'tests\GregModmanager.Tests\bin',
+        'tests\GregModmanager.Tests\obj'
     )
     foreach ($d in $dirs) {
         $p = Join-Path $repoRoot $d

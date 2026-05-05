@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROJECT_PATH="$REPO_ROOT/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj"
+PROJECT_PATH="$REPO_ROOT/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj"
 OUTPUT_ROOT="${1:-$REPO_ROOT/artifacts/avalonia-linux}"
 VERSION="${2:-1.1.0}"
 RID="linux-x64"
@@ -33,11 +33,11 @@ depends:
 contents:
   - src: ${PUBLISH_DIR}/
     dst: /opt/gregmodmanager/
-  - src: ${REPO_ROOT}/scripts/linux/gregmodmanager.desktop
+  - src: ${REPO_ROOT}/build/scripts/linux/gregmodmanager.desktop
     dst: /usr/share/applications/gregmodmanager.desktop
     file_info:
       mode: 0644
-  - src: ${REPO_ROOT}/scripts/linux/gregmodmanager
+  - src: ${REPO_ROOT}/build/scripts/linux/gregmodmanager
     dst: /usr/bin/gregmodmanager
     file_info:
       mode: 0755

@@ -18,11 +18,13 @@ if (-not (Test-Path -LiteralPath $linuxScript)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($SourceDir)) {
-    $SourceDir = Join-Path $repoRoot 'installer\Output'
-}
+    $SourceDir = Join-Path $repoRoot 'build\installer\Output'
 
-if ([string]::IsNullOrWhiteSpace($OutputDir)) {
-    $OutputDir = Join-Path $repoRoot 'installer\Output\linux-packages'
+    if (-not (Test-Path -LiteralPath $SourceDir)) {
+        throw "Installer-Ausgabe nicht gefunden: $SourceDir"
+    }
+
+    $OutputDir = Join-Path $repoRoot 'build\installer\Output\linux-packages'
 }
 
 $resolvedSource = (Resolve-Path -LiteralPath $SourceDir).Path

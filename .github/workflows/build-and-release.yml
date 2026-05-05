@@ -24,8 +24,8 @@ concurrency:
 
 env:
   DOTNET_VERSION: '9.0.x'
-  AVALONIA_PROJECT: 'GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
-  CORE_PROJECT: 'GregModmanager.Core.csproj'
+  AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+  CORE_PROJECT: 'src/GregModmanager.Core/GregModmanager.Core.csproj'
   SOLUTION: 'GregModmanager.sln'
 
 permissions:
@@ -156,12 +156,12 @@ jobs:
         run: |
           $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
           if ($sign) {
-            .\build.ps1 -Sign -SkipTest -SkipLinux
+            .\build\scripts\build.ps1 -Sign -SkipTest -SkipLinux
           } else {
-            .\build.ps1 -SkipTest -SkipLinux
+            .\build\scripts\build.ps1 -SkipTest -SkipLinux
           }
-          $setup = Get-ChildItem -Path 'installer\Output\gregModmanager-*-Setup.exe' | Select-Object -First 1
-          $portable = Get-ChildItem -Path 'installer\Output\win64-v*-portable.zip' | Select-Object -First 1
+          $setup = Get-ChildItem -Path 'build\installer\Output\gregModmanager-*-Setup.exe' | Select-Object -First 1
+          $portable = Get-ChildItem -Path 'build\installer\Output\win64-v*-portable.zip' | Select-Object -First 1
           if (-not $setup) { throw "Setup EXE not found" }
           if (-not $portable) { throw "Portable ZIP not found" }
           "setup_name=$($setup.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -173,14 +173,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: installer/Output/gregModmanager-*-Setup.exe
+          path: build/installer/Output/gregModmanager-*-Setup.exe
           if-no-files-found: error
 
       - name: Upload Portable
         uses: actions/upload-artifact@v4
         with:
           name: windows-portable
-          path: installer/Output/win64-v*-portable.zip
+          path: build/installer/Output/win64-v*-portable.zip
           if-no-files-found: error
 
       - name: Attest Windows Build
@@ -188,8 +188,8 @@ jobs:
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
-            installer/Output/gregModmanager-*-Setup.exe
-            installer/Output/win64-v*-portable.zip
+            build/installer/Output/gregModmanager-*-Setup.exe
+            build/installer/Output/win64-v*-portable.zip
 
   build-linux:
     name: Build Linux
@@ -281,8 +281,8 @@ jobs:
 
       - name: Build packages
         run: |
-          chmod +x ./scripts/linux/build-avalonia-packages.sh
-          ./scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }}
+          chmod +x ./build/scripts/linux/build-avalonia-packages.sh
+          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }}
 
       - name: Upload packages
         uses: actions/upload-artifact@v4

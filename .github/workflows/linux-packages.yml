@@ -5,10 +5,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'GregModmanager.Avalonia/**'
-      - 'GregModmanager.Core/**'
-      - 'scripts/linux/**'
-      - '.github/workflows/avalonia-linux-packages.yml'
+      - 'src/GregModmanager.Avalonia/**'
+      - 'src/GregModmanager.Core/**'
+      - 'build/scripts/linux/**'
+      - '.github/workflows/linux-packages.yml'
 
 permissions:
   contents: read
@@ -18,7 +18,7 @@ permissions:
 
 env:
   DOTNET_VERSION: '9.0.x'
-  AVALONIA_PROJECT: 'GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+  AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -71,8 +71,8 @@ jobs:
 
       - name: Build packages
         run: |
-          chmod +x ./scripts/linux/build-avalonia-packages.sh
-          ./scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }}
+          chmod +x ./build/scripts/linux/build-avalonia-packages.sh
+          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

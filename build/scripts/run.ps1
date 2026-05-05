@@ -3,5 +3,5 @@
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
-dotnet run --project (Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Release @args
+dotnet run --project (Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj') -c Release @args
 

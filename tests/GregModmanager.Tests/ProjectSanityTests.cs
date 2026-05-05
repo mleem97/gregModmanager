@@ -4,7 +4,7 @@ namespace GregModmanager.Tests;
 
 public class ProjectSanityTests
 {
-    private static readonly string ProjectFile = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "GregModmanager.Core.csproj"));
+    private static readonly string ProjectFile = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "GregModmanager.Core", "GregModmanager.Core.csproj"));
 
     [Fact]
     public void ProjectFile_Exists()

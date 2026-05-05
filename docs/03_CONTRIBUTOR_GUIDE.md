@@ -250,7 +250,7 @@ This script:
 .\scripts\builder.ps1
 
 # Or directly with dotnet
-dotnet run --project .\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj
+dotnet run --project .\src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj
 
 # Or via batch file (Windows)
 .\Start-GregModmanager.bat

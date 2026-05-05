@@ -154,7 +154,7 @@ invoke_run_debug() {
     print_banner
     echo -e "  ${C_PRIMARY}[RUN DEBUG]${C_RESET}"
     echo ""
-    dotnet run --project "$REPO_ROOT/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj" -c Debug || true
+    dotnet run --project "$REPO_ROOT/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj" -c Debug || true
     pause_any_key
 }
 
@@ -162,7 +162,7 @@ invoke_run_release() {
     print_banner
     echo -e "  ${C_PRIMARY}[RUN RELEASE]${C_RESET}"
     echo ""
-    dotnet run --project "$REPO_ROOT/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj" -c Release || true
+    dotnet run --project "$REPO_ROOT/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj" -c Release || true
     pause_any_key
 }
 
@@ -184,7 +184,7 @@ invoke_clean() {
     print_banner
     echo -e "  ${C_PRIMARY}[CLEAN]${C_RESET}"
     echo ""
-    local dirs=("artifacts" "installer/Output" "GregModmanager.Avalonia/bin" "GregModmanager.Avalonia/obj" "bin" "obj")
+    local dirs=("artifacts" "build/installer/Output" "src/GregModmanager.Avalonia/bin" "src/GregModmanager.Avalonia/obj" "src/GregModmanager.Core/bin" "src/GregModmanager.Core/obj" "src/SubDirectoryFixer/bin" "src/SubDirectoryFixer/obj" "tests/GregModmanager.Tests/bin" "tests/GregModmanager.Tests/obj")
     for d in "${dirs[@]}"; do
         local p="$REPO_ROOT/$d"
         if [[ -d "$p" ]]; then
