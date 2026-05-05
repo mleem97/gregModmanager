@@ -1,8 +1,17 @@
 # gregModmanager
 
+![Version](https://img.shields.io/badge/version-1.5.1-blue?style=for-the-badge)
+![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
+![Avalonia](https://img.shields.io/badge/Avalonia-11.2-8B44AC?style=for-the-badge)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey?style=for-the-badge)
+![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
+![Steam](https://img.shields.io/badge/Steam-Workshop-1b2838?style=for-the-badge&logo=steam)
+
 **Current Version:** `v1.5.1`
 
 Cross-platform desktop Mod Manager for the gregFramework ecosystem.
+
+> **Note:** *gregModmanager* is an independent community project developed by the author. The project name and any related domains (e.g. `gregmodmanager.eu`) are **not** owned by the author. Official hubs of the ecosystem are [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
 
 ## What is gregModmanager?
 
@@ -115,8 +124,8 @@ gregModmanager.sln
 
 ## 📦 External Integrations
 
-- **[datacentermods.com](https://datacentermods.com)** — Central mod repository
-- **[gregframework.eu](https://gregframework.eu)** — gregCore/gregFramework documentation
+- **[datacentermods.com](https://datacentermods.com)** — Central mod repository and modding community
+- **[gregframework.eu](https://gregframework.eu)** — gregCore / gregFramework ecosystem documentation
 - **[melonwiki.xyz](https://melonwiki.xyz)** — MelonLoader documentation
 - **Steam API** — Game library detection and workshop
 
@@ -141,7 +150,7 @@ MIT License — See [LICENSE](LICENSE)
 - **Documentation:** [docs/](docs/) and [wiki/](wiki/)
 - **Issues:** [GitHub Issues](https://github.com/mleem97/gregModmanager/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/mleem97/gregModmanager/discussions)
-- **Email:** support@gregmodmanager.eu
+- **Website:** [gregframework.eu](https://gregframework.eu) · [datacentermods.com](https://datacentermods.com)
 
 ## Related Repositories
 

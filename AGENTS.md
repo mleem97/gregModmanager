@@ -30,6 +30,7 @@ Read this before modifying code, building, or creating pull requests.
 - `wiki/` — **Git submodule** pointing to `https://github.com/mleem97/gregModmanager.wiki.git`.
   - Do NOT commit wiki contents into the main repo.
   - Update the submodule pointer after wiki changes.
+- All Documentation and Correspondence must use the English Language.
 
 ### 2.2 Dependency Direction
 - Core must never reference Avalonia.

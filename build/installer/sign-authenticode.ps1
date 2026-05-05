@@ -12,7 +12,7 @@ param(
     [string]$Path,
     [string]$Thumbprint = '',
     [string]$PfxPath = '',
-    [string]$PfxPassword = '',
+    [Security.SecureString]$PfxPassword = $null,
     [string]$TimestampUrl = 'http://timestamp.digicert.com'
 )
 
@@ -33,10 +33,13 @@ if ($usePfx -eq $useThumb) {
     throw "Genau eine Option angeben: -Thumbprint (Zertifikat im Windows-Zertifikatspeicher) oder -PfxPath (PFX-Datei)."
 }
 
-if ($usePfx -and [string]::IsNullOrWhiteSpace($PfxPassword)) {
-    $PfxPassword = $env:CODE_SIGN_PFX_PASSWORD
+if ($usePfx -and $null -eq $PfxPassword) {
+    $plain = $env:CODE_SIGN_PFX_PASSWORD
+    if (-not [string]::IsNullOrWhiteSpace($plain)) {
+        $PfxPassword = ConvertTo-SecureString -String $plain -AsPlainText -Force
+    }
 }
-if ($usePfx -and [string]::IsNullOrWhiteSpace($PfxPassword)) {
+if ($usePfx -and $null -eq $PfxPassword) {
     throw "Bei -PfxPath Passwort angeben oder Umgebungsvariable CODE_SIGN_PFX_PASSWORD setzen."
 }
 

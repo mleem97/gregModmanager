@@ -98,7 +98,7 @@ function Invoke-BuildAll {
         Write-Host ''
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-BuildWindows {
@@ -113,7 +113,7 @@ function Invoke-BuildWindows {
         Write-Host ''
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-BuildLinux {
@@ -128,7 +128,7 @@ function Invoke-BuildLinux {
         Write-Host ''
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-BuildLinuxPackages {
@@ -143,7 +143,7 @@ function Invoke-BuildLinuxPackages {
         Write-Host ''
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-RunDebug {
@@ -155,7 +155,7 @@ function Invoke-RunDebug {
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-RunRelease {
@@ -167,7 +167,7 @@ function Invoke-RunRelease {
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-Test {
@@ -182,7 +182,7 @@ function Invoke-Test {
         Write-Host ''
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-Clean {
@@ -210,7 +210,7 @@ function Invoke-Clean {
     }
     Write-Host ''
     Write-Host '  Clean finished.' -ForegroundColor $CSecondary
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
 function Invoke-InstallLocal {
@@ -222,10 +222,10 @@ function Invoke-InstallLocal {
     } catch {
         Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor $CError
     }
-    Pause-AnyKey
+    Wait-KeyPress
 }
 
-function Pause-AnyKey {
+function Wait-KeyPress {
     Write-Host ''
     Write-Host '  Press any key to continue...' -ForegroundColor $CDefault -NoNewline
     $null = [Console]::ReadKey($true)
