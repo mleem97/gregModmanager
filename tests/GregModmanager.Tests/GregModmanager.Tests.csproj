@@ -15,7 +15,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\GregModmanager.Core.csproj" />
+    <ProjectReference Include="..\..\src\GregModmanager.Core\GregModmanager.Core.csproj" />
   </ItemGroup>
 </Project>
 

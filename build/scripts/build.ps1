@@ -39,7 +39,7 @@ $script:AutoSignThumbprint = $null
 # ---------------------------------------------------------------------------
 
 function Get-ProjectVersion {
-    $projPath = Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
+    $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
     $csproj = [xml](Get-Content -LiteralPath $projPath -Raw)
     $ver = (
         $csproj.Project.PropertyGroup |
@@ -130,7 +130,7 @@ function New-EphemeralCodeSignThumbprint {
 
 function Invoke-BuildSign {
     param([Parameter(Mandatory)][string]$TargetPath)
-    $signScript = Join-Path $repoRoot 'installer\sign-authenticode.ps1'
+    $signScript = Join-Path $repoRoot 'build\installer\sign-authenticode.ps1'
     if (-not (Test-Path -LiteralPath $signScript)) { throw "Signierskript fehlt: $signScript" }
     $thumb = $env:CODE_SIGN_THUMBPRINT
     $pfx = $env:CODE_SIGN_PFX
@@ -195,8 +195,8 @@ function New-DetachedArtifactSignature {
 }
 
 function Invoke-BuildSubDirectoryFixer {
-    $fixerProjPath = Join-Path $repoRoot 'SubDirectoryFixer\SubDirectoryFixer.csproj'
-    $fixerAssetsDir = Join-Path $repoRoot 'GregModmanager.Avalonia\Assets\SubDirectoryFixer'
+    $fixerProjPath = Join-Path $repoRoot 'src\SubDirectoryFixer\SubDirectoryFixer.csproj'
+    $fixerAssetsDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\Assets\SubDirectoryFixer'
     $fixerDllPath = Join-Path $fixerAssetsDir 'SubDirectoryFixer.dll'
     if (-not (Test-Path -LiteralPath $fixerProjPath)) {
         Write-Warning '[build] SubDirectoryFixer-Projekt nicht gefunden - wird uebersprungen.'
@@ -205,7 +205,7 @@ function Invoke-BuildSubDirectoryFixer {
     Write-Host '[build] Baue SubDirectoryFixer (net6.0) ...'
     & dotnet build $fixerProjPath -c Release
     if ($LASTEXITCODE -ne 0) { throw 'SubDirectoryFixer Build fehlgeschlagen.' }
-    $builtDll = Join-Path $repoRoot 'SubDirectoryFixer\bin\Release\net6.0\SubDirectoryFixer.dll'
+    $builtDll = Join-Path $repoRoot 'src\SubDirectoryFixer\bin\Release\net6.0\SubDirectoryFixer.dll'
     if (-not (Test-Path -LiteralPath $builtDll)) { throw 'SubDirectoryFixer DLL nicht gefunden.' }
     New-Item -ItemType Directory -Path $fixerAssetsDir -Force | Out-Null
     Copy-Item -LiteralPath $builtDll -Destination $fixerDllPath -Force
@@ -244,9 +244,9 @@ if (-not $SkipTest) {
 }
 
 $wantSign = $Sign
-$projPath = Join-Path $repoRoot 'GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
-$iss = Join-Path $repoRoot 'installer\gregModmanager.iss'
-$winPublishDir = Join-Path $repoRoot 'GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
+    $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
+    $iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
+    $winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
 $linuxPublishDir = Join-Path $repoRoot 'artifacts\publish\linux-x64'
 $installerOutDir = Join-Path $repoRoot 'installer\Output'
 $artifactsDir = Join-Path $repoRoot 'artifacts'
@@ -373,7 +373,7 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
     if (-not $wsl) {
         Write-Warning '[build] wsl.exe nicht gefunden - Linux-Packages werden uebersprungen.'
     } else {
-        $linuxPkgScript = Join-Path $repoRoot 'scripts\linux\build-avalonia-packages.ps1'
+        $linuxPkgScript = Join-Path $repoRoot 'build\scripts\linux\build-avalonia-packages.ps1'
         if (-not (Test-Path -LiteralPath $linuxPkgScript)) {
             Write-Warning "[build] Linux-Package-Skript nicht gefunden: $linuxPkgScript"
         } else {

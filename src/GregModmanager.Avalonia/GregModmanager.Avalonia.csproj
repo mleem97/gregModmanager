@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\GregModmanager.Core.csproj" />
+    <ProjectReference Include="..\GregModmanager.Core\GregModmanager.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
