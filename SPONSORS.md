@@ -49,7 +49,12 @@ Includes all previous perks, plus:
 - Private 1-on-1 Discord lounge
 - Featured mod spot on `datacentermods.com`
 
-## Automation
+## **Want to claim your perks?**
+> Join the [Discord server](https://discord.gg/greg) and message a moderator with your GitHub username to get verified and assigned your perks!
 
-Use a repository workflow file at `.github/workflows/sponsor-tier-sync.yml` to export current sponsor tiers and drive Discord/website sync jobs.
+### **NOTES**:
 
+> - Perks are cumulative; higher tiers include all benefits of the previous tiers.
+> - If you are a sponsor and want to claim your perks, please join the Discord server and message a moderator with your GitHub username for verification.
+> - For any questions about sponsorship or perks, feel free to reach out in the Discord or open an issue in the repository.
+> - It is planned to get Verified through our Mod-Store, but has to be done manually for now until the Mod Store launches.

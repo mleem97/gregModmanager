@@ -1,7 +1,13 @@
 # Copilot Instructions
 
+This file contains agent-oriented instructions for the `gregModmanager` repository.
+Read this before modifying code, building, or creating pull requests.
+
+---
+
 ## Core Runtime Guardrails
 - Keep all gameplay/runtime-facing components compatible with `.NET 6.x`.
+- This also applies to any shared libraries, Melonloader Plugins or Game Mods that may be used, within this Project, and/or in Unity IL2CPP + MelonLoader contexts.
 - Do not retarget runtime projects beyond `net6.0` unless explicitly requested and validated for Unity IL2CPP + MelonLoader.
 
 ## Mandatory System Architecture Prompt

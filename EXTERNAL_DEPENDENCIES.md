@@ -1,5 +1,7 @@
 # External dependencies (Workshop Uploader / gregModmanager)
 
+> **Note:** This document is considered Outdated as it reflects the Old Application Structure. For the latest information on external dependencies, please refer to the updated documentation in the `README.md` and `EXTERNAL_DEPENDENCIES.md` files in the Wiki (gregframework.eu)
+
 This document is an **open-source transparency** note: what this app ships or relies on, and how that relates to licenses. It is **not legal advice**.
 
 ## Open source at a glance

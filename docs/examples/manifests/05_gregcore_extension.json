@@ -1,0 +1,20 @@
+{
+  "id": "custom-game-state",
+  "name": "Custom Game State Extension",
+  "version": "1.0.0",
+  "author": "ExtensionTeam",
+  "description": "Extends gregCore with advanced game state tracking and event system",
+  "type": "gregcore_extension",
+  "gregcore_version_min": "2.0.0",
+  "dependencies": {
+    "required": [
+      {
+        "id": "gregcore",
+        "version_min": "2.0.0"
+      }
+    ]
+  },
+  "homepage": "https://github.com/example/custom-gamestate",
+  "source_url": "https://github.com/example/custom-gamestate",
+  "license": "MIT"
+}

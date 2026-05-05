@@ -38,11 +38,11 @@ public sealed class SubDirectoryFixerInstallerService
                     $"SubDirectoryFixer payload missing at '{payloadPath}'."));
             }
 
-            var modsDir = Path.Combine(gameRoot, "Mods");
-            Directory.CreateDirectory(modsDir);
+            var pluginsDir = Path.Combine(gameRoot, "Plugins");
+            Directory.CreateDirectory(pluginsDir);
 
-            var targetPath = Path.Combine(modsDir, TargetFileName);
-            var markerPath = Path.Combine(modsDir, MarkerFileName);
+            var targetPath = Path.Combine(pluginsDir, TargetFileName);
+            var markerPath = Path.Combine(pluginsDir, MarkerFileName);
 
             var payloadHash = ComputeSha256(payloadPath);
             var previousHash = File.Exists(markerPath) ? File.ReadAllText(markerPath).Trim() : string.Empty;

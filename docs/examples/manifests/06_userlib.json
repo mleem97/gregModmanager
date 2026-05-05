@@ -1,0 +1,23 @@
+{
+  "id": "common-utils",
+  "name": "Common Utilities Library",
+  "version": "2.0.0",
+  "author": "UtilityTeam",
+  "description": "Shared utilities and helper libraries for mods and plugins",
+  "type": "userlib",
+  "release_date": "2026-05-01",
+  "release_notes": "v2.0: Breaking API changes, complete rewrite for .NET 9",
+  "dependencies": {
+    "conflicts": [
+      {
+        "id": "common-utils",
+        "version_max": "1.x",
+        "reason": "API incompatible - requires update to v2.0+"
+      }
+    ]
+  },
+  "homepage": "https://github.com/example/common-utils",
+  "source_url": "https://github.com/example/common-utils",
+  "license": "MIT",
+  "tags": ["utilities", "library", "shared"]
+}

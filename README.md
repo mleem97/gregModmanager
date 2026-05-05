@@ -1,82 +1,154 @@
 # gregModmanager
 
-Current Version: `v1.5.0`
+**Current Version:** `v1.5.1`
 
 Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 
-## Overview
-`gregModmanager` provides workflows for browsing, installing, and publishing mods.
-Built with Avalonia UI 11.2 on .NET 9.
+## What is gregModmanager?
 
-## Architecture Layer
-- Layer: Desktop Mod Manager
-- Role: User-facing management and distribution tooling
+**gregModmanager** is a modern, user-friendly application that simplifies installing, managing, and publishing mods for MelonLoader-based games. It supports Windows and Linux (macOS coming soon), integrates with Steam, and provides an intuitive interface for:
 
-## Runtime Targets
-- Windows desktop (primary)
-- Linux desktop (Avalonia packaging path)
+- **Browse & Install** mods from [datacentermods.com](https://datacentermods.com) or local files
+- **Manage Load Order** and resolve dependencies automatically
+- **Handle Profiles** for different gameplay configurations
+- **Update Mods** with one click
+- **Publish Your Own** mods and plugins
 
-## Quick Start
+## 📚 Documentation
 
-### Interactive Builder (recommended)
+👉 **New users?** Start with the [End-User Guide](docs/01_END_USER_GUIDE.md)  
+📦 **Creating mods?** See the [Mod Creator Guide](docs/02_MOD_CREATOR_GUIDE.md)  
+🔧 **Want to contribute?** Read the [Contributor Guide](docs/03_CONTRIBUTOR_GUIDE.md)  
+📖 **Full index:** [docs/INDEX.md](docs/INDEX.md)
+
+## 🚀 Quick Start
+
+### For Users
+
+**Download and run:**
+- **Windows:** Download installer from [Releases](https://github.com/mleem97/gregModmanager/releases)
+- **Linux:** `wget https://github.com/mleem97/gregModmanager/releases/download/v1.5.1/GregModmanager-v1.5.1.AppImage && chmod +x *.AppImage && ./GregModmanager-v1.5.1.AppImage`
+
+### For Developers
+
+**Build locally:**
+
 ```powershell
-.\scripts\builder.ps1     # Windows
-./scripts/builder.sh       # Linux / macOS
+# Clone repository
+git clone https://github.com/mleem97/gregModmanager.git
+cd gregModmanager
+
+# Install dependencies
+dotnet restore GregModmanager.sln
+
+# Build
+dotnet build GregModmanager.sln -c Release
+
+# Run
+dotnet run --project GregModmanager.Avalonia
 ```
 
-### Build the full solution
+**Or use the convenience script:**
 ```powershell
-dotnet build .\GregModmanager.sln -c Release
+.\scripts\run.ps1
 ```
 
-### Run Avalonia app
+## 📋 System Requirements
+
+| Platform | Minimum | Recommended |
+|----------|---------|-------------|
+| **Windows** | Windows 10 v1909, .NET 9 | Windows 11, 4+ GB RAM |
+| **Linux** | Debian 11+, Ubuntu 20.04 LTS+ | Fedora 36+, 4+ GB RAM |
+| **macOS** | Planned Q3 2026 | — |
+
+See [System Requirements](docs/01_END_USER_GUIDE.md#system-requirements) for details.
+
+## 🏗️ Project Structure
+
+```
+gregModmanager.sln
+├── GregModmanager.Core/              # Core business logic
+├── GregModmanager.Avalonia/          # Avalonia UI (Windows, Linux)
+├── SubDirectoryFixer/                # Helper utility
+├── GregModmanager.Tests/             # Unit tests
+├── scripts/                          # Build and deployment scripts
+├── installer/                        # Inno Setup installer script
+├── docs/                             # User and developer documentation
+└── wiki/                             # Documentation wiki (Git submodule)
+```
+
+## ✨ Features
+
+✅ **Mod Management** — Install, enable, disable, update, manage profiles  
+✅ **Dependency Resolution** — Automatic conflict detection and installation  
+✅ **Steam Integration** — Auto-detect library, launch via Steam, Workshop support  
+✅ **Cross-Platform** — Windows, Linux, macOS (coming soon)  
+✅ **Localization** — English, German, Spanish (community translations welcome)  
+✅ **Developer Tools** — Manifest validation, local mod testing
+
+## 🏗️ Architecture
+
+- **Framework:** Avalonia UI 11.2 (cross-platform)
+- **Runtime:** .NET 9.0
+- **Pattern:** Layered architecture with clean Core/UI separation
+- **Integration:** Steam API, gregCore/gregFramework, datacentermods.com
+
+## 🔨 Build & Release
+
+### Full Build (Windows + Linux)
+
 ```powershell
-dotnet run --project .\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj
+.\scripts\build.ps1
 ```
 
-## Scripts
-All automation is centralized in `scripts/`.
+**Produces:**
+- Windows installer (`.exe`)
+- Windows portable (`.zip`)
+- Linux AppImage, `.deb`, `.rpm`, `.tar.gz`
 
-| Script | Purpose |
-|--------|---------|
-| `builder.ps1` / `builder.sh` | Interactive CLI menu for build, test, run, clean |
-| `build.ps1` | Full CI-mirror build (Windows Setup + Portable, Linux tarball, packages) |
-| `run.ps1` | Quick run in Release configuration |
-| `install-local.ps1` | Local install to `%LOCALAPPDATA%` without Setup EXE |
+### Quick Build
 
-See `scripts/README.md` for details.
-
-## Linux Packaging
-Use the Avalonia packaging scripts:
 ```powershell
-.\scripts\linux\build-avalonia-packages.ps1
+.\scripts\run.ps1              # Build & run locally
+.\scripts\builder.ps1          # Interactive CLI menu
 ```
 
-Artifacts include:
-- `.deb` (Debian/Ubuntu)
-- `.rpm` (Fedora/RHEL)
-- `.pkg.tar.zst` (Arch)
-- `.tar.gz` fallback
+## 📦 External Integrations
 
-Optional Flatpak manifest is available in `scripts/linux/flatpak/`.
+- **[datacentermods.com](https://datacentermods.com)** — Central mod repository
+- **[gregframework.eu](https://gregframework.eu)** — gregCore/gregFramework documentation
+- **[melonwiki.xyz](https://melonwiki.xyz)** — MelonLoader documentation
+- **Steam API** — Game library detection and workshop
 
-## Steam Safety
-Upload flows enforce Steam-safe publish cooldown and retry feedback.
-See `wiki/Steam-Limits-and-Cooldown.md`.
+## 🤝 Contributing
 
-## Wiki
-The project wiki is maintained as a **Git submodule** under `wiki/`.
-```bash
-git submodule update --init --recursive
-```
-Start at `wiki/Home.md`.
+We welcome contributions! See [CONTRIBUTING.md](docs/03_CONTRIBUTOR_GUIDE.md) for:
 
-> **Note:** Do not commit wiki contents into the main repository.
+- Development environment setup
+- Coding standards and conventions
+- Testing requirements
+- Pull request workflow
+- Localization guidelines
+
+**Code of Conduct:** Be respectful. All contributors are valued.
+
+## 📄 License
+
+MIT License — See [LICENSE](LICENSE)
+
+## 🎯 Support
+
+- **Documentation:** [docs/](docs/) and [wiki/](wiki/)
+- **Issues:** [GitHub Issues](https://github.com/mleem97/gregModmanager/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/mleem97/gregModmanager/discussions)
+- **Email:** support@gregmodmanager.eu
 
 ## Related Repositories
-- `gregCore`
-- `gregStore`
-- `gregBot`
+
+- **[gregCore](https://github.com/mleem97/gregcore)** — Game framework
+- **[gregStore](https://github.com/mleem97/gregstore)** — Asset distribution
+- **[gregBot](https://github.com/mleem97/gregbot)** — Discord bot integration
+- **[Wiki](https://github.com/mleem97/gregModmanager.wiki)** — Documentation (submodule)
 
 ## Maintainers
 - teamGreg / mleem97

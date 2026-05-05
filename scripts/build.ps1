@@ -209,7 +209,7 @@ function Invoke-BuildSubDirectoryFixer {
     if (-not (Test-Path -LiteralPath $builtDll)) { throw 'SubDirectoryFixer DLL nicht gefunden.' }
     New-Item -ItemType Directory -Path $fixerAssetsDir -Force | Out-Null
     Copy-Item -LiteralPath $builtDll -Destination $fixerDllPath -Force
-    Write-Host "[build] SubDirectoryFixer bereitgestellt: $fixerDllPath"
+    Write-Host "[build] SubDirectoryFixer (plugin) bereitgestellt: $fixerDllPath"
 }
 
 # ---------------------------------------------------------------------------

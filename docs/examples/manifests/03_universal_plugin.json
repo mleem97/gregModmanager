@@ -1,0 +1,17 @@
+{
+  "id": "universal-debug-plugin",
+  "name": "Universal Debug Plugin",
+  "version": "1.5.0",
+  "author": "DebugTeam",
+  "description": "In-game debug console and profiling tools for any MelonLoader game",
+  "type": "melonloader_plugin",
+  "games": [],
+  "melonloader_version_min": "0.6.0",
+  "melonloader_version_max": "0.7.x",
+  "release_date": "2026-05-01",
+  "release_notes": "v1.5: Added GPU profiling, improved UI responsiveness",
+  "homepage": "https://github.com/example/debug-plugin",
+  "source_url": "https://github.com/example/debug-plugin",
+  "license": "MIT",
+  "tags": ["debugging", "profiling", "universal"]
+}

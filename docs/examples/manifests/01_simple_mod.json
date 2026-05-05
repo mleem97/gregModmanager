@@ -1,0 +1,13 @@
+{
+  "id": "simple-balance-tweaks",
+  "name": "Simple Balance Tweaks",
+  "version": "1.0.0",
+  "author": "BalanceTeam",
+  "description": "Tweaks weapon and upgrade costs for better game progression",
+  "type": "game_mod",
+  "games": ["datacenter"],
+  "release_date": "2026-05-01",
+  "release_notes": "Initial release with weapon rebalancing",
+  "homepage": "https://github.com/example/simple-balance",
+  "license": "MIT"
+}

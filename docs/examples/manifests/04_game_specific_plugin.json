@@ -1,0 +1,14 @@
+{
+  "id": "datacenter-perf-optimizer",
+  "name": "Data Center Performance Optimizer",
+  "version": "1.0.0",
+  "author": "PerfTeam",
+  "description": "Optimizes rendering and physics performance specifically for Data Center",
+  "type": "melonloader_plugin",
+  "games": ["datacenter"],
+  "melonloader_version_min": "0.6.0",
+  "release_date": "2026-05-01",
+  "release_notes": "Initial release: 30-40% performance improvement",
+  "license": "MIT",
+  "tags": ["performance", "optimization", "datacenter"]
+}
