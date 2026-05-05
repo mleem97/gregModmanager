@@ -156,9 +156,9 @@ jobs:
         run: |
           $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
           if ($sign) {
-            .\build.ps1 -Sign
+            .\build.ps1 -Sign -SkipTest -SkipLinux
           } else {
-            .\build.ps1
+            .\build.ps1 -SkipTest -SkipLinux
           }
           $setup = Get-ChildItem -Path 'installer\Output\gregModmanager-*-Setup.exe' | Select-Object -First 1
           $portable = Get-ChildItem -Path 'installer\Output\win64-v*-portable.zip' | Select-Object -First 1

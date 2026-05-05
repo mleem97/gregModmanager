@@ -2,6 +2,16 @@ bin/
 obj/
 .vs/
 
+# Build artifacts
+artifacts/
+publish/
+installer/Output/
+*.zip
+*.tar.gz
+*.deb
+*.rpm
+*.pkg.tar.zst
+
 # Internal documentation must never be published
 InternalDocs/
 docs/internal/
