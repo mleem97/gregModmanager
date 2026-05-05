@@ -4,7 +4,7 @@
 # Voraussetzung: Windows SDK (signtool.exe) — z. B. „Windows SDK“-Workload in Visual Studio.
 #
 # Beispiele:
-#   .\installer\sign-authenticode.ps1 -Path .\installer\Output\gregModmanager-1.0.0-Setup.exe -Thumbprint ABC123...
+#   .\installer\sign-authenticode.ps1 -Path .\installer\Output\gregModmanager-1.5.0-Setup.exe -Thumbprint ABC123...
 #   $env:CODE_SIGN_PFX_PASSWORD = '***'; .\installer\sign-authenticode.ps1 -Path .\foo.exe -PfxPath C:\certs\codesign.pfx
 #Requires -Version 5.1
 param(

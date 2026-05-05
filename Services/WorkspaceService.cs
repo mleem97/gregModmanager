@@ -454,6 +454,7 @@ public sealed class WorkspaceService
 				meta.NativeConfigProfile = "decoration";
 				meta.NeedsMelonLoader = false;
 				meta.Needsgreg = false;
+				meta.ModType = "PlacableObject";
 				break;
 			case WorkshopTemplateKind.ModdedMelonLoader:
 				meta.Description =
@@ -471,6 +472,7 @@ public sealed class WorkspaceService
 				meta.NativeConfigProfile = "code";
 				meta.NeedsMelonLoader = true;
 				meta.Needsgreg = false;
+				meta.ModType = "DataCenterMod";
 				break;
 			case WorkshopTemplateKind.ModdedgregCoreModFramework:
 				meta.Description =
@@ -488,6 +490,7 @@ public sealed class WorkspaceService
 				meta.NativeConfigProfile = "code";
 				meta.NeedsMelonLoader = true;
 				meta.Needsgreg = true;
+				meta.ModType = "DataCenterMod";
 				break;
 			case WorkshopTemplateKind.UxmlUiOverride:
 				meta.Description = "[h1]UXML UI Override[/h1]\nReplaces game interfaces with custom UI Toolkit (UXML) designs.";
@@ -495,21 +498,25 @@ public sealed class WorkspaceService
 				meta.NativeConfigProfile = "code";
 				meta.NeedsMelonLoader = true;
 				meta.Needsgreg = true;
+				meta.ModType = "DataCenterMod";
 				break;
 			case WorkshopTemplateKind.Standalone3DModel:
 				meta.Description = "[h1]Standalone 3D Model[/h1]\nA high-quality 3D asset for use in other mods or game scenes.";
 				meta.Tags.AddRange(new[] { "asset", "model", "visual" });
 				meta.NativeConfigProfile = "decoration";
+				meta.ModType = "PlacableObject";
 				break;
 			case WorkshopTemplateKind.StandaloneTexture:
 				meta.Description = "[h1]Standalone Texture[/h1]\nA high-resolution texture or material pack.";
 				meta.Tags.AddRange(new[] { "asset", "texture", "material" });
 				meta.NativeConfigProfile = "decoration";
+				meta.ModType = "PlacableObject";
 				break;
 			case WorkshopTemplateKind.StandaloneAudio:
 				meta.Description = "[h1]Standalone Audio[/h1]\nA music track or sound effect collection.";
 				meta.Tags.AddRange(new[] { "asset", "audio", "radio" });
 				meta.NativeConfigProfile = "decoration";
+				meta.ModType = "PlacableObject";
 				break;
 		}
 

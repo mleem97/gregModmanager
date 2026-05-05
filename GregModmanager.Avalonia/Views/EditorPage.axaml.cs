@@ -40,6 +40,7 @@ public partial class EditorPage : UserControl
 
         VisibilityPicker.ItemsSource = new[] { "Public", "FriendsOnly", "Private" };
         NativeProfilePicker.ItemsSource = new[] { "decoration", "code" };
+        ModTypePicker.ItemsSource = new[] { "PlacableObject", "MelonloaderPlugin", "Userlib", "DataCenterMod" };
         CheckResultsList.ItemsSource = _checkResults;
         SetEditorTab(0);
     }
@@ -82,6 +83,7 @@ public partial class EditorPage : UserControl
             Needsgreg = _metadata.Needsgreg,
             NeedsMelonLoader = _metadata.NeedsMelonLoader,
             NativeConfigProfile = _metadata.NativeConfigProfile,
+            ModType = _metadata.ModType,
             PreviewImageRelativePath = _metadata.PreviewImageRelativePath,
             AdditionalPreviews = new List<string>(_metadata.AdditionalPreviews),
             WorkshopDependencyIds = new List<ulong>(_metadata.WorkshopDependencyIds),
@@ -133,6 +135,10 @@ public partial class EditorPage : UserControl
             ? "decoration"
             : _metadata.NativeConfigProfile.Trim().ToLowerInvariant();
         NativeProfilePicker.SelectedItem = profile == "code" ? "code" : "decoration";
+        var modType = string.IsNullOrWhiteSpace(_metadata.ModType)
+            ? "PlacableObject"
+            : _metadata.ModType;
+        ModTypePicker.SelectedItem = modType;
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
         PreviewPathLabel.Text = Path.Combine(_projectRoot, _metadata.PreviewImageRelativePath);
 
@@ -346,6 +352,7 @@ public partial class EditorPage : UserControl
     private void OnNeedsgregToggled(object? sender, RoutedEventArgs e) => RunUploadCheck();
     private void OnNeedsMelonLoaderToggled(object? sender, RoutedEventArgs e) => RunUploadCheck();
     private void OnNativeProfileChanged(object? sender, SelectionChangedEventArgs e) => RunUploadCheck();
+    private void OnModTypeChanged(object? sender, SelectionChangedEventArgs e) => RunUploadCheck();
     private void OnChangeLogTextChanged(object? sender, TextChangedEventArgs e) => RunUploadCheck();
 
     #endregion
@@ -667,6 +674,7 @@ public partial class EditorPage : UserControl
         _metadata.Needsgreg = NeedsgregSwitch.IsChecked == true;
         _metadata.NeedsMelonLoader = NeedsMelonLoaderSwitch.IsChecked == true;
         _metadata.NativeConfigProfile = NativeProfilePicker.SelectedItem as string ?? "decoration";
+        _metadata.ModType = ModTypePicker.SelectedItem as string ?? "PlacableObject";
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
     }
 

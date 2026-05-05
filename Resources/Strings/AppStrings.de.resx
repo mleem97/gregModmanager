@@ -74,6 +74,11 @@
   <data name="Editor_NeedsGCFHint" xml:space="preserve"><value>Fügt der Beschreibung einen Hinweis hinzu, dass dieses Objekt GCF benötigt.</value></data>
   <data name="Editor_NativeProfile" xml:space="preserve"><value>Profil (config.json)</value></data>
   <data name="Editor_NativeProfileHint" xml:space="preserve"><value>Deko: Shop/staticItems in config.json. Code: nur DLL-Einträge (keine Shop-/Static-Felder für Code-Mods in dieser Datei).</value></data>
+  <data name="Editor_ModType" xml:space="preserve"><value>Mod-Typ</value></data>
+  <data name="Editor_ModType_PlacableObject" xml:space="preserve"><value>Platzierbares Objekt</value></data>
+  <data name="Editor_ModType_MelonloaderPlugin" xml:space="preserve"><value>MelonLoader-Plugin</value></data>
+  <data name="Editor_ModType_Userlib" xml:space="preserve"><value>Userlib</value></data>
+  <data name="Editor_ModType_DataCenterMod" xml:space="preserve"><value>Data-Center-Mod</value></data>
   <data name="Editor_NeedsMelonLoader" xml:space="preserve"><value>Benötigt MelonLoader</value></data>
   <data name="Editor_NeedsMelonLoaderHint" xml:space="preserve"><value>Hängt der Steam-Beschreibung einen MelonLoader-Hinweis mit Download-Link an, falls noch nicht erwähnt.</value></data>
   <data name="Editor_MelonLoaderNotice" xml:space="preserve"><value>[h2]Voraussetzungen[/h2][list][*] Dieses Workshop-Objekt benötigt [url=https://melonwiki.xyz]MelonLoader[/url] für Data Center. Bitte MelonLoader installieren, bevor Sie diesen Mod nutzen.[/list]</value></data>

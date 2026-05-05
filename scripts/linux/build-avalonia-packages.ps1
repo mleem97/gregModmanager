@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$OutputDir = "",
-    [string]$Version = "1.1.0",
+    [string]$Version = "1.5.0",
     [string]$WslDistro = ""
 )
 

@@ -3,7 +3,13 @@
 ## Prerequisites
 - .NET SDK 9.x
 - Windows: Visual Studio / Rider with Avalonia support
-- Linux packaging: Docker or `nfpm`
+- Linux packaging: `nfpm` via GoReleaser apt repo
+
+```bash
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+sudo apt update
+sudo apt install nfpm
+```
 
 ## Build
 ```powershell

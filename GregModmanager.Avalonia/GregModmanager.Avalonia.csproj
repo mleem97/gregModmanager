@@ -7,7 +7,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>GregModmanager</AssemblyName>
     <RootNamespace>GregModmanager.Avalonia</RootNamespace>
-    <Version>1.1.0</Version>
+    <Version>1.5.0</Version>
 
     <!-- Size optimizations -->
     <PublishTrimmed>true</PublishTrimmed>
@@ -35,5 +35,19 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Styles\**\*.axaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\SubDirectoryFixer\README.txt">
+      <TargetPath>SubDirectoryFixer\README.txt</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="Assets\SubDirectoryFixer\SubDirectoryFixer.dll">
+      <TargetPath>SubDirectoryFixer\SubDirectoryFixer.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
   </ItemGroup>
 </Project>

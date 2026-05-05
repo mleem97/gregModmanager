@@ -5,7 +5,15 @@
 - Run `dotnet restore` and check NuGet feed access.
 
 ## Linux package build fails
-- Verify Docker is installed or `nfpm` is available in PATH.
+- Install `nfpm` via GoReleaser apt repo:
+
+```bash
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+sudo apt update
+sudo apt install nfpm
+```
+
+- Verify `nfpm --version` works and `nfpm` is in `PATH`.
 - Ensure publish output exists before packaging.
 
 ## Steam upload blocked unexpectedly

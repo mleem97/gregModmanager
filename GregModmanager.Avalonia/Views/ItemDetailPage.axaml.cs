@@ -190,6 +190,36 @@ public partial class ItemDetailPage : UserControl
         }
     }
 
+    public async void OnAddToCollection(object? sender, RoutedEventArgs e)
+    {
+        if (_item is null) return;
+
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+        var collectionName = await dialog.ShowPromptAsync(
+            "Collection",
+            "Collection name:",
+            "Save",
+            "Cancel",
+            "My Mods");
+
+        if (string.IsNullOrWhiteSpace(collectionName))
+        {
+            return;
+        }
+
+        var collections = App.Services.GetRequiredService<ModCollectionService>();
+        var collection = collections.EnsureCollectionForItem(
+            collectionName,
+            _item.PublishedFileId,
+            _item.Title,
+            _item.SourceLabel,
+            _item.IsGregFramework ? "MelonloaderPlugin" : "PlacableObject");
+
+        await dialog.ShowMessageAsync(
+            "Collection",
+            $"Saved '{_item.Title}' to collection '{collection.Name}'.");
+    }
+
     private async void OnVoteUp(object? sender, RoutedEventArgs e)
     {
         if (_item is null) return;

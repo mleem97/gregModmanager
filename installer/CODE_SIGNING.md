@@ -59,7 +59,7 @@ Damit die Signatur **flächendeckend als vertrauenswürdig** gilt, brauchst du e
 
    ```powershell
    cd gregModmanager
-   .\installer\sign-authenticode.ps1 -Path ".\installer\Output\gregModmanager-1.0.0-Setup.exe" -Thumbprint DEIN_THUMBPRINT
+   .\installer\sign-authenticode.ps1 -Path ".\installer\Output\gregModmanager-1.5.0-Setup.exe" -Thumbprint DEIN_THUMBPRINT
    ```
 
    Oder **PFX** direkt:
@@ -95,7 +95,7 @@ $env:CODE_SIGN_THUMBPRINT = '4AB58E6A56F4CA5726849BD410151B25321289DC'   # Beisp
 Nimmt die **neueste** `gregModmanager-*-Setup.exe` unter `installer\Output\`, oder:
 
 ```powershell
-.\build.ps1 -SignOnly -SetupPath 'D:\dist\gregModmanager-1.0.0-Setup.exe'
+.\build.ps1 -SignOnly -SetupPath 'D:\dist\gregModmanager-1.5.0-Setup.exe'
 ```
 
 **Nicht** den Platzhaltertext `<Thumbprint aus der Ausgabe>` verwenden — nur den **40-stelligen Hex-Thumbprint** aus `create-selfsigned-codesign-cert.ps1`.

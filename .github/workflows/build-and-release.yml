@@ -49,11 +49,11 @@ jobs:
         run: |
           [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
           $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
-          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.0.0' }
+          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.5.0' }
           $numeric = $ver -replace '-.*$',''
           if ($numeric -notmatch '^\d+\.\d+\.\d+\.\d+$') {
             if ($numeric -match '^\d+\.\d+\.\d+$') { $numeric += '.0' }
-            else { $numeric = '1.0.0.0' }
+            else { $numeric = '1.5.0.0' }
           }
           $isRelease = if ($env:GITHUB_REF_NAME -match '^v\d') { 'true' } else { 'false' }
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -267,9 +267,9 @@ jobs:
 
       - name: Install nfpm
         run: |
-          curl -fsSL -o nfpm.tar.gz "https://github.com/goreleaser/nfpm/releases/latest/download/nfpm_Linux_x86_64.tar.gz"
-          tar -xzf nfpm.tar.gz nfpm
-          sudo mv nfpm /usr/local/bin/
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt update
+          sudo apt install -y nfpm
           nfpm --version
 
       - name: Publish Linux x64
@@ -316,7 +316,6 @@ jobs:
     permissions:
       contents: write
       attestations: write
-    environment: release
     steps:
       - name: Download Windows Setup
         uses: actions/download-artifact@v4

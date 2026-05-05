@@ -37,7 +37,7 @@ jobs:
         run: |
           [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
           $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
-          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.1.0' }
+          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.5.0' }
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
   build-packages:

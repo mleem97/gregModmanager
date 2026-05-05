@@ -10,48 +10,72 @@
         Background="{DynamicResource Surface}"
         SystemDecorations="None"
         Title="gregModmanager">
-
   <Grid RowDefinitions="42,*" ColumnDefinitions="240,*">
-    <Border Grid.Row="0" Grid.ColumnSpan="2" Classes="titlebar" PointerPressed="OnTitleBarPointerPressed">
+    <Border Grid.Row="0"
+            Grid.ColumnSpan="2"
+            Classes="titlebar"
+            PointerPressed="OnTitleBarPointerPressed">
       <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="8">
-          <Border Width="18" Height="18" CornerRadius="2" Classes="accent-box" />
-          <TextBlock Classes="micro-label" Text="GREGMODMANAGER // TERMINAL CORE" />
+        <StackPanel Margin="14,0,0,0"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Spacing="8">
+          <Border Width="18"
+                  Height="18"
+                  CornerRadius="2"
+                  Classes="accent-box" />
+          <TextBlock Classes="micro-label"
+                     Text="GREGMODMANAGER // TERMINAL CORE" />
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,4,6,4" Spacing="4">
-          <Button Width="34" Height="28" Classes="window-btn" Content="—" Click="OnMinimizeClicked" />
-          <Button Width="34" Height="28" Classes="window-btn close" Content="✕" Click="OnCloseClicked" />
+
+        <StackPanel Grid.Column="1"
+                    Margin="0,4,6,4"
+                    Orientation="Horizontal"
+                    Spacing="4">
+          <Button Width="34"
+                  Height="28"
+                  Classes="window-btn"
+                  Content="—"
+                  Click="OnMinimizeClicked" />
+          <Button Width="34"
+                  Height="28"
+                  Classes="window-btn close"
+                  Content="✕"
+                  Click="OnCloseClicked" />
         </StackPanel>
       </Grid>
     </Border>
 
     <Border Grid.Row="1" Grid.Column="0" Classes="sidebar">
-      <Grid RowDefinitions="Auto,*,Auto" Margin="10,14,10,10">
-        <StackPanel Spacing="6" x:Name="NavPanel">
-          <TextBlock Text="WORKSHOP" Classes="micro-label" />
-          <Button Classes="nav-item active" Content="Projects" Click="OnNavProjects" x:Name="BtnProjects" />
-          <Button Classes="nav-item" Content="New Project" Click="OnNavNewProject" x:Name="BtnNewProject" />
-          <Button Classes="nav-item" Content="My Uploads" Click="OnNavMyUploads" x:Name="BtnMyUploads" />
-          <Button Classes="nav-item" Content="Mod Store" Click="OnNavModStore" x:Name="BtnModStore" IsVisible="False" />
-          <TextBlock Text="SYSTEM" Classes="micro-label" Margin="0,12,0,0" />
-          <Button Classes="nav-item" Content="Settings" Click="OnNavSettings" x:Name="BtnSettings" />
+      <Grid Margin="10,14,10,10" RowDefinitions="Auto,*,Auto">
+        <StackPanel x:Name="NavPanel" Spacing="6">
+          <TextBlock Classes="micro-label" Text="WORKSHOP" />
+          <Button x:Name="BtnProjects" Classes="nav-item active" Content="Projects" Click="OnNavProjects" />
+          <Button x:Name="BtnNewProject" Classes="nav-item" Content="New Project" Click="OnNavNewProject" />
+          <Button x:Name="BtnMyUploads" Classes="nav-item" Content="My Uploads" Click="OnNavMyUploads" />
+          <Button x:Name="BtnModStore" Classes="nav-item" Content="Mod Store" Click="OnNavModStore" IsVisible="False" />
+          <TextBlock Classes="micro-label" Margin="0,12,0,0" Text="SYSTEM" />
+          <Button x:Name="BtnSettings" Classes="nav-item" Content="Settings" Click="OnNavSettings" />
         </StackPanel>
+
         <StackPanel Grid.Row="2" Spacing="8">
           <Border Classes="status-chip">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Ellipse Width="8" Height="8" x:Name="SteamStatusLed" />
+              <Ellipse x:Name="SteamStatusLed" Width="8" Height="8" />
               <TextBlock x:Name="SteamStatusText" Classes="chip-text" Text="Steam Disconnected" />
             </StackPanel>
           </Border>
+
           <Border Classes="status-chip">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Ellipse Width="8" Height="8" x:Name="GregApiStatusLed" />
+              <Ellipse x:Name="GregApiStatusLed" Width="8" Height="8" />
               <TextBlock x:Name="GregApiStatusText" Classes="chip-text" Text="gregAPI Offline" />
             </StackPanel>
           </Border>
+
           <Border Classes="status-chip">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Ellipse Width="8" Height="8" x:Name="AuthStatusLed" />
+              <Ellipse x:Name="AuthStatusLed" Width="8" Height="8" />
               <TextBlock x:Name="AuthStatusText" Classes="chip-text" Text="Login To Datacentermods.com" />
             </StackPanel>
           </Border>

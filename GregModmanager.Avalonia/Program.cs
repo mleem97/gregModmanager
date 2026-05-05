@@ -122,6 +122,7 @@ internal sealed class Program
         services.AddSingleton<VdfGeneratorService>();
         services.AddSingleton<WorkshopDownloadService>();
         services.AddSingleton<ModsFolderSyncService>();
+        services.AddSingleton<ModCollectionService>();
         services.AddSingleton<SubscriptionPoller>(sp =>
             new SubscriptionPoller(sp.GetRequiredService<SteamWorkshopService>()));
         services.AddSingleton<WorkshopSyncOrchestrator>();
@@ -134,6 +135,7 @@ internal sealed class Program
 
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<AvaloniaDispatcher>();
+        services.AddSingleton<SubDirectoryFixerInstallerService>();
 
         services.AddSingleton<MainWindow>();
         services.AddTransient<Views.ProjectsPage>();

@@ -79,6 +79,10 @@
               <TextBlock Text="Native profile:" VerticalAlignment="Center" />
               <ComboBox x:Name="NativeProfilePicker" Classes="input-terminal" SelectionChanged="OnNativeProfileChanged" />
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Mod type:" VerticalAlignment="Center" />
+              <ComboBox x:Name="ModTypePicker" Classes="input-terminal" SelectionChanged="OnModTypeChanged" />
+            </StackPanel>
           </StackPanel>
         </Border>
 

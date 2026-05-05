@@ -11,6 +11,15 @@ Primary distro families for gamers and IT users:
 - `scripts/linux/build-avalonia-packages.sh`
 - `scripts/linux/build-avalonia-packages.ps1`
 
+## nfpm Installation (Required)
+Use the GoReleaser apt repository:
+
+```bash
+echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+sudo apt update
+sudo apt install nfpm
+```
+
 ## Flatpak
 - Manifest: `scripts/linux/flatpak/com.gregframework.gregModmanager.yml`
 - Launcher: `scripts/linux/flatpak/gregmodmanager-flatpak-launcher.sh`
@@ -25,3 +34,4 @@ Workflow: `.github/workflows/avalonia-linux-packages.yml`
 - Desktop launcher entry is included.
 - Package dependencies are explicitly declared.
 - Flatpak is optional but recommended for broad desktop compatibility.
+- Linux package build expects `nfpm` in `PATH`.

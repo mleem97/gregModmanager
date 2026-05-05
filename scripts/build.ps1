@@ -357,14 +357,36 @@ $ver = (
     Select-Object -First 1
 ).Trim()
 if ([string]::IsNullOrWhiteSpace($ver)) {
-    $ver = '1.0.0'
+    $ver = '1.5.0'
 }
 
 $publishDir = Join-Path $repoRoot 'GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
+$fixerProjPath = Join-Path $repoRoot 'SubDirectoryFixer\SubDirectoryFixer.csproj'
+$fixerAssetsDir = Join-Path $repoRoot 'GregModmanager.Avalonia\Assets\SubDirectoryFixer'
+$fixerDllPath = Join-Path $fixerAssetsDir 'SubDirectoryFixer.dll'
 $iss = Join-Path $repoRoot 'installer\gregModmanager.iss'
 $outDir = Join-Path $repoRoot 'installer\Output'
 $linuxRequested = $LinuxDistros.Count -gt 0
 $wantSign = $Sign
+
+function Invoke-BuildSubDirectoryFixer {
+    if (-not (Test-Path -LiteralPath $fixerProjPath)) {
+        throw "SubDirectoryFixer-Projekt fehlt: $fixerProjPath"
+    }
+
+    Write-Host '[build] Baue SubDirectoryFixer (net6.0) ...'
+    & dotnet build $fixerProjPath -c Release
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    $builtDll = Join-Path $repoRoot 'SubDirectoryFixer\bin\Release\net6.0\SubDirectoryFixer.dll'
+    if (-not (Test-Path -LiteralPath $builtDll)) {
+        throw "SubDirectoryFixer DLL nicht gefunden: $builtDll"
+    }
+
+    New-Item -ItemType Directory -Path $fixerAssetsDir -Force | Out-Null
+    Copy-Item -LiteralPath $builtDll -Destination $fixerDllPath -Force
+    Write-Host "[build] SubDirectoryFixer bereitgestellt: $fixerDllPath"
+}
 
 if (-not $isWindowsHost) {
     if ($Sign) {
@@ -391,6 +413,8 @@ if (-not $isWindowsHost) {
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
 if (-not $SkipPublish) {
+    Invoke-BuildSubDirectoryFixer
+
     if (Test-Path -LiteralPath $publishDir) {
         Write-Host "[build] Bereinige alte Publish-Ausgabe: $publishDir"
         Remove-Item -LiteralPath $publishDir -Recurse -Force
@@ -433,7 +457,7 @@ Write-Host "[build] Inno Setup ($iscc) - Version $ver ..."
 $numericVer = $ver -replace '-.*$', ''
 if ($numericVer -notmatch '^\d+\.\d+\.\d+\.\d+$') {
     if ($numericVer -match '^\d+\.\d+\.\d+$') { $numericVer += ".0" }
-    else { $numericVer = "1.0.0.0" }
+    else { $numericVer = "1.5.0.0" }
 }
 $argList = @(
     $iss

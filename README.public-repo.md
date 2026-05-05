@@ -35,7 +35,7 @@ See `README.md` in this directory for troubleshooting, Steam layout, and headles
 
 In the **monorepo**, releases are driven by `.github/workflows/gregtools-modmanager-release.yml`. Push a tag:
 
-`gregtools-modmanager-v1.0.0`
+`gregtools-modmanager-v1.5.0`
 
 After this folder is its **own repository**, edit that workflow (or copy it to `.github/workflows/release.yml`) and switch the tag pattern to `v*` if you prefer.
 

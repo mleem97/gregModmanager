@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SubDirectoryFixer</AssemblyName>
+    <RootNamespace>SubDirectoryFixer</RootNamespace>
+    <Version>1.5.0</Version>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>

@@ -42,5 +42,12 @@ public sealed class WorkshopMetadata
 	/// <summary>Other Steam Workshop file ids this item depends on (subscribe order / tooling).</summary>
 	[JsonPropertyName("workshop_dependency")]
 	public List<ulong> WorkshopDependencyIds { get; set; } = new();
+
+	/// <summary>
+	/// <c>PlacableObject</c>, <c>MelonloaderPlugin</c>, <c>Userlib</c>, or <c>DataCenterMod</c>.
+	/// Determines the installation folder when the item is synced from Steam.
+	/// </summary>
+	[JsonPropertyName("modType")]
+	public string ModType { get; set; } = "PlacableObject";
 }
 

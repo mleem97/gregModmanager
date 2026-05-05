@@ -1,12 +1,12 @@
-:package: **gregModmanager v1.1.0 is LIVE!**
+:package: **gregModmanager v1.5.0 is LIVE!**
 
 Hey everyone,
 
-The desktop companion for the Greg Framework has been updated! **gregModmanager v1.1.0** is now available, featuring major infrastructure improvements and better integration with the **gregStore** ecosystem.
+The desktop companion for the Greg Framework has been updated! **gregModmanager v1.5.0** is now available, featuring major infrastructure improvements and better integration with the **gregStore** ecosystem.
 
 ---
 
-:wrench: **What's new in v1.1.0?**
+:wrench: **What's new in v1.5.0?**
 
 :cloud: **GitHub Mod Channel** — Directly install and update mods from GitHub repositories.
 :lock: **BetterAuth Integration** — Unified login via `gregframework.eu`. Authenticate once, access all framework services.
@@ -25,6 +25,6 @@ The desktop companion for the Greg Framework has been updated! **gregModmanager 
 
 ---
 
-:point_right: **[Download gregModmanager v1.1.0 on GitHub](https://github.com/mleem97/gregModmanager/releases/tag/v1.1.0)**
+:point_right: **[Download gregModmanager v1.5.0 on GitHub](https://github.com/mleem97/gregModmanager/releases/tag/v1.5.0)**
 
 — Your **teamGreg**

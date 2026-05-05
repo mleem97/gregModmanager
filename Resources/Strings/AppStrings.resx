@@ -74,6 +74,11 @@
   <data name="Editor_NeedsGCFHint" xml:space="preserve"><value>Adds a notice to the description that this item requires GCF.</value></data>
   <data name="Editor_NativeProfile" xml:space="preserve"><value>Native config profile</value></data>
   <data name="Editor_NativeProfileHint" xml:space="preserve"><value>Decoration: shop/static items in config.json. Code: DLL entries only (no shop/static in this file for code mods).</value></data>
+  <data name="Editor_ModType" xml:space="preserve"><value>Mod type</value></data>
+  <data name="Editor_ModType_PlacableObject" xml:space="preserve"><value>Placable Object</value></data>
+  <data name="Editor_ModType_MelonloaderPlugin" xml:space="preserve"><value>Melonloader Plugin</value></data>
+  <data name="Editor_ModType_Userlib" xml:space="preserve"><value>Userlib</value></data>
+  <data name="Editor_ModType_DataCenterMod" xml:space="preserve"><value>Data Center Mod</value></data>
   <data name="Editor_NeedsMelonLoader" xml:space="preserve"><value>Needs MelonLoader</value></data>
   <data name="Editor_NeedsMelonLoaderHint" xml:space="preserve"><value>Appends a MelonLoader requirements notice and download link to the Steam description if not already mentioned.</value></data>
   <data name="Editor_MelonLoaderNotice" xml:space="preserve"><value>[h2]Requirements[/h2][list][*] This Workshop item requires [url=https://melonwiki.xyz]MelonLoader[/url] for Data Center. Install MelonLoader before using this mod.[/list]</value></data>
@@ -289,7 +294,7 @@
   <data name="Settings_CannotCreate" xml:space="preserve"><value>Cannot create folder: {0}</value></data>
   <data name="Settings_PickerFailed" xml:space="preserve"><value>Folder picker failed: {0}</value></data>
   <data name="Settings_GameRoot" xml:space="preserve"><value>Game Root</value></data>
-  <data name="Settings_GameRootDesc" xml:space="preserve"><value>Path to the game installation folder. Workshop mods will be synced to GameRoot/Mods/Workshop/.</value></data>
+  <data name="Settings_GameRootDesc" xml:space="preserve"><value>Path to the game installation folder. Workshop mods are synced into GameRoot/Mods/Workshop/, GameRoot/Plugins/, GameRoot/Userlibs/ or GameRoot/Mods/ depending on the mod type.</value></data>
   <data name="Settings_GameRootPlaceholder" xml:space="preserve"><value>e.g. C:\Program Files\Steam\steamapps\common\DataCenter</value></data>
   <data name="Settings_GameRootNotSet" xml:space="preserve"><value>Not configured. Workshop sync requires a valid game root.</value></data>
   <data name="Settings_GameRootNotFound" xml:space="preserve"><value>Folder does not exist. Please select a valid game installation folder.</value></data>

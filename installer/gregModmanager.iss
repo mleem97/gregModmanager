@@ -3,11 +3,11 @@
 ; Version wird per ..\build.ps1 aus dem Avalonia-Projekt als /DMyAppVersion uebergeben.
 
 #ifndef MyAppVersion
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.5.0"
 #endif
 
 #ifndef MyAppNumericVersion
-#define MyAppNumericVersion "1.0.0.0"
+#define MyAppNumericVersion "1.5.0.0"
 #endif
 
 #define MyAppName "gregModmanager"

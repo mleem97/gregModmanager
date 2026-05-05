@@ -146,6 +146,18 @@ public sealed class SteamWorkshopService
 			? Steamworks.Ugc.Editor.NewCommunityFile
 			: new Steamworks.Ugc.Editor((PublishedFileId)metadata.PublishedFileId);
 
+		// Embed mod-type marker so subscribers know where to install this item.
+		try
+		{
+			var markerPath = Path.Combine(contentFolder, "greg-modmanager.meta.json");
+			var markerJson = System.Text.Json.JsonSerializer.Serialize(new { modType = metadata.ModType });
+			File.WriteAllText(markerPath, markerJson);
+		}
+		catch
+		{
+			// non-critical
+		}
+
 		editor = editor
 			.WithTitle(title)
 			.WithDescription(description)
@@ -452,6 +464,9 @@ public sealed class SteamWorkshopService
 		target.NativeConfigProfile = string.IsNullOrWhiteSpace(localSnapshot.NativeConfigProfile)
 			? "decoration"
 			: localSnapshot.NativeConfigProfile;
+		target.ModType = string.IsNullOrWhiteSpace(localSnapshot.ModType)
+			? "PlacableObject"
+			: localSnapshot.ModType;
 		target.PreviewImageRelativePath = localSnapshot.PreviewImageRelativePath ?? "preview.png";
 		target.AdditionalPreviews = new List<string>(localSnapshot.AdditionalPreviews);
 		target.WorkshopDependencyIds = new List<ulong>(localSnapshot.WorkshopDependencyIds ?? new List<ulong>());

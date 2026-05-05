@@ -3,6 +3,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using GregModmanager.Avalonia.Services;
 using GregModmanager.Avalonia.Views;
 using GregModmanager.Models.Auth;
 using GregModmanager.Services;
@@ -16,14 +17,20 @@ public partial class MainWindow : Window
     private readonly IServiceProvider _services;
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
+    private readonly SubDirectoryFixerInstallerService _subDirectoryFixerInstaller;
     private Control? _currentPage;
 
-    public MainWindow(IServiceProvider services, SteamWorkshopService steam, ISessionManager session)
+    public MainWindow(
+        IServiceProvider services,
+        SteamWorkshopService steam,
+        ISessionManager session,
+        SubDirectoryFixerInstallerService subDirectoryFixerInstaller)
     {
         InitializeComponent();
         _services = services;
         _steam = steam;
         _session = session;
+        _subDirectoryFixerInstaller = subDirectoryFixerInstaller;
 
         if (AppSettings.IsModStoreEnabled())
             BtnModStore.IsVisible = true;
@@ -34,6 +41,12 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
+        var installResult = await _subDirectoryFixerInstaller.EnsureInstalledAsync(AppSettings.GetGameRootPath());
+        if (installResult.Status is SubDirectoryFixerInstallStatus.Installed or SubDirectoryFixerInstallStatus.Failed)
+        {
+            AppFileLog.Info(installResult.Message);
+        }
+
         await _session.InitializeAsync();
         var args = Environment.GetCommandLineArgs();
         foreach (var arg in args)

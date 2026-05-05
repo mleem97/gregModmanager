@@ -6,7 +6,6 @@ PROJECT_PATH="$REPO_ROOT/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj"
 OUTPUT_ROOT="${1:-$REPO_ROOT/artifacts/avalonia-linux}"
 VERSION="${2:-1.1.0}"
 RID="linux-x64"
-NFP_IMAGE="ghcr.io/goreleaser/nfpm:latest"
 
 PUBLISH_DIR="$OUTPUT_ROOT/publish"
 PKG_DIR="$OUTPUT_ROOT/packages"
@@ -48,22 +47,12 @@ build_nfpm() {
   local packager="$1"
   local target="$2"
 
-  if command -v docker >/dev/null 2>&1; then
-    docker run --rm \
-      -u "$(id -u):$(id -g)" \
-      -v "$OUTPUT_ROOT:/work" \
-      -v "$REPO_ROOT:/repo" \
-      "$NFP_IMAGE" \
-      package --packager "$packager" --config "/work/nfpm.yaml" --target "$target"
-    return
-  fi
-
   if command -v nfpm >/dev/null 2>&1; then
     nfpm package --packager "$packager" --config "$NFP_CONFIG" --target "$target"
     return
   fi
 
-  echo "Neither docker nor nfpm available." >&2
+  echo "nfpm not found in PATH. Install with: echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list && sudo apt update && sudo apt install nfpm" >&2
   exit 1
 }
 
