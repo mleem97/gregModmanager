@@ -15,6 +15,8 @@ public partial class SettingsPage : UserControl
     private readonly ReproBundleService _reproBundle;
     private const string CurrentPathKey = "Settings_CurrentPath";
 
+    public SettingsPage() => InitializeComponent();
+
     public SettingsPage(WorkspaceService workspace, ReproBundleService reproBundle)
     {
         InitializeComponent();
@@ -139,7 +141,7 @@ public partial class SettingsPage : UserControl
         hint.Text = S.Get("Settings_RestartEffect");
     }
 
-    private static async void OnOpenLogs(object? sender, RoutedEventArgs e)
+    private async void OnOpenLogs(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -176,7 +178,7 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    private static void OnRestartApp(object? sender, RoutedEventArgs e)
+    private void OnRestartApp(object? sender, RoutedEventArgs e)
     {
         var exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe)) return;

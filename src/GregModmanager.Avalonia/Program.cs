@@ -156,7 +156,6 @@ internal static class Program
         services.AddSingleton<GregModmanager.Services.Install.IInstallIntentClient, GregModmanager.Services.Install.InstallIntentClient>();
 
         services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<SubDirectoryFixerInstallerService>();
 
         services.AddSingleton<MainWindow>();
         services.AddTransient<Views.ProjectsPage>();

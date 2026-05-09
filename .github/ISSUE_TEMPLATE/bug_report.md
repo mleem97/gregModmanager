@@ -19,9 +19,10 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots to help explain your problem.
 
 **Desktop:**
- - OS: [e.g. Windows 11]
- - Game Version: [e.g. 1.0.45]
- - gregCore Version: [e.g. 1.0.0.30-pre]
+
+- OS: [e.g. Windows 11]
+- Game Version: [e.g. 1.0.45]
+- gregCore Version: [e.g. 1.0.0.30-pre]
 
 **Additional context**
 Add any other context about the problem here.

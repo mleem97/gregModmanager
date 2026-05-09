@@ -39,6 +39,8 @@ public partial class EditorPage : UserControl
     private string _projectRoot = "";
     private WorkshopMetadata _metadata = new();
 
+    public EditorPage() => InitializeComponent();
+
     public EditorPage(WorkspaceService workspace, SteamWorkshopService steam, AppLogService log)
     {
         InitializeComponent();
@@ -324,6 +326,10 @@ public partial class EditorPage : UserControl
 
     #region Editor sub-tabs
 
+    private void OnTabDetails(object? sender, RoutedEventArgs e) => SetEditorTab(0);
+    private void OnTabAssets(object? sender, RoutedEventArgs e) => SetEditorTab(1);
+    private void OnTabPublish(object? sender, RoutedEventArgs e) => SetEditorTab(2);
+
     private void SetEditorTab(int index) => SetEditorTab(index, PanelDetails, PanelAssets, PanelPublish, TabBtnDetails, TabBtnAssets, TabBtnPublish);
 
     private static void SetEditorTab(int index, Control details, Control assets, Control publish, Button bDetails, Button bAssets, Button bPublish)
@@ -396,6 +402,24 @@ public partial class EditorPage : UserControl
 
     private void OnBbBold(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "b");
     private void OnBbItalic(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "i");
+    private void OnTitleChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateCounts();
+        RunUploadCheck();
+    }
+
+    private void OnDescriptionChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateCounts();
+        RunUploadCheck();
+    }
+
+    private void OnTagsChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateTagsHint();
+        RunUploadCheck();
+    }
+
     private void OnBbUnderline(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "u");
     private void OnBbStrike(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "strike");
     private void OnBbH1(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h1");

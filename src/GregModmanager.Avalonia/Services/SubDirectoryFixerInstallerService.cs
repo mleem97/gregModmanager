@@ -13,7 +13,7 @@ public enum SubDirectoryFixerInstallStatus
 
 public sealed record SubDirectoryFixerInstallResult(SubDirectoryFixerInstallStatus Status, string Message);
 
-public sealed class SubDirectoryFixerInstallerService
+public static class SubDirectoryFixerInstallerService
 {
     private const string PayloadRelativePath = "SubDirectoryFixer\\SubDirectoryFixer.dll";
     private const string TargetFileName = "SubDirectoryFixer.dll";

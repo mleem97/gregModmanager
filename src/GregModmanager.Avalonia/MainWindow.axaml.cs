@@ -17,20 +17,17 @@ public partial class MainWindow : Window
     private readonly IServiceProvider _services;
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
-    private readonly SubDirectoryFixerInstallerService _subDirectoryFixerInstaller;
     private Control? _currentPage;
 
     public MainWindow(
         IServiceProvider services,
         SteamWorkshopService steam,
-        ISessionManager session,
-        SubDirectoryFixerInstallerService subDirectoryFixerInstaller)
+        ISessionManager session)
     {
         InitializeComponent();
         _services = services;
         _steam = steam;
         _session = session;
-        _subDirectoryFixerInstaller = subDirectoryFixerInstaller;
 
         if (AppSettings.IsModStoreEnabled())
             BtnModStore.IsVisible = true;
@@ -41,7 +38,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        var installResult = await _subDirectoryFixerInstaller.EnsureInstalledAsync(AppSettings.GetGameRootPath());
+        var installResult = await SubDirectoryFixerInstallerService.EnsureInstalledAsync(AppSettings.GetGameRootPath());
         if (installResult.Status is SubDirectoryFixerInstallStatus.Installed or SubDirectoryFixerInstallStatus.Failed)
         {
             AppFileLog.Info(installResult.Message);

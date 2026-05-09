@@ -17,6 +17,8 @@ public partial class ProjectsPage : UserControl
     private readonly List<ProjectItemVm> _allProjects = new();
     private string _searchQuery = "";
 
+    public ProjectsPage() => InitializeComponent();
+
     public ProjectsPage(WorkspaceService workspace, AppLogService log)
     {
         InitializeComponent();
