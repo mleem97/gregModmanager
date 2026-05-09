@@ -31,6 +31,17 @@ Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repoRoot
+
+# Load .env if it exists
+$envFile = Join-Path $repoRoot '.env'
+if (Test-Path -LiteralPath $envFile) {
+    Write-Host "[build] Lade Umgebungsvariablen aus .env ..."
+    Get-Content $envFile | Where-Object { $_ -match '=' -and $_ -notmatch '^#' } | ForEach-Object {
+        $name, $value = $_.Split('=', 2)
+        $env:$($name.Trim()) = $value.Trim()
+    }
+}
+
 $isWindowsHost = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 $script:AutoSignThumbprint = $null
 

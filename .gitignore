@@ -17,4 +17,10 @@ InternalDocs/
 docs/internal/
 **/*_INTERNAL*.md
 **/*.internal.md
+# Local environment secrets
+.env
 
+# IDEs
+.idea/
+.vscode/
+.user
