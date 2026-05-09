@@ -10,3 +10,4 @@ internal static class TelemetrySecrets
     public const string LokiTenant = "managerclient";
 }
 
+

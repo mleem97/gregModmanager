@@ -84,8 +84,6 @@ public sealed class SubscriptionPoller : IDisposable
 
 		using var page = result.Value;
 		return new HashSet<ulong>(page.Entries.Select(item => item.Id.Value));
-
-		return ids;
 	}
 
 	public void Dispose()
