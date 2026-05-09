@@ -79,7 +79,7 @@ public partial class ModManagerPage : UserControl
 
     private void OnSyncStatusChanged(WorkshopSyncEvent evt) => OnSyncStatusChanged(evt, SyncStatusBar, SyncStatusLabel);
 
-    private static void OnSyncStatusChanged(WorkshopSyncEvent evt, Control bar, TextBlock label)
+    private static void OnSyncStatusChanged(WorkshopSyncEvent evt, Border bar, TextBlock label)
     {
         Dispatcher.UIThread.Post(() =>
         {

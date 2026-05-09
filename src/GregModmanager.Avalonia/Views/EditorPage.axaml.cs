@@ -701,13 +701,13 @@ public partial class EditorPage : UserControl
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
         try
         {
             ApplyMetadataFromUi();
-            _workspace.SaveMetadata(_projectRoot, _metadata);
+            WorkspaceService.SaveMetadata(_projectRoot, _metadata);
             _log.Append($"Saved metadata for {_projectRoot}");
             RunUploadCheck();
-            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
             await dialog.ShowMessageAsync(S.Get("Editor_Saved"), S.Get("Editor_MetaUpdated"));
         }
         catch (Exception ex)
@@ -731,7 +731,7 @@ public partial class EditorPage : UserControl
                 return;
             }
 
-            _workspace.SaveMetadata(_projectRoot, _metadata);
+            WorkspaceService.SaveMetadata(_projectRoot, _metadata);
 
             var content = Path.Combine(_projectRoot, "content");
             SyncStatusLabel.Text = S.Get("Editor_Uploading");
@@ -761,7 +761,7 @@ public partial class EditorPage : UserControl
                 return;
             }
 
-            _workspace.SaveMetadata(_projectRoot, _metadata);
+            WorkspaceService.SaveMetadata(_projectRoot, _metadata);
             PublishedIdLabel.Text = S.Format("Editor_FileId", _metadata.PublishedFileId);
             ChangeLogHintLabel.Text = S.Get("Editor_ChangeNotesHint");
             ViewOnSteamBtn.IsVisible = true;
@@ -798,6 +798,7 @@ public partial class EditorPage : UserControl
         catch (Exception ex)
         {
             SyncStatusLabel.Text = "";
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
             await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
         }
     }
