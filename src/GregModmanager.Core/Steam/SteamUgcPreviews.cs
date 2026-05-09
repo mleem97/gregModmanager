@@ -27,6 +27,8 @@ internal static class SteamUgcPreviews
 	private static bool _resolved;
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("SonarLint", "S3011", Justification = "Reflection on internal Steamworks APIs is required for additional preview support.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Steamworks internal types are preserved via library settings or trimmer roots.")]
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075:DynamicallyAccessedMembers", Justification = "Reflection on Steamworks.UGC.Internal is required for full feature set.")]
 	private static bool Resolve()
 	{
 		if (_resolved) return _ugcInternal is not null;
@@ -111,6 +113,7 @@ internal static class SteamUgcPreviews
 		return urls;
 	}
 
+	[System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2077:DynamicallyAccessedMembers", Justification = "ItemPreviewType is an enum and safe to activate.")]
 	private static void ExtractPreviewUrls(object handleObj, uint count, List<string> urls)
 	{
 		var imagePreviewTypeValue = _itemPreviewType is not null

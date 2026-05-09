@@ -921,13 +921,13 @@ public sealed class WorkspaceService
 		File.WriteAllText(Path.Combine(assetDir, "README.txt"), readme);
 
 		// ModStore metadata for Asset Store indexing
-		var modstoreMeta = new
+		var modstoreMeta = new AssetModMetadata
 		{
-			assetType = type,
-			tags = new[] { "asset", type },
-			isStandalone = true
+			AssetType = type,
+			Tags = new[] { "asset", type },
+			IsStandalone = true
 		};
-		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, JsonOptions));
+		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, AppJsonContext.Default.AssetModMetadata));
 	}
 }
 

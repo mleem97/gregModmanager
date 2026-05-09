@@ -11,7 +11,7 @@ internal static class DebugNdjsonSessionLog
 	internal static string LogPath => Path.Combine(Path.GetTempPath(), "debug-9fc458.log");
 
 	#region agent log
-	internal static void Write(string hypothesisId, string location, string message, object? data = null)
+	internal static void Write(string hypothesisId, string location, string message, Models.DebugLogPayload? data = null)
 	{
 		try
 		{
@@ -26,7 +26,7 @@ internal static class DebugNdjsonSessionLog
 			};
 			if (data != null)
 			{
-				root["data"] = JsonSerializer.SerializeToNode(data, data.GetType());
+				root["data"] = JsonSerializer.SerializeToNode(data, AppJsonContext.Default.DebugLogPayload);
 			}
 
 			File.AppendAllText(LogPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }) + Environment.NewLine);

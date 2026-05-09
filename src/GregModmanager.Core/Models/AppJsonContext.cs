@@ -25,6 +25,15 @@ namespace GregModmanager.Models;
 [JsonSerializable(typeof(ModStoreMarker))]
 [JsonSerializable(typeof(LokiPushRequest))]
 [JsonSerializable(typeof(SyncCollectionEvent))]
+[JsonSerializable(typeof(LoginRequest))]
+[JsonSerializable(typeof(AuthResponse))]
+[JsonSerializable(typeof(UserInfo))]
+[JsonSerializable(typeof(DebugLogPayload))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(RalphTaskStatus))]
+[JsonSerializable(typeof(AssetModMetadata))]
 public partial class AppJsonContext : JsonSerializerContext
 {
 }

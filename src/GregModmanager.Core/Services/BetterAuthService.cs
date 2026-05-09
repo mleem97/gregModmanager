@@ -1,8 +1,4 @@
-using System;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
-using System.Text.Json.Serialization;
+using GregModmanager.Models;
 
 namespace GregModmanager.Services;
 
@@ -15,12 +11,12 @@ public sealed class BetterAuthService
     {
         try
         {
-            var payload = new { email, password };
-            var response = await _http.PostAsJsonAsync($"{BaseUrl}/sign-in/email", payload);
+            var payload = new LoginRequest { Email = email, Password = password };
+            var response = await _http.PostAsJsonAsync($"{BaseUrl}/sign-in/email", payload, AppJsonContext.Default.LoginRequest);
 
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync<AuthResponse>();
+                return await response.Content.ReadFromJsonAsync(AppJsonContext.Default.AuthResponse);
             }
         }
         catch (Exception)
@@ -45,25 +41,4 @@ public sealed class BetterAuthService
             return false;
         }
     }
-}
-
-public class AuthResponse
-{
-    [JsonPropertyName("token")]
-    public string Token { get; set; } = string.Empty;
-
-    [JsonPropertyName("user")]
-    public UserInfo? User { get; set; }
-}
-
-public class UserInfo
-{
-    [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
-
-    [JsonPropertyName("email")]
-    public string Email { get; set; } = string.Empty;
-
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
 }

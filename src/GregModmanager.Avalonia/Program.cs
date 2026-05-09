@@ -30,11 +30,11 @@ internal static class Program
             AppFileLog.Error("Failed to start eager telemetry", ex);
         }
 
-        DebugNdjsonSessionLog.Write("H1", LogCategory, "entry", new
+        DebugNdjsonSessionLog.Write("H1", LogCategory, "entry", new GregModmanager.Models.DebugLogPayload
         {
-            baseDir = AppContext.BaseDirectory,
-            tempLog = DebugNdjsonSessionLog.LogPath,
-            args = Environment.GetCommandLineArgs(),
+            BaseDir = AppContext.BaseDirectory,
+            TempLog = DebugNdjsonSessionLog.LogPath,
+            Args = Environment.GetCommandLineArgs(),
         });
 
         S.ApplySavedCulture();
@@ -97,7 +97,7 @@ internal static class Program
 
             if (HeadlessRunner.TryHandle(Environment.GetCommandLineArgs(), out var exitCode))
             {
-                DebugNdjsonSessionLog.Write("H3", LogCategory, "headless_exit", new { exitCode });
+                DebugNdjsonSessionLog.Write("H3", LogCategory, "headless_exit", new GregModmanager.Models.DebugLogPayload { ExitCode = exitCode });
                 DebugSessionLog.Write("H4", LogCategory, "headless_exit", new { exitCode });
                 Environment.Exit(exitCode);
                 throw new InvalidOperationException("Unreachable: process should have exited.");
@@ -109,7 +109,7 @@ internal static class Program
         {
             AppFileLog.MarkCrash("Avalonia.Program.Main.Exception", ex);
             AppFileLog.Error("Avalonia Program exception", ex);
-            DebugNdjsonSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, exType = ex.GetType().FullName, ex.StackTrace });
+            DebugNdjsonSessionLog.Write("H1", LogCategory, "exception", new GregModmanager.Models.DebugLogPayload { Message = ex.Message, ExType = ex.GetType().FullName, StackTrace = ex.StackTrace });
             DebugSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, ex.StackTrace });
             
             if (OperatingSystem.IsWindows() && !args.Contains("--headless"))

@@ -75,17 +75,17 @@ public sealed class JsonFilePreferences : IPreferences
 
     public void SetString(string key, string value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.String); Save(); }
     }
 
     public void SetBool(string key, bool value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.Boolean); Save(); }
     }
 
     public void SetInt(string key, int value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.Int32); Save(); }
     }
 
     public void Remove(string key)
