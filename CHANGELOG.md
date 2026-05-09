@@ -9,12 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **JSON Source Generation (AOT Support)**: Centralized registry in `AppJsonContext.cs` for all serialized models (`AuthResponse`, `DebugLogPayload`, `RalphTaskStatus`, `AssetModMetadata`, etc.) to ensure stability in trimmed builds.
+- `global.json`: Pinned .NET SDK to 9.0.313 for build reproducibility and to bypass broken preview SDKs.
 - `DESIGN.md` documenting the **Terminal Core** design system (colors, typography, layout grid, component specs, forbidden patterns).
 - `EXTERNAL_DEPENDENCIES.md` fully updated to reflect Avalonia UI / .NET 9 stack and current repository layout.
 
 ### Changed
 
-- **Build artifacts naming convention** changed to `gregModmanager-{semVersion}{-pre}-{OS}.{ext}` across all platforms (Windows EXE/ZIP, Linux tarball/packages).
+- **AOT Optimization**: Migrated `BetterAuthService`, `TelemetryService`, `RalphSyncService`, and `WorkspaceService` to use source-generated JSON serialization, eliminating `IL2026` trim warnings.
+- **Compiler Warning Cleanup**: Refactored `SafeProcess`, `SessionManager`, and `SteamUgcPreviews` to resolve `CS1998` (async missing await).
+- **Null Safety**: Updated `SettingsPage`, `NewProjectPage`, and `ProjectsPage` to resolve `CS8618` (uninitialized non-nullable fields) in Avalonia views.
+- **Build artifacts naming convention** changed to `gregModmanager-{semVersion}{-pre}{-OS}.{ext}` across all platforms (Windows EXE/ZIP, Linux tarball/packages).
 - `README.md` updated with **GitHub Actions status badges** (Build & Release, Linux Packages) in `for-the-badge` style.
 - `README.md` now references official ecosystem hubs [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
 - `AGENTS.md` paths updated to match `src/` / `tests/` / `build/` directory layout.
