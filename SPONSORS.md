@@ -50,9 +50,10 @@ Includes all previous perks, plus:
 - Featured mod spot on `datacentermods.com`
 
 ## **Want to claim your perks?**
+>
 > Join the [Discord server](https://discord.gg/greg) and message a moderator with your GitHub username to get verified and assigned your perks!
 
-### **NOTES**:
+### **NOTES**
 
 > - Perks are cumulative; higher tiers include all benefits of the previous tiers.
 > - If you are a sponsor and want to claim your perks, please join the Discord server and message a moderator with your GitHub username for verification.

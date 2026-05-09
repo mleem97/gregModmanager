@@ -17,12 +17,23 @@ public static class AppFileLog
 
 			try
 			{
-				var root = Path.Combine(
+				// Try installation folder first (requested by user)
+				var baseDir = AppContext.BaseDirectory;
+				if (!string.IsNullOrEmpty(baseDir) && IsDirectoryWritable(baseDir))
+				{
+					var root = Path.Combine(baseDir, "logs");
+					Directory.CreateDirectory(root);
+					_logPath = Path.Combine(root, $"app-{DateTime.Now:yyyyMMdd}.log");
+					return _logPath;
+				}
+
+				// Fallback to LocalApplicationData
+				var appData = Path.Combine(
 					Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 					"gregModmanager",
 					"logs");
-				Directory.CreateDirectory(root);
-				_logPath = Path.Combine(root, $"app-{DateTime.Now:yyyyMMdd}.log");
+				Directory.CreateDirectory(appData);
+				_logPath = Path.Combine(appData, $"app-{DateTime.Now:yyyyMMdd}.log");
 			}
 			catch
 			{
@@ -33,12 +44,38 @@ public static class AppFileLog
 		}
 	}
 
+	private static bool IsDirectoryWritable(string directoryPath)
+	{
+		try
+		{
+			var testFile = Path.Combine(directoryPath, $".write-test-{Environment.ProcessId}.tmp");
+			File.WriteAllText(testFile, "ok");
+			File.Delete(testFile);
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
+	}
+
 	private static string SessionMarkerPath
 	{
 		get
 		{
 			var logDir = Path.GetDirectoryName(LogPath) ?? Path.GetTempPath();
 			return Path.Combine(logDir, "session-active.marker");
+		}
+	}
+
+	public static string ReportsDir
+	{
+		get
+		{
+			var root = Path.GetDirectoryName(LogPath) ?? Path.GetTempPath();
+			var reports = Path.Combine(root, "reports");
+			Directory.CreateDirectory(reports);
+			return reports;
 		}
 	}
 
@@ -96,6 +133,46 @@ public static class AppFileLog
 			Error($"Crash marker from {source}", ex);
 			var payload = $"pid={Environment.ProcessId};utc={DateTime.UtcNow:O};source={source};message={ex?.Message}";
 			File.WriteAllText(SessionMarkerPath, payload);
+
+			var report = new GregModmanager.Models.CrashReport
+			{
+				Timestamp = DateTime.UtcNow,
+				AppVersion = GetAppVersion(),
+				OsVersion = Environment.OSVersion.ToString(),
+				ExceptionType = ex?.GetType().FullName,
+				Message = ex?.Message,
+				StackTrace = ex?.StackTrace,
+				Source = source,
+				ProcessId = Environment.ProcessId
+			};
+
+			SaveCrashReport(report);
+		}
+		catch
+		{
+			// logging must never crash the app
+		}
+	}
+
+	private static string GetAppVersion()
+	{
+		try
+		{
+			return System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0.0";
+		}
+		catch
+		{
+			return "unknown";
+		}
+	}
+
+	public static void SaveCrashReport(GregModmanager.Models.CrashReport report)
+	{
+		try
+		{
+			var path = Path.Combine(ReportsDir, $"crash-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json");
+			var json = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+			File.WriteAllText(path, json);
 		}
 		catch
 		{

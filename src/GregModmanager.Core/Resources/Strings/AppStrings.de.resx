@@ -309,5 +309,14 @@
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro-Bundle erstellt: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Repro-Bundle konnte nicht erstellt werden: {0}</value></data>
 
+  <data name="Settings_GameRoot" xml:space="preserve"><value>Spiel-Verzeichnis</value></data>
+  <data name="Settings_GameRootDesc" xml:space="preserve"><value>Pfad zur Installation des Spiels. Workshop-Mods werden je nach Typ nach GameRoot/Mods/Workshop/, GameRoot/Plugins/, GameRoot/Userlibs/ oder GameRoot/Mods/ synchronisiert.</value></data>
+  <data name="Settings_GameRootPlaceholder" xml:space="preserve"><value>z. B. C:\Program Files\Steam\steamapps\common\DataCenter</value></data>
+  <data name="Settings_GameRootNotSet" xml:space="preserve"><value>Nicht konfiguriert. Workshop-Sync erfordert ein gültiges Spiel-Verzeichnis.</value></data>
+  <data name="Settings_GameRootNotFound" xml:space="preserve"><value>Ordner existiert nicht. Bitte ein gültiges Spiel-Installationsverzeichnis wählen.</value></data>
+  <data name="Settings_Telemetry" xml:space="preserve"><value>Gesundheitsstatus &amp; Telemetrie</value></data>
+  <data name="Settings_EnableTelemetry" xml:space="preserve"><value>Anonyme Absturzberichte und Performance-Metriken aktivieren</value></data>
+  <data name="Settings_TelemetryPrivacy" xml:space="preserve"><value>Datenschutz: Wir sammeln anonymisierte Daten, um die App zu verbessern. Es werden keine persönlichen Daten oder Mod-Dateien gesendet.</value></data>
+
 </root>
 

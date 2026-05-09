@@ -113,6 +113,7 @@ sudo pacman -S libx11 libxrandr libxcursor libxi
 ```
 
 Display server support:
+
 - **X11** — fully supported
 - **Wayland** — partially supported; some UI rendering may differ
 
@@ -145,11 +146,13 @@ Display server support:
 5. Launch gregModmanager from the Start menu or desktop shortcut
 
 **Default Paths:**
+
 - Per-user: `C:\Users\<Username>\AppData\Local\gregModmanager`
 - Per-machine: `C:\Program Files\gregModmanager`
 - Config/logs: `%AppData%\gregModmanager`
 
 **To Uninstall:**
+
 - Control Panel → Programs → Uninstall a program → select gregModmanager
 - Or: Run the installer again and select "Uninstall"
 
@@ -161,6 +164,7 @@ Display server support:
 4. (Optional) Create a shortcut on the desktop or Start menu
 
 **Advantages:**
+
 - No registry changes
 - Easy to keep multiple versions
 - Can run from USB drive
@@ -184,6 +188,7 @@ chmod +x GregModmanager-v1.5.1.AppImage
 ```
 
 **Advantages:**
+
 - Self-contained, no dependencies
 - Works on any Linux distro
 - No installation needed
@@ -239,6 +244,7 @@ cd gregmodmanager
 ```
 
 **Default Paths (Linux):**
+
 - Config/logs: `~/.config/gregModmanager` or `~/.local/share/gregModmanager`
 - Mods cache: `~/.cache/gregModmanager`
 
@@ -462,6 +468,7 @@ gregModmanager integrates with Steam:
 - **Workshop support** for datcentermods.com content
 
 **Requirements:**
+
 - Steam client must be installed and running
 - Game must be in your Steam library
 
@@ -526,6 +533,7 @@ The order mods are listed determines the load order:
 3. **Numbered Prefix** — Use `01_ModA`, `02_ModB`, etc. for explicit ordering
 
 **Why Load Order Matters:**
+
 - Some mods depend on others loading first
 - Conflicting features may cause issues if loaded in wrong order
 - Initialization of systems may require specific sequences
@@ -579,6 +587,7 @@ Settings → **Auto-Update Mods** ☑ → Mods update automatically when launchi
 **Select Multiple Mods:** Ctrl+Click to select multiple, Shift+Click for range
 
 **Batch Actions:**
+
 - **Enable/Disable All** → Right-click → select action
 - **Delete Selected** → Right-click → Uninstall All
 - **Update Selected** → Right-click → Update Selected
@@ -619,6 +628,7 @@ If dependencies are missing:
 **Cause:** Network error, corrupted package, or permission issue
 
 **Solution:**
+
 1. Check internet connection
 2. Try installing again
 3. If error persists, check mod folder permissions (should be read/write)
@@ -629,6 +639,7 @@ If dependencies are missing:
 **Cause:** A mod requires another mod that isn't installed
 
 **Solution:**
+
 1. Go to **Mod Browser**
 2. Search for the missing dependency
 3. Click **Install**
@@ -639,6 +650,7 @@ If dependencies are missing:
 **Cause:** Two mods modify the same game system and may be incompatible
 
 **Solution:**
+
 1. Read the conflict warning carefully
 2. Check mod documentation for compatibility info
 3. Disable one of the conflicting mods
@@ -649,6 +661,7 @@ If dependencies are missing:
 **Cause:** Mod incompatibility, corrupt install, or missing MelonLoader
 
 **Solution:**
+
 1. Check MelonLoader is installed: Settings → Game Setup → MelonLoader Status
 2. Try disabling recently installed mods
 3. Launch game without mods to confirm it runs
@@ -660,6 +673,7 @@ If dependencies are missing:
 **Cause:** Permission issue, incompatible game version, or missing .NET runtime
 
 **Solution:**
+
 1. Close the game completely
 2. Run gregModmanager as administrator (Windows)
 3. Check .NET 6+ runtime is installed: `dotnet --version` in terminal
@@ -670,6 +684,7 @@ If dependencies are missing:
 **Cause:** Network connectivity, firewall, or DNS issue
 
 **Solution:**
+
 1. Check internet connection (try opening [datacentermods.com](https://datacentermods.com) in browser)
 2. Check firewall allows gregModmanager (Windows Defender → Allow app)
 3. Try a different DNS (8.8.8.8 or 1.1.1.1)
@@ -680,6 +695,7 @@ If dependencies are missing:
 **Cause:** Too many mods, conflicts, or poorly optimized mods
 
 **Solution:**
+
 1. Disable non-essential mods
 2. Check mod documentation for performance impact
 3. Review game logs for errors that might indicate conflicts
@@ -695,6 +711,7 @@ Logs contain detailed information about every operation:
 4. Right-click to copy log text or **Export** to file
 
 **Log Locations:**
+
 - **Windows:** `C:\Users\<Username>\AppData\Roaming\gregModmanager\logs`
 - **Linux:** `~/.config/gregModmanager/logs` or `~/.local/share/gregModmanager/logs`
 
@@ -791,6 +808,7 @@ To help translate gregModmanager:
 5. Submit a pull request with your translations
 
 **Guidelines:**
+
 - Keep translations concise and context-aware
 - Maintain formatting codes (e.g., `{0}` for placeholders)
 - Test the translation in-app before submitting

@@ -7,11 +7,13 @@ public sealed class ModCollectionService
 {
 	private readonly object _gate = new();
 	private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+	private readonly TelemetryService _telemetry;
 	private readonly string _storagePath;
 	private CollectionCatalog _catalog;
 
-	public ModCollectionService()
+	public ModCollectionService(TelemetryService telemetry)
 	{
+		_telemetry = telemetry;
 		var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GregModmanager");
 		Directory.CreateDirectory(root);
 		_storagePath = Path.Combine(root, "collections.json");
@@ -163,6 +165,7 @@ public sealed class ModCollectionService
 		var queue = new Queue<ModCollectionEntry>(collection.Items);
 		var anySucceeded = false;
 
+		var sw = System.Diagnostics.Stopwatch.StartNew();
 		while (queue.Count > 0)
 		{
 			ct.ThrowIfCancellationRequested();
@@ -205,6 +208,19 @@ public sealed class ModCollectionService
 				}
 			}
 		}
+		sw.Stop();
+
+		_ = _telemetry.TrackEventAsync("sync_collection", new
+		{
+			collectionId = collectionId,
+			collectionName = collection.Name,
+			success = anySucceeded,
+			itemCount = seen.Count,
+			durationMs = sw.ElapsedMilliseconds
+		}, new Dictionary<string, string>
+		{
+			{ "outcome", anySucceeded ? "success" : "failed" }
+		});
 
 		return anySucceeded;
 	}

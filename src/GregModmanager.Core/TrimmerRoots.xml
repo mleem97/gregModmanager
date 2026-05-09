@@ -3,6 +3,7 @@
   <assembly fullname="GregModmanager">
     <type fullname="GregModmanager.DebugNdjsonSessionLog" preserve="all" />
     <type fullname="GregModmanager.Models.WorkshopMetadata" preserve="all" />
+    <type fullname="GregModmanager.Models.CrashReport" preserve="all" />
     <type fullname="GregModmanager.Models.NativeModConfig" preserve="all" />
     <type fullname="GregModmanager.Models.ModOptionsConfigFile" preserve="all" />
   </assembly>

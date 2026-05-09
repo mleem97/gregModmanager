@@ -11,9 +11,17 @@ namespace GregModmanager.Steam;
 /// </summary>
 public static class SteamApiNativeLoader
 {
+	private const string SteamFolderName = "Steam";
+	private const string SteamAppsFolderName = "steamapps";
+	private const string CommonFolderName = "common";
+	private const string GameFolderName = "Data Center";
+	private const string PluginsFolderName = "Plugins";
+	private const string ArchFolderName = "x86_64";
+
 	private static readonly string DllFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api.so";
 	private const string UnityDataFolderName = "Data Center_Data";
 	private static IntPtr _module;
+	public static bool IsLoaded => _module != IntPtr.Zero;
 
 	/// <summary>
 	/// Idempotent: loads the first existing candidate. Returns true if a module handle was obtained.
@@ -29,19 +37,11 @@ public static class SteamApiNativeLoader
 	{
 		var candidates = new[]
 		{
-			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam", "steamapps", "common", "Data Center"),
-			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Steam", "steamapps", "common", "Data Center"),
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName),
+			Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName),
 		};
 
-		foreach (var candidate in candidates)
-		{
-			if (Directory.Exists(candidate))
-			{
-				return candidate;
-			}
-		}
-
-		return null;
+		return candidates.FirstOrDefault(Directory.Exists);
 	}
 
 	public static string? GetGameRoot()
@@ -63,15 +63,7 @@ public static class SteamApiNativeLoader
 			return autoRoot;
 		}
 
-		foreach (var gameRoot in EnumerateHeuristicGameRoots())
-		{
-			if (Directory.Exists(gameRoot))
-			{
-				return gameRoot;
-			}
-		}
-
-		return null;
+		return EnumerateHeuristicGameRoots().FirstOrDefault(Directory.Exists);
 	}
 
 	public static bool TryPreload()
@@ -126,8 +118,8 @@ public static class SteamApiNativeLoader
 
 		if (!string.IsNullOrEmpty(_customGameRoot))
 		{
-			var path1 = Path.Combine(_customGameRoot, UnityDataFolderName, "Plugins", "x86_64", DllFileName);
-			var path2 = Path.Combine(_customGameRoot, "Plugins", "x86_64", DllFileName);
+			var path1 = Path.Combine(_customGameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
+			var path2 = Path.Combine(_customGameRoot, PluginsFolderName, ArchFolderName, DllFileName);
 			_attemptedPaths.Add(path1);
 			_attemptedPaths.Add(path2);
 			yield return path1;
@@ -136,10 +128,10 @@ public static class SteamApiNativeLoader
 
 		var steamCommonPath = Path.Combine(
 			Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-			"Steam", "steamapps", "common", "Data Center");
+			SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName);
 		if (Directory.Exists(steamCommonPath))
 		{
-			var path = Path.Combine(steamCommonPath, UnityDataFolderName, "Plugins", "x86_64", DllFileName);
+			var path = Path.Combine(steamCommonPath, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 			_attemptedPaths.Add(path);
 			yield return path;
 		}
@@ -147,10 +139,7 @@ public static class SteamApiNativeLoader
 		var envRoot = Environment.GetEnvironmentVariable("DATA_CENTER_GAME_DIR")?.Trim();
 		if (!string.IsNullOrEmpty(envRoot))
 		{
-			var nativeSubPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) 
-				? Path.Combine(UnityDataFolderName, "Plugins", "x86_64", DllFileName)
-				: Path.Combine(UnityDataFolderName, "Plugins", "x86_64", DllFileName); // Unity Linux paths usually match
-			
+			var nativeSubPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 			yield return Path.Combine(envRoot, nativeSubPath);
 		}
 
@@ -161,7 +150,7 @@ public static class SteamApiNativeLoader
 
 		foreach (var gameRoot in EnumerateHeuristicGameRoots())
 		{
-			yield return Path.Combine(gameRoot, UnityDataFolderName, "Plugins", "x86_64", DllFileName);
+			yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 		}
 
 		var baseDir = AppContext.BaseDirectory;
@@ -185,7 +174,7 @@ public static class SteamApiNativeLoader
 
 		for (var i = 0; i < 8 && !string.IsNullOrEmpty(dir); i++)
 		{
-			yield return Path.Combine(dir, UnityDataFolderName, "Plugins", "x86_64", DllFileName);
+			yield return Path.Combine(dir, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 			try
 			{
 				dir = Path.GetDirectoryName(dir);
@@ -226,11 +215,11 @@ public static class SteamApiNativeLoader
 		{
 			try
 			{
-				using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Valve\Steam");
+				using var key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\Valve\{SteamFolderName}");
 				var installPath = key?.GetValue("InstallPath") as string;
 				if (!string.IsNullOrEmpty(installPath))
 				{
-					Add(Path.Combine(installPath, "steamapps", "common", "Data Center"));
+					Add(Path.Combine(installPath, SteamAppsFolderName, CommonFolderName, GameFolderName));
 				}
 			}
 			catch
@@ -240,13 +229,13 @@ public static class SteamApiNativeLoader
 
 			Add(Path.Combine(
 				Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-				"Steam", "steamapps", "common", "Data Center"));
+				SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
 		}
 		else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 		{
 			var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-			Add(Path.Combine(home, ".local/share/Steam/steamapps/common/Data Center"));
-			Add(Path.Combine(home, ".steam/steam/steamapps/common/Data Center"));
+			Add(Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+			Add(Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, CommonFolderName, GameFolderName));
 		}
 
 		foreach (var root in seen)

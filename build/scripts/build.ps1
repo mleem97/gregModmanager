@@ -29,7 +29,7 @@ param(
 Set-StrictMode -Version Latest
 Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue
 $ErrorActionPreference = 'Stop'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repoRoot
 $isWindowsHost = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 $script:AutoSignThumbprint = $null
@@ -62,7 +62,8 @@ function Get-ProjectVersion {
             if ($LASTEXITCODE -eq 0 -and $branch -ne 'main' -and $branch -ne 'master') {
                 $isPre = $true
             }
-        } catch { }
+        }
+        catch { }
     }
 
     return [PSCustomObject]@{
@@ -158,7 +159,8 @@ function Invoke-BuildSign {
         $t = $thumb.Trim()
         if ($t -match '<|>') { throw "CODE_SIGN_THUMBPRINT ist noch ein Platzhalter." }
         & $signScript -Path $TargetPath -Thumbprint $t
-    } else {
+    }
+    else {
         & $signScript -Path $TargetPath -PfxPath $pfx.Trim()
     }
 }
@@ -166,8 +168,8 @@ function Invoke-BuildSign {
 function Invoke-SignWindowsPayloadBinaries {
     param([Parameter(Mandatory)][string]$PublishDirectory)
     $files = Get-ChildItem -LiteralPath $PublishDirectory -Recurse -File |
-        Where-Object { $_.Extension -in @('.exe', '.dll') -and $_.Name -ne 'steam_api64.dll' } |
-        Sort-Object FullName
+    Where-Object { $_.Extension -in @('.exe', '.dll') -and $_.Name -ne 'steam_api64.dll' } |
+    Sort-Object FullName
     foreach ($file in $files) {
         $sig = Get-AuthenticodeSignature -FilePath $file.FullName
         if ($sig.Status -eq [System.Management.Automation.SignatureStatus]::Valid) {
@@ -176,7 +178,8 @@ function Invoke-SignWindowsPayloadBinaries {
         }
         try {
             Invoke-BuildSign -TargetPath $file.FullName
-        } catch {
+        }
+        catch {
             Write-Warning "[build] Signieren fehlgeschlagen fuer $($file.Name): $($_.Exception.Message)"
         }
     }
@@ -201,7 +204,8 @@ function New-DetachedArtifactSignature {
         & openssl dgst -sha256 -sign $keyPath -out $sigPath $TargetPath 2>$null
         Copy-Item -LiteralPath $certPath -Destination "$TargetPath.sig.cer" -Force
         Write-Host "[build] Detached-Signatur: $sigPath"
-    } finally {
+    }
+    finally {
         if (Test-Path -LiteralPath $tmpDir) { Remove-Item -LiteralPath $tmpDir -Recurse -Force }
     }
 }
@@ -224,11 +228,39 @@ function Invoke-BuildSubDirectoryFixer {
     Write-Host "[build] SubDirectoryFixer (plugin) bereitgestellt: $fixerDllPath"
 }
 
+function Add-TelemetrySecrets {
+    $secretsPath = Join-Path $repoRoot 'src\GregModmanager.Core\Services\TelemetrySecrets.cs'
+    if (-not (Test-Path -LiteralPath $secretsPath)) {
+        Write-Warning "[build] TelemetrySecrets.cs nicht gefunden - ueberspringe Injektion."
+        return
+    }
+
+    $url = $env:TELEMETRY_URL
+    $user = $env:TELEMETRY_USER
+    $pass = $env:TELEMETRY_PASS
+    $tenant = $env:TELEMETRY_TENANT
+
+    if ([string]::IsNullOrWhiteSpace($url)) {
+        Write-Host "[build] TELEMETRY_URL nicht gesetzt - Telemetrie-Platzhalter bleiben bestehen."
+        return
+    }
+
+    Write-Host "[build] Injektiere Telemetrie-Geheimnisse aus Umgebungsvariablen ..."
+    $content = Get-Content -LiteralPath $secretsPath -Raw
+    $content = $content.Replace('__LOKI_URL__', $url)
+    if (-not [string]::IsNullOrWhiteSpace($user)) { $content = $content.Replace('__LOKI_USER__', $user) }
+    if (-not [string]::IsNullOrWhiteSpace($pass)) { $content = $content.Replace('__LOKI_PASS__', $pass) }
+    if (-not [string]::IsNullOrWhiteSpace($tenant)) { $content = $content.Replace('__LOKI_TENANT__', $tenant) }
+
+    Set-Content -LiteralPath $secretsPath -Value $content -Force
+}
+
 # ---------------------------------------------------------------------------
 # Phase 1 - Build & Test
 # ---------------------------------------------------------------------------
 
 $verInfo = Get-ProjectVersion
+Add-TelemetrySecrets
 $ver = $verInfo.Version
 $numericVer = $verInfo.NumericVersion
 Write-Host ''
@@ -251,14 +283,15 @@ if (-not $SkipTest) {
     Write-Host '[build] dotnet test ...'
     & dotnet test (Join-Path $repoRoot 'GregModmanager.sln') --no-build -c Release --verbosity normal
     if ($LASTEXITCODE -ne 0) { throw 'dotnet test fehlgeschlagen.' }
-} else {
+}
+else {
     Write-Host '[build] Tests uebersprungen (-SkipTest).'
 }
 
 $wantSign = $Sign
-    $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
-    $iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
-    $winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
+$projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
+$iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
+$winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
 $linuxPublishDir = Join-Path $repoRoot 'artifacts\publish\linux-x64'
 $installerOutDir = Join-Path $repoRoot 'build\installer\Output'
 $artifactsDir = Join-Path $repoRoot 'artifacts'
@@ -280,7 +313,8 @@ if ($isWindowsHost -and -not $SkipWindows) {
         Write-Host '[build] dotnet publish Windows (win-x64) ...'
         & dotnet publish $projPath -c Release -r win-x64
         if ($LASTEXITCODE -ne 0) { throw 'Windows publish fehlgeschlagen.' }
-    } else {
+    }
+    else {
         Write-Warning '[build] -SkipPublish: bestehende Windows-Publish-Ausgabe wird verwendet.'
     }
 
@@ -309,7 +343,8 @@ if ($isWindowsHost -and -not $SkipWindows) {
     $iscc = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $iscc) {
         Write-Warning '[build] Inno Setup 6 nicht gefunden - Setup-EXE wird nicht erstellt.'
-    } else {
+    }
+    else {
         if (-not (Test-Path -LiteralPath $iss)) { throw "Inno-Skript fehlt: $iss" }
         Write-Host "[build] Inno Setup ($iscc) - Version $ver ..."
         $outputBaseName = "gregModmanager-$ver$($verInfo.PreSuffix)-Windows"
@@ -322,7 +357,8 @@ if ($isWindowsHost -and -not $SkipWindows) {
         if (Test-Path -LiteralPath $setupPath) {
             $mb = [math]::Round((Get-Item -LiteralPath $setupPath).Length / 1MB, 2)
             Write-Host ('[build] Setup erstellt: ' + $setupPath + ' (' + $mb + ' MB)')
-        } else {
+        }
+        else {
             Write-Warning '[build] Setup-Datei nicht an erwartetem Ort gefunden.'
         }
 
@@ -334,9 +370,11 @@ if ($isWindowsHost -and -not $SkipWindows) {
         New-Sha256File -TargetPath $setupPath
         if ($wantSign) { New-DetachedArtifactSignature -TargetPath $setupPath }
     }
-} elseif ($SkipWindows) {
+}
+elseif ($SkipWindows) {
     Write-Host '[build] Windows-Build uebersprungen (-SkipWindows).'
-} else {
+}
+else {
     Write-Host '[build] Nicht-Windows-Host: Windows-Build wird uebersprungen.'
 }
 
@@ -373,7 +411,8 @@ if (-not $SkipLinux) {
 
     New-Sha256File -TargetPath $tarPath
     Write-Host "[build] Linux Tarball fertig: $tarPath"
-} else {
+}
+else {
     Write-Host '[build] Linux-Build uebersprungen (-SkipLinux).'
 }
 
@@ -385,11 +424,13 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
     $wsl = Get-Command wsl.exe -ErrorAction SilentlyContinue
     if (-not $wsl) {
         Write-Warning '[build] wsl.exe nicht gefunden - Linux-Packages werden uebersprungen.'
-    } else {
+    }
+    else {
         $linuxPkgScript = Join-Path $repoRoot 'build\scripts\linux\build-avalonia-packages.ps1'
         if (-not (Test-Path -LiteralPath $linuxPkgScript)) {
             Write-Warning "[build] Linux-Package-Skript nicht gefunden: $linuxPkgScript"
-        } else {
+        }
+        else {
             Write-Host '[build] Baue Linux-Packages (DEB/RPM/Arch) via WSL ...'
             $pkgOut = Join-Path $artifactsDir 'avalonia-linux'
             try {
@@ -404,12 +445,14 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
                     }
                 }
                 Write-Host "[build] Linux-Packages fertig: $pkgOut\packages"
-            } catch {
+            }
+            catch {
                 Write-Warning "[build] Linux-Packages fehlgeschlagen: $($_.Exception.Message)"
             }
         }
     }
-} else {
+}
+else {
     Write-Host '[build] Linux-Packages uebersprungen.'
 }
 
@@ -426,21 +469,23 @@ Write-Host ''
 if ($isWindowsHost -and -not $SkipWindows) {
     if (Test-Path -LiteralPath $installerOutDir) {
         Get-ChildItem -LiteralPath $installerOutDir -File | ForEach-Object {
-            Write-Host ('  [Windows] ' + $_.Name + '  (' + ([math]::Round($_.Length/1KB,1)) + ' KB)')
+            Write-Host ('  [Windows] ' + $_.Name + '  (' + ([math]::Round($_.Length / 1KB, 1)) + ' KB)')
         }
     }
 }
 if (-not $SkipLinux) {
     if (Test-Path -LiteralPath $artifactsDir) {
         Get-ChildItem -LiteralPath $artifactsDir -File | ForEach-Object {
-            Write-Host ('  [Linux]   ' + $_.Name + '  (' + ([math]::Round($_.Length/1KB,1)) + ' KB)')
+            Write-Host ('  [Linux]   ' + $_.Name + '  (' + ([math]::Round($_.Length / 1KB, 1)) + ' KB)')
         }
     }
     $pkgDir = Join-Path $artifactsDir 'avalonia-linux\packages'
     if (Test-Path -LiteralPath $pkgDir) {
         Get-ChildItem -LiteralPath $pkgDir -File | ForEach-Object {
-            Write-Host ('  [Pkg]     ' + $_.Name + '  (' + ([math]::Round($_.Length/1KB,1)) + ' KB)')
+            Write-Host ('  [Pkg]     ' + $_.Name + '  (' + ([math]::Round($_.Length / 1KB, 1)) + ' KB)')
         }
     }
 }
 Write-Host ''
+
+exit 0

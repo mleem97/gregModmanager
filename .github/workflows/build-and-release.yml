@@ -157,6 +157,10 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
           NUMERIC_VERSION: ${{ needs.version.outputs.numeric_version }}
           IS_PRE: ${{ needs.version.outputs.is_pre }}
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
         run: |
           $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
           if ($sign) {
@@ -221,6 +225,26 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
+      - name: Telemetry Injection
+        shell: pwsh
+        env:
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+        run: |
+          $secretsPath = 'src/GregModmanager.Core/Services/TelemetrySecrets.cs'
+          $url = $env:TELEMETRY_ENDPOINT
+          if (-not [string]::IsNullOrWhiteSpace($url)) {
+            Write-Host "Injecting telemetry secrets..."
+            $content = Get-Content -Raw $secretsPath
+            $content = $content.Replace('__LOKI_URL__', $url)
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_USER)) { $content = $content.Replace('__LOKI_USER__', $env:TELEMETRY_USER) }
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_API_KEY)) { $content = $content.Replace('__LOKI_PASS__', $env:TELEMETRY_API_KEY) }
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_TENANT)) { $content = $content.Replace('__LOKI_TENANT__', $env:TELEMETRY_TENANT) }
+            Set-Content -Path $secretsPath -Value $content -Force
+          }
+
       - name: Publish Linux x64
         run: |
           dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
@@ -281,6 +305,26 @@ jobs:
           sudo apt update
           sudo apt install -y nfpm
           nfpm --version
+
+      - name: Telemetry Injection
+        shell: pwsh
+        env:
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+        run: |
+          $secretsPath = 'src/GregModmanager.Core/Services/TelemetrySecrets.cs'
+          $url = $env:TELEMETRY_ENDPOINT
+          if (-not [string]::IsNullOrWhiteSpace($url)) {
+            Write-Host "Injecting telemetry secrets..."
+            $content = Get-Content -Raw $secretsPath
+            $content = $content.Replace('__LOKI_URL__', $url)
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_USER)) { $content = $content.Replace('__LOKI_USER__', $env:TELEMETRY_USER) }
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_API_KEY)) { $content = $content.Replace('__LOKI_PASS__', $env:TELEMETRY_API_KEY) }
+            if (-not [string]::IsNullOrWhiteSpace($env:TELEMETRY_TENANT)) { $content = $content.Replace('__LOKI_TENANT__', $env:TELEMETRY_TENANT) }
+            Set-Content -Path $secretsPath -Value $content -Force
+          }
 
       - name: Publish Linux x64
         run: |

@@ -79,8 +79,27 @@ Root: HKCU; Subkey: "Software\Classes\greg\DefaultIcon"; ValueType: string; Valu
 Root: HKCU; Subkey: "Software\Classes\greg\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 
 [Code]
-// Deinstalliert aeltere Versionen des Modmanagers (andere AppIds oder alte Installationspfade)
-// bevor die neue Avalonia-Version installiert wird.
+var
+  VCRedistPath: string;
+
+// Prüft ob die VC++ 2015-2022 Runtimes (x64) installiert sind
+function IsVCRedistInstalled(): Boolean;
+var
+  Installed: Cardinal;
+begin
+  Result := False;
+  if RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then
+  begin
+    Result := (Installed = 1);
+  end;
+end;
+
+// Prüft ob Steam installiert ist
+function IsSteamInstalled(): Boolean;
+begin
+  Result := RegKeyExists(HKCU, 'Software\Valve\Steam') or RegKeyExists(HKLM, 'SOFTWARE\Valve\Steam');
+end;
+
 function InitializeSetup(): Boolean;
 var
   ResultCode: Integer;
@@ -88,7 +107,17 @@ var
 begin
   Result := true;
 
-  // 1) Suche nach alter Installation unter anderer AppId (falls vorhanden)
+  // 1) Steam Check (Warnung falls nicht vorhanden)
+  if not IsSteamInstalled() then
+  begin
+    if MsgBox('Steam was not detected on this system. gregModmanager requires Steam to manage mods for Data Center. Do you want to continue anyway?', mbConfirmation, MB_YESNO) = IDNO then
+    begin
+      Result := false;
+      Exit;
+    end;
+  end;
+
+  // 2) Suche nach alter Installation unter anderer AppId (falls vorhanden)
   if RegQueryStringValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7A2F9E1B-4C3D-5E6F-7890-ABCDEF123400}_is1', 'UninstallString', UninstallString) then
   begin
     if MsgBox('An older version of gregModmanager was found. It must be uninstalled before the new version can be installed.' + #13#10 + 'Proceed with uninstallation?', mbConfirmation, MB_YESNO) = IDYES then
@@ -102,7 +131,6 @@ begin
     end;
   end;
 
-  // 2) Suche nach Installation unter HKCU (benutzerspezifisch)
   if RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7A2F9E1B-4C3D-5E6F-7890-ABCDEF123400}_is1', 'UninstallString', UninstallString) then
   begin
     if MsgBox('An older version of gregModmanager was found. It must be uninstalled before the new version can be installed.' + #13#10 + 'Proceed with uninstallation?', mbConfirmation, MB_YESNO) = IDYES then
@@ -115,7 +143,38 @@ begin
       Exit;
     end;
   end;
+end;
 
-  // 3) Optional: Suche nach DisplayName-Eintraegen (robust gegen AppId-Aenderungen)
-  // Falls es noch weitere alte gregModmanager-Installationen gibt
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssInstall then
+  begin
+    if not IsVCRedistInstalled() then
+    begin
+      VCRedistPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
+      
+      WizardForm.StatusLabel.Caption := 'Downloading Microsoft Visual C++ Redistributable (x64)...';
+      WizardForm.ProgressGauge.Style := npbstMarquee;
+      
+      try
+        // Online-Installer: Download der Dependency via PowerShell
+        if not Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri ''https://aka.ms/vs/17/release/vc_redist.x64.exe'' -OutFile ''' + VCRedistPath + '''"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        begin
+          MsgBox('Download of VC++ Redistributable failed. You may need to install it manually to run the application.', mbInformation, MB_OK);
+        end
+        else
+        begin
+          WizardForm.StatusLabel.Caption := 'Installing Microsoft Visual C++ Redistributable...';
+          if not Exec(VCRedistPath, '/quiet /norestart', '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+          begin
+            MsgBox('Installation of VC++ Redistributable failed. Error: ' + IntToStr(ResultCode), mbError, MB_OK);
+          end;
+        end;
+      finally
+        WizardForm.ProgressGauge.Style := npbstNormal;
+      end;
+    end;
+  end;
 end;

@@ -1,6 +1,6 @@
 # gregModmanager
 
-![Version](https://img.shields.io/badge/version-1.5.1-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.6.0-blue?style=for-the-badge)
 ![.NET](https://img.shields.io/badge/.NET-9.0-512BD4?style=for-the-badge&logo=dotnet)
 ![Avalonia](https://img.shields.io/badge/Avalonia-11.2-8B44AC?style=for-the-badge)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey?style=for-the-badge)
@@ -10,7 +10,7 @@
 ![Build & Release](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/build-and-release.yml?style=for-the-badge&label=Build%20%26%20Release)
 ![Linux Packages](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/linux-packages.yml?style=for-the-badge&label=Linux%20Packages)
 
-**Current Version:** `v1.5.1`
+**Current Version:** `v1.6.0`
 
 Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 
@@ -38,8 +38,9 @@ Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 ### For Users
 
 **Download and run:**
-- **Windows:** Download installer from [Releases](https://github.com/mleem97/gregModmanager/releases)
-- **Linux:** `wget https://github.com/mleem97/gregModmanager/releases/download/v1.5.1/GregModmanager-v1.5.1.AppImage && chmod +x *.AppImage && ./GregModmanager-v1.5.1.AppImage`
+- **Windows (Recommended):** Download the **Smart Online Installer** from [Releases](https://github.com/mleem97/gregModmanager/releases). It automatically installs required VC++ Runtimes.
+- **Windows (Portable):** Download the `.zip` archive. Ensure VC++ 2015-2022 Redist is installed.
+- **Linux:** `wget https://github.com/mleem97/gregModmanager/releases/download/v1.6.0/gregModmanager-v1.6.0-Linux.tar.gz && tar -xzf *.tar.gz && ./GregModmanager`
 
 ### For Developers
 
@@ -94,9 +95,10 @@ gregModmanager.sln
 ✅ **Mod Management** — Install, enable, disable, update, manage profiles  
 ✅ **Dependency Resolution** — Automatic conflict detection and installation  
 ✅ **Steam Integration** — Auto-detect library, launch via Steam, Workshop support  
+✅ **Smart Installer** — Automatically downloads and installs required VC++ runtimes  
+✅ **Health Monitoring** — Built-in crash reporting and performance telemetry  
 ✅ **Cross-Platform** — Windows, Linux, macOS (coming soon)  
-✅ **Localization** — English, German, Spanish (community translations welcome)  
-✅ **Developer Tools** — Manifest validation, local mod testing
+✅ **Localization** — English, German, Spanish (community translations welcome)
 
 ## 🏗️ Architecture
 
@@ -143,6 +145,15 @@ We welcome contributions! See [CONTRIBUTING.md](docs/03_CONTRIBUTOR_GUIDE.md) fo
 - Localization guidelines
 
 **Code of Conduct:** Be respectful. All contributors are valued.
+
+## 🔒 Privacy & Telemetry
+
+gregModmanager includes an optional telemetry system to help us improve the application and fix startup issues.
+
+- **What we collect:** Anonymized crash reports, startup success/failure, and sync performance metrics.
+- **What we DON'T collect:** Your name, mod files, or any personal data.
+- **Opt-out:** You can disable telemetry at any time in the **Settings** menu.
+- **Transparency:** All telemetry requests use a secure connection to our self-hosted Loki instance at `telemetry.datacentermods.com`.
 
 ## 📄 License
 

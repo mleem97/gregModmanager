@@ -143,18 +143,24 @@ jobs:
 
           app_name="gregModmanager"
           version="${TAG_NAME:-unknown}"
+          repo_url="https://github.com/${REPO}"
 
           payload=$(cat <<EOF
           {
-            "username": "GitHub Releases",
+            "username": "gregModmanager Releases",
             "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
-            "content": "🚀 **New release published** for \`${REPO}\`",
             "embeds": [
               {
-                "title": "New ${app_name} Release: ${version}",
-                "description": "New ${app_name} Release: ${version}",
+                "title": "🚀 New Release: ${version}",
+                "description": "A new version of **${app_name}** is now available in \`${REPO}\`!",
                 "url": "${RELEASE_URL}",
-                "color": 5763719
+                "color": 9104383,
+                "fields": [
+                  { "name": "Version", "value": "\`${version}\`", "inline": true },
+                  { "name": "Platform", "value": "Windows / Linux", "inline": true }
+                ],
+                "footer": { "text": "Build powered by GitHub Actions" },
+                "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
               }
             ],
             "components": [
@@ -164,8 +170,14 @@ jobs:
                   {
                     "type": 2,
                     "style": 5,
-                    "label": "Download",
+                    "label": "Download Release",
                     "url": "${RELEASE_URL}"
+                  },
+                  {
+                    "type": 2,
+                    "style": 5,
+                    "label": "View Repository",
+                    "url": "${repo_url}"
                   }
                 ]
               }

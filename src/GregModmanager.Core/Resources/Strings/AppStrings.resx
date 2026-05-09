@@ -314,5 +314,9 @@
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro bundle created: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Could not create repro bundle: {0}</value></data>
 
+  <data name="Settings_Telemetry" xml:space="preserve"><value>Health Monitoring &amp; Telemetry</value></data>
+  <data name="Settings_EnableTelemetry" xml:space="preserve"><value>Enable anonymous crash reporting and performance metrics</value></data>
+  <data name="Settings_TelemetryPrivacy" xml:space="preserve"><value>Privacy Notice: We collect anonymized data to improve the app. No personal data or mod files are sent.</value></data>
+
 </root>
 

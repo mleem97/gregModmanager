@@ -13,6 +13,7 @@ public partial class SettingsPage : UserControl
 {
     private readonly WorkspaceService _workspace;
     private readonly ReproBundleService _reproBundle;
+    private const string CurrentPathKey = "Settings_CurrentPath";
 
     public SettingsPage(WorkspaceService workspace, ReproBundleService reproBundle)
     {
@@ -29,7 +30,15 @@ public partial class SettingsPage : UserControl
         GameRootEntry.Text = AppSettings.GetGameRootPath();
         UpdateGameRootLabel();
         CustomPathEntry.Text = S.Preferences.GetString(WorkspaceService.CustomWorkspacePathKey, "");
-        CurrentPathLabel.Text = S.Format("Settings_CurrentPath", _workspace.WorkspaceRoot);
+        CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
+        
+        TelemetrySwitch.IsChecked = AppSettings.IsTelemetryEnabled();
+    }
+
+    private void OnTelemetryToggled(object? sender, RoutedEventArgs e)
+    {
+        var enabled = TelemetrySwitch.IsChecked ?? true;
+        S.Preferences.SetBool(AppSettings.TelemetryEnabledKey, enabled);
     }
 
     private void UpdateGameRootLabel()
@@ -37,7 +46,7 @@ public partial class SettingsPage : UserControl
         var path = AppSettings.GetGameRootPath();
         CurrentGameRootLabel.Text = string.IsNullOrEmpty(path)
             ? S.Get("Settings_GameRootNotSet")
-            : S.Format("Settings_CurrentPath", path);
+            : S.Format(CurrentPathKey, path);
     }
 
     private async void OnBrowseGameRoot(object? sender, RoutedEventArgs e)
@@ -93,7 +102,7 @@ public partial class SettingsPage : UserControl
         }
         S.Preferences.SetString(WorkspaceService.CustomWorkspacePathKey, path);
         _workspace.InvalidateCache();
-        CurrentPathLabel.Text = S.Format("Settings_CurrentPath", _workspace.WorkspaceRoot);
+        CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
         PathHint.Text = S.Get("Settings_PathUpdated");
     }
 
@@ -102,7 +111,7 @@ public partial class SettingsPage : UserControl
         S.Preferences.Remove(WorkspaceService.CustomWorkspacePathKey);
         CustomPathEntry.Text = "";
         _workspace.InvalidateCache();
-        CurrentPathLabel.Text = S.Format("Settings_CurrentPath", _workspace.WorkspaceRoot);
+        CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
         PathHint.Text = S.Get("Settings_PathReset");
     }
 
@@ -117,12 +126,12 @@ public partial class SettingsPage : UserControl
 
     private void OnModStoreToggled(object? sender, RoutedEventArgs e)
     {
-        var enabled = ModStoreSwitch.IsChecked == true;
+        var enabled = ModStoreSwitch.IsChecked ?? false;
         S.Preferences.SetBool(AppSettings.ModStoreEnabledKey, enabled);
         ModStoreHint.Text = S.Get("Settings_RestartEffect");
     }
 
-    private async void OnOpenLogs(object? sender, RoutedEventArgs e)
+    private static async void OnOpenLogs(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -159,7 +168,7 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    private void OnRestartApp(object? sender, RoutedEventArgs e)
+    private static void OnRestartApp(object? sender, RoutedEventArgs e)
     {
         var exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe)) return;

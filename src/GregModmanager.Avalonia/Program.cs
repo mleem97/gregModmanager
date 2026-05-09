@@ -8,8 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace GregModmanager.Avalonia;
 
-internal sealed class Program
+internal static class Program
 {
+    private const string LogCategory = "Avalonia.Program.Main";
+
     [STAThread]
     public static void Main(string[] args)
     {
@@ -17,7 +19,18 @@ internal sealed class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) => AppFileLog.EndSession();
         AppFileLog.Info("Avalonia Program entry");
 
-        DebugNdjsonSessionLog.Write("H1", "Avalonia.Program.Main", "entry", new
+        // Eager Telemetry: Try to send old crash reports as early as possible
+        try
+        {
+            var telemetry = new TelemetryService();
+            _ = telemetry.ReportCrashesAsync();
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Failed to start eager telemetry", ex);
+        }
+
+        DebugNdjsonSessionLog.Write("H1", LogCategory, "entry", new
         {
             baseDir = AppContext.BaseDirectory,
             tempLog = DebugNdjsonSessionLog.LogPath,
@@ -31,6 +44,11 @@ internal sealed class Program
             var ex = e.ExceptionObject as Exception;
             AppFileLog.MarkCrash("AppDomain.UnhandledException", ex);
             AppFileLog.Error($"UnhandledException (terminating={e.IsTerminating})", ex);
+            
+            // Try to send the report immediately if we are terminating
+            try { new TelemetryService().ReportCrashesAsync().GetAwaiter().GetResult(); } 
+            catch { /* Ignore errors during emergency telemetry flush */ }
+            
             DebugSessionLog.Write("H1", "Avalonia.UnhandledException", "unhandled", new
             {
                 e.IsTerminating,
@@ -64,11 +82,13 @@ internal sealed class Program
                         AppFileLog.Info($"CurrentDirectory set to: {baseDir}");
                     }
                 }
-                catch { }
+                catch { /* Optional optimization: fall back to default directory if not writable */ }
             }
 
             var steamOk = SteamApiNativeLoader.TryPreload();
             AppFileLog.Info($"SteamApiNativeLoader.TryPreload={steamOk}");
+            
+            // Note: Telemetry for steamOk will be tracked in App.axaml.cs after DI is ready
 
             if (GregModmanager.Services.Auth.ProtocolSingleInstance.ShouldForwardAndExitAsync(Environment.GetCommandLineArgs()).GetAwaiter().GetResult())
             {
@@ -77,8 +97,8 @@ internal sealed class Program
 
             if (HeadlessRunner.TryHandle(Environment.GetCommandLineArgs(), out var exitCode))
             {
-                DebugNdjsonSessionLog.Write("H3", "Avalonia.Program.Main", "headless_exit", new { exitCode });
-                DebugSessionLog.Write("H4", "Avalonia.Program.Main", "headless_exit", new { exitCode });
+                DebugNdjsonSessionLog.Write("H3", LogCategory, "headless_exit", new { exitCode });
+                DebugSessionLog.Write("H4", LogCategory, "headless_exit", new { exitCode });
                 Environment.Exit(exitCode);
                 throw new InvalidOperationException("Unreachable: process should have exited.");
             }
@@ -87,9 +107,10 @@ internal sealed class Program
         }
         catch (Exception ex)
         {
+            AppFileLog.MarkCrash("Avalonia.Program.Main.Exception", ex);
             AppFileLog.Error("Avalonia Program exception", ex);
-            DebugNdjsonSessionLog.Write("H1", "Avalonia.Program.Main", "exception", new { ex.Message, exType = ex.GetType().FullName, ex.StackTrace });
-            DebugSessionLog.Write("H1", "Avalonia.Program.Main", "exception", new { ex.Message, ex.StackTrace });
+            DebugNdjsonSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, exType = ex.GetType().FullName, ex.StackTrace });
+            DebugSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, ex.StackTrace });
             throw;
         }
     }
@@ -105,6 +126,7 @@ internal sealed class Program
         var services = new ServiceCollection();
 
         services.AddSingleton<AppLogService>();
+        services.AddSingleton<TelemetryService>();
         services.AddSingleton<ReproBundleService>();
         services.AddSingleton<SteamWorkshopService>();
         SteamApiNativeLoader.SetGameRoot(AppSettings.GetGameRootPath());
