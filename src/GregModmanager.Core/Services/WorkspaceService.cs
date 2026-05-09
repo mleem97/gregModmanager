@@ -787,7 +787,7 @@ public sealed class WorkspaceService
 	}
 
 	/// <summary>Single path segment under <see cref="WorkspaceRoot"/>; strips invalid characters.</summary>
-	public string SanitizeFolderName(string raw)
+	public static string SanitizeFolderName(string raw)
 	{
 		if (string.IsNullOrWhiteSpace(raw))
 		{
@@ -812,7 +812,7 @@ public sealed class WorkspaceService
 		return s;
 	}
 
-	public void SaveMetadata(string projectRoot, WorkshopMetadata metadata)
+	public static void SaveMetadata(string projectRoot, WorkshopMetadata metadata)
 	{
 		var title = metadata.Title ?? string.Empty;
 		var description = metadata.Description ?? string.Empty;

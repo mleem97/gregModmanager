@@ -108,7 +108,7 @@ public partial class EditorPage : UserControl
                 SteamWorkshopService.ApplySteamWorkshopToMetadata(steam, _metadata, localSnapshot, MaxWorkshopTags);
                 try
                 {
-                    _workspace.SaveMetadata(_projectRoot, _metadata);
+                    WorkspaceService.SaveMetadata(_projectRoot, _metadata);
                     Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_LoadedFromSteam"));
                 }
                 catch (Exception ex)

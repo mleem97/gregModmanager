@@ -263,7 +263,7 @@ public sealed class SteamWorkshopService
 		log?.Report("Sync complete: local content/ now matches Steam.");
 
 		await SyncPreviewImagesAsync(publishedFileId, ugc.PreviewImageUrl, projectRoot, metadata, log, ct).ConfigureAwait(false);
-		workspace.SaveMetadata(projectRoot, metadata);
+		WorkspaceService.SaveMetadata(projectRoot, metadata);
 
 		return true;
 	}
@@ -620,7 +620,7 @@ public sealed class SteamWorkshopService
 
 		var dirName = string.IsNullOrWhiteSpace(folderName)
 			? DefaultImportFolderName(ugc.Title, publishedFileId)
-			: workspace.SanitizeFolderName(folderName);
+			: WorkspaceService.SanitizeFolderName(folderName);
 
 		if (string.IsNullOrEmpty(dirName))
 		{
@@ -693,7 +693,7 @@ public sealed class SteamWorkshopService
 			await DownloadGalleryImagesAsync(publishedFileId, destRoot, meta, log, cancellationToken).ConfigureAwait(false);
 		}
 
-		workspace.SaveMetadata(destRoot, meta);
+		WorkspaceService.SaveMetadata(destRoot, meta);
 		log?.Report($"Imported to {destRoot}");
 		return ImportOutcome.Ok(destRoot);
 	}

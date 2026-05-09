@@ -121,7 +121,7 @@ public static class HeadlessRunner
 				return 1;
 			}
 
-			workspace.SaveMetadata(projectRoot, metadata);
+			WorkspaceService.SaveMetadata(projectRoot, metadata);
 			Console.WriteLine($"Published. Workshop file id: {outcome.PublishedFileId}");
 
 			if (autocommit)
