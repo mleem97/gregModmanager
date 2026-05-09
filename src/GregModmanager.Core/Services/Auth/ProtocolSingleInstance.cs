@@ -13,15 +13,7 @@ public static class ProtocolSingleInstance
 
     public static async Task<bool> ShouldForwardAndExitAsync(string[] args)
     {
-        string? uri = null;
-        foreach (var arg in args)
-        {
-            if (arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase))
-            {
-                uri = arg;
-                break;
-            }
-        }
+        var uri = args.FirstOrDefault(arg => arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase));
 
         if (string.IsNullOrEmpty(uri)) return false;
 

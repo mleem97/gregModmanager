@@ -93,9 +93,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
 
     public string GregApiStatusText => GregApiOnline ? "gregAPI Online" : "gregAPI Offline";
 
-    public string LoginStatusText => IsLoggedIn
-        ? $"Logged in as {(string.IsNullOrWhiteSpace(Username) ? "User" : Username)}"
-        : "Login To Datacentermods.com";
+    public string LoginStatusText
+    {
+        get
+        {
+            if (!IsLoggedIn) return "Login To Datacentermods.com";
+            var displayName = string.IsNullOrWhiteSpace(Username) ? "User" : Username;
+            return $"Logged in as {displayName}";
+        }
+    }
 
     public string CooldownMessage => CooldownActive
         ? $"Steam cooldown active - retry in {CooldownSecondsRemaining}s"

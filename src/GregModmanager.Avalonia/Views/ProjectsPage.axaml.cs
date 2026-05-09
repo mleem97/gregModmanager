@@ -108,7 +108,12 @@ public sealed class ProjectItemVm
         else
             ReadinessText = "Ready";
 
-        ReadinessColor = errors > 0 ? "#D7383B" : warnings > 0 ? "#D7A23B" : "#61F4D8";
+        if (errors > 0)
+            ReadinessColor = "#D7383B";
+        else if (warnings > 0)
+            ReadinessColor = "#D7A23B";
+        else
+            ReadinessColor = "#61F4D8";
     }
 
     public string Name { get; }

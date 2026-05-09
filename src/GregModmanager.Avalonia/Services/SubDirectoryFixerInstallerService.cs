@@ -19,7 +19,7 @@ public sealed class SubDirectoryFixerInstallerService
     private const string TargetFileName = "SubDirectoryFixer.dll";
     private const string MarkerFileName = ".gregmodmanager-subdirfixer.sha256";
 
-    public Task<SubDirectoryFixerInstallResult> EnsureInstalledAsync(string? gameRoot)
+    public static Task<SubDirectoryFixerInstallResult> EnsureInstalledAsync(string? gameRoot)
     {
         if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
         {

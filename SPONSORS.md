@@ -49,12 +49,14 @@ Includes all previous perks, plus:
 - Private 1-on-1 Discord lounge
 - Featured mod spot on `datacentermods.com`
 
-## **Want to claim your perks?**
->
+## Want to claim your perks?
+
+> [!TIP]
 > Join the [Discord server](https://discord.gg/greg) and message a moderator with your GitHub username to get verified and assigned your perks!
 
-### **NOTES**
+## Important Notes
 
+> [!NOTE]
 > - Perks are cumulative; higher tiers include all benefits of the previous tiers.
 > - If you are a sponsor and want to claim your perks, please join the Discord server and message a moderator with your GitHub username for verification.
 > - For any questions about sponsorship or perks, feel free to reach out in the Discord or open an issue in the repository.

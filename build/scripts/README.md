@@ -5,6 +5,7 @@ This directory contains build, run, install, packaging, and development helper s
 ## Core Scripts
 
 ### `build.ps1`
+
 Builds and packages the application (Windows installer path).
 
 ```powershell
@@ -14,6 +15,7 @@ Builds and packages the application (Windows installer path).
 ```
 
 ### `run.ps1`
+
 Runs the app from source.
 
 ```powershell
@@ -22,6 +24,7 @@ Runs the app from source.
 ```
 
 ### `install-local.ps1`
+
 Performs local non-installer deployment.
 
 ```powershell
@@ -31,6 +34,7 @@ Performs local non-installer deployment.
 ```
 
 ### `start.ps1`
+
 Starts the built desktop binary directly.
 
 ```powershell
@@ -40,6 +44,7 @@ Starts the built desktop binary directly.
 ## Development Helpers
 
 ### `dev-helpers.ps1`
+
 XAML/UI maintenance helper commands.
 
 ```powershell
@@ -49,6 +54,7 @@ Fix-UiPageResourcesAll
 ```
 
 ### `fix-csharp-strings.csx`
+
 One-off C# string interpolation fixer.
 
 ```powershell
@@ -58,10 +64,12 @@ dotnet script fix-csharp-strings.csx
 ## Linux Packaging
 
 ### Legacy bundle packager
+
 - `linux/build-linux-packages.ps1`
 - `linux/build-linux-packages.sh`
 
 ### Avalonia Linux package pipeline
+
 - `linux/build-avalonia-packages.ps1`
 - `linux/build-avalonia-packages.sh`
 - `linux/flatpak/com.gregframework.gregModmanager.yml`
@@ -73,10 +81,12 @@ Build distro packages:
 ```
 
 Outputs:
+
 - `.deb`
 - `.rpm`
 - `.pkg.tar.zst`
 - `.tar.gz`
 
 ## Root Wrappers
+
 Root-level wrappers (`build.ps1`, `run.ps1`, `install-local.ps1`) forward into this folder for convenience.

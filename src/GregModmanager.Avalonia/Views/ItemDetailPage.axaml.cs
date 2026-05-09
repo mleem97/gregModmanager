@@ -15,7 +15,6 @@ public partial class ItemDetailPage : UserControl
 {
     private readonly SteamWorkshopService _steam;
     private WorkshopItemDetailVm? _item;
-    private ulong _fileId;
 
     public ItemDetailPage(SteamWorkshopService steam)
     {
@@ -25,7 +24,6 @@ public partial class ItemDetailPage : UserControl
 
     public void LoadItem(ulong fileId)
     {
-        _fileId = fileId;
         _ = LoadItemSafeAsync(fileId);
     }
 
@@ -106,8 +104,8 @@ public partial class ItemDetailPage : UserControl
             TagsPanel.Children.Add(border);
         }
 
-        UpdateSubscribeButton(item.IsSubscribed);
-        UpdateFavoriteButton(false);
+        UpdateSubscribeButton(SubscribeBtn, item.IsSubscribed);
+        UpdateFavoriteButton(FavoriteBtn, false);
 
         if (item.IsBanned)
         {
@@ -120,14 +118,14 @@ public partial class ItemDetailPage : UserControl
         }
     }
 
-    private void UpdateSubscribeButton(bool isSubscribed)
+    private static void UpdateSubscribeButton(Button btn, bool isSubscribed)
     {
-        SubscribeBtn.Content = isSubscribed ? S.Get("Detail_Unsubscribe") : S.Get("Detail_Subscribe");
+        btn.Content = isSubscribed ? S.Get("Detail_Unsubscribe") : S.Get("Detail_Subscribe");
     }
 
-    private void UpdateFavoriteButton(bool isFavorited)
+    private static void UpdateFavoriteButton(Button btn, bool isFavorited)
     {
-        FavoriteBtn.Content = isFavorited ? S.Get("Detail_Unfavorite") : S.Get("Detail_Favorite");
+        btn.Content = isFavorited ? S.Get("Detail_Unfavorite") : S.Get("Detail_Favorite");
     }
 
     private async void OnSubscribeToggle(object? sender, RoutedEventArgs e)
@@ -149,7 +147,7 @@ public partial class ItemDetailPage : UserControl
         if (success)
         {
             var nowSubscribed = !wasSubscribed;
-            UpdateSubscribeButton(nowSubscribed);
+            UpdateSubscribeButton(SubscribeBtn, nowSubscribed);
             StatusLabel.Text = nowSubscribed ? S.Get("Detail_SubscribedMsg") : S.Get("Detail_UnsubscribedMsg");
             await ReloadItemAsync();
         }
@@ -181,7 +179,7 @@ public partial class ItemDetailPage : UserControl
 
         if (success)
         {
-            UpdateFavoriteButton(!isFav);
+            UpdateFavoriteButton(FavoriteBtn, !isFav);
             StatusLabel.Text = !isFav ? S.Get("Detail_AddedFavorites") : S.Get("Detail_RemovedFavorites");
         }
         else

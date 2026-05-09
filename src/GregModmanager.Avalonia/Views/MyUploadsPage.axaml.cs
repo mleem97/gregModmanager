@@ -14,6 +14,8 @@ namespace GregModmanager.Avalonia.Views;
 
 public partial class MyUploadsPage : UserControl
 {
+    private const string ErrorKey = "Error";
+
     private readonly SteamWorkshopService _steam;
     private readonly WorkspaceService _workspace;
     private readonly AppLogService _log;
@@ -34,10 +36,12 @@ public partial class MyUploadsPage : UserControl
 
     private void OnUploadsSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateSelectionCount();
 
-    private void UpdateSelectionCount()
+    private void UpdateSelectionCount() => UpdateSelectionCount(UploadsList, SelectionCountLabel);
+
+    private static void UpdateSelectionCount(ListBox list, TextBlock label)
     {
-        var n = UploadsList.SelectedItems?.Count ?? 0;
-        SelectionCountLabel.Text = S.Format("Uploads_Selected", n);
+        var n = list.SelectedItems?.Count ?? 0;
+        label.Text = S.Format("Uploads_Selected", n);
     }
 
     private async void OnRefresh(object? sender, RoutedEventArgs e) => await LoadListAsync();
@@ -63,7 +67,7 @@ public partial class MyUploadsPage : UserControl
         catch (Exception ex)
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), ex.Message);
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
         }
     }
 
@@ -125,13 +129,13 @@ public partial class MyUploadsPage : UserControl
                 catch (Exception navEx)
                 {
                     AppFileLog.Error("MyUploadsPage navigation failed after bulk import", navEx);
-                    await dialogSvc.ShowMessageAsync(S.Get("Error"), navEx.Message);
+                    await dialogSvc.ShowMessageAsync(S.Get(ErrorKey), navEx.Message);
                 }
             }
         }
         catch (Exception ex)
         {
-            await dialogSvc.ShowMessageAsync(S.Get("Error"), ex.Message);
+            await dialogSvc.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
         }
     }
 
@@ -172,12 +176,12 @@ public partial class MyUploadsPage : UserControl
             catch (Exception navEx)
             {
                 AppFileLog.Error("MyUploadsPage navigation failed after single import", navEx);
-                await dialog.ShowMessageAsync(S.Get("Error"), navEx.Message);
+                await dialog.ShowMessageAsync(S.Get(ErrorKey), navEx.Message);
             }
         }
         catch (Exception ex)
         {
-            await dialog.ShowMessageAsync("Error", ex.Message);
+            await dialog.ShowMessageAsync(ErrorKey, ex.Message);
         }
     }
 

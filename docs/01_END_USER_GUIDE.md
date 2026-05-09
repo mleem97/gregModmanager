@@ -47,7 +47,7 @@
 gregModmanager recognizes and manages four primary package types:
 
 | Type | Purpose | Example |
-|------|---------|---------|
+| :--- | :--- | :--- |
 | **Game Mods** | Content modifications for specific games | New gameplay mechanics, balance changes |
 | **MelonLoader Plugins** | Universal or game-specific plugins that hook into the game runtime | Debug tools, UI enhancers, integration layers |
 | **gregCore Mods** | Mods and extensions built on the gregFramework API | Advanced gameplay systems, cross-game features |
@@ -74,7 +74,7 @@ gregModmanager integrates with the following key resources:
 ### Hardware
 
 | Component | Minimum | Recommended |
-|-----------|---------|-------------|
+| :--- | :--- | :--- |
 | **CPU** | 2-core @ 2.0 GHz | 4-core @ 2.5 GHz or better |
 | **RAM** | 2 GB | 4 GB or more |
 | **Disk Space** | 500 MB free | 2+ GB free (for mod cache) |
@@ -396,7 +396,7 @@ Or if your game is already detected, click **Select** to activate it.
 ### Toolbar Actions
 
 | Action | Shortcut | Purpose |
-|--------|----------|---------|
+| :--- | :--- | :--- |
 | Install | — | Install selected mod from browser |
 | Remove | Delete | Uninstall selected mod |
 | Update All | Ctrl+U | Update all mods with available updates |
@@ -408,7 +408,7 @@ Or if your game is already detected, click **Select** to activate it.
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
-|----------|--------|
+| :--- | :--- |
 | `Ctrl+L` | Launch game |
 | `Ctrl+U` | Update all mods |
 | `Ctrl+,` | Open settings |
@@ -762,7 +762,7 @@ A: See the Contributor Guide in `docs/03_CONTRIBUTOR_GUIDE.md`.
 ### Supported Languages
 
 | Language | Code | Status |
-|----------|------|--------|
+| :--- | :--- | :--- |
 | English | `en` | ✓ Fully supported |
 | German | `de` | ✓ Fully supported |
 | Spanish | `es` | ✓ Partial support |

@@ -25,7 +25,7 @@
 
 gregModmanager manages mods and plugins built for the following ecosystem:
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                    Game (Unity Engine)              │
 ├─────────────────────────────────────────────────────┤
@@ -93,7 +93,7 @@ START: "I want to create a mod/plugin"
 ### Package Type Reference
 
 | Type | Purpose | Load Point | Scope | Typical Use Case |
-|------|---------|-----------|-------|-----------------|
+| :--- | :--- | :--- | :--- | :--- |
 | **Game Mod** | Modify game content and behavior | Game startup (via MelonLoader) | Single game | New weapons, balance changes, new gameplay systems |
 | **MelonLoader Plugin (Universal)** | Hook into any game's runtime | MelonLoader injection point | Any game using MelonLoader | Debug console, profiling tools, API bridges |
 | **MelonLoader Plugin (Game-Specific)** | Hook into specific game runtime | MelonLoader injection point | Single game | Game-specific debugging, performance optimization |
@@ -125,7 +125,7 @@ A **MelonLoader Plugin** is a .NET assembly (DLL) that hooks into the game's run
 **Universal vs. Game-Specific:**
 
 | Aspect | Universal | Game-Specific |
-|--------|-----------|---------------|
+| :--- | :--- | :--- |
 | **Works with** | Any game using MelonLoader | Only one specific game |
 | **Folder name** | `PluginID/` | `PluginID-GameID/` |
 | **Metadata** | No game compatibility field | Specifies target game ID |

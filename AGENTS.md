@@ -110,6 +110,7 @@ Read this before modifying code, building, or creating pull requests.
 
 - Game root resolves via Steam API (`SteamApps.AppInstallDir(4170200)`) or user preference.
 - Workshop sync targets depend on `ModContentType`:
+
   - `PlacableObject` → `{GameRoot}/Mods/Workshop/{id}/`
   - `MelonloaderPlugin` → `{GameRoot}/Plugins/{id}/`
   - `Userlib` → `{GameRoot}/Userlibs/{id}/`
@@ -189,7 +190,7 @@ Publish settings must include:
 ## 7. Troubleshooting Quick Reference
 
 | Symptom | Fix |
-|---------|-----|
+| :--- | :--- |
 | Avalonia window has duplicate title bars | Remove `ExtendClientAreaToDecorationsHint` or set to `False`. |
 | `steam_api64.dll` signing fails with `0x800700C1` | Skip it in the signing loop. |
 | Linux package build fails | Ensure `nfpm` is installed and in `PATH`. |
@@ -253,7 +254,7 @@ All commits **MUST** follow the [Conventional Commits](https://www.conventionalc
 
 **Structure:**
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]
@@ -264,7 +265,7 @@ All commits **MUST** follow the [Conventional Commits](https://www.conventionalc
 **Types and SemVer mapping:**
 
 | Type | SemVer impact | Use for |
-|------|---------------|---------|
+| :--- | :--- | :--- |
 | `feat` | MINOR | New features, new UI pages, new public APIs |
 | `fix` | PATCH | Bug fixes, crash fixes, security patches |
 | `perf` | PATCH | Performance improvements |
@@ -284,7 +285,7 @@ All commits **MUST** follow the [Conventional Commits](https://www.conventionalc
 
 **Examples:**
 
-```
+```text
 feat(workshop): add PlacableObject mod type routing
 
 Implements subdirectory routing for PlacableObject mods
@@ -293,14 +294,14 @@ to {GameRoot}/Mods/Workshop/{id}/.
 Refs: #42
 ```
 
-```
+```text
 fix(steam): prevent rate limit bypass in rapid publish
 
 SteamPublishRateLimiter now correctly resets the rolling
 window after 10 minutes.
 ```
 
-```
+```text
 feat(auth)!: replace username/password with Steam OpenID
 
 BREAKING CHANGE: local credential store is no longer read.
@@ -346,7 +347,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 **Manual emergency override:**
 If the automated workflow is unavailable, an agent **may** perform the promotion manually by editing `CHANGELOG.md` and the `.csproj` file in a single commit with message:
 
-```
+```text
 chore(release): promote changelog and bump version to x.y.z
 ```
 

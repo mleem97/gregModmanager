@@ -6,7 +6,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey?style=for-the-badge)
 ![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)
 ![Steam](https://img.shields.io/badge/Steam-Workshop-1b2838?style=for-the-badge&logo=steam)
-<br>
+
 ![Build & Release](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/build-and-release.yml?style=for-the-badge&label=Build%20%26%20Release)
 ![Linux Packages](https://img.shields.io/github/actions/workflow/status/mleem97/gregModmanager/linux-packages.yml?style=for-the-badge&label=Linux%20Packages)
 
@@ -14,7 +14,8 @@
 
 Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 
-> **Note:** *gregModmanager* is an independent community project developed by the author. The project name and any related domains (e.g. `gregmodmanager.eu`) are **not** owned by the author. Official hubs of the ecosystem are [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
+> [!NOTE]
+> *gregModmanager* is an independent community project developed by the author. The project name and any related domains (e.g. `gregmodmanager.eu`) are **not** owned by the author. Official hubs of the ecosystem are [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
 
 ## What is gregModmanager?
 
@@ -28,9 +29,9 @@ Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 
 ## 📚 Documentation
 
-👉 **New users?** Start with the [End-User Guide](docs/01_END_USER_GUIDE.md)  
-📦 **Creating mods?** See the [Mod Creator Guide](docs/02_MOD_CREATOR_GUIDE.md)  
-🔧 **Want to contribute?** Read the [Contributor Guide](docs/03_CONTRIBUTOR_GUIDE.md)  
+👉 **New users?** Start with the [End-User Guide](docs/01_END_USER_GUIDE.md)
+📦 **Creating mods?** See the [Mod Creator Guide](docs/02_MOD_CREATOR_GUIDE.md)
+🔧 **Want to contribute?** Read the [Contributor Guide](docs/03_CONTRIBUTOR_GUIDE.md)
 📖 **Full index:** [docs/INDEX.md](docs/INDEX.md)
 
 ## 🚀 Quick Start
@@ -38,6 +39,7 @@ Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 ### For Users
 
 **Download and run:**
+
 - **Windows (Recommended):** Download the **Smart Online Installer** from [Releases](https://github.com/mleem97/gregModmanager/releases). It automatically installs required VC++ Runtimes.
 - **Windows (Portable):** Download the `.zip` archive. Ensure VC++ 2015-2022 Redist is installed.
 - **Linux:** `wget https://github.com/mleem97/gregModmanager/releases/download/v1.6.0/gregModmanager-v1.6.0-Linux.tar.gz && tar -xzf *.tar.gz && ./GregModmanager`
@@ -62,6 +64,7 @@ dotnet run --project GregModmanager.Avalonia
 ```
 
 **Or use the convenience script:**
+
 ```powershell
 .\scripts\run.ps1
 ```
@@ -69,7 +72,7 @@ dotnet run --project GregModmanager.Avalonia
 ## 📋 System Requirements
 
 | Platform | Minimum | Recommended |
-|----------|---------|-------------|
+| :--- | :--- | :--- |
 | **Windows** | Windows 10 v1909, .NET 9 | Windows 11, 4+ GB RAM |
 | **Linux** | Debian 11+, Ubuntu 20.04 LTS+ | Fedora 36+, 4+ GB RAM |
 | **macOS** | Planned Q3 2026 | — |
@@ -78,7 +81,7 @@ See [System Requirements](docs/01_END_USER_GUIDE.md#system-requirements) for det
 
 ## 🏗️ Project Structure
 
-```
+```text
 gregModmanager.sln
 ├── GregModmanager.Core/              # Core business logic
 ├── GregModmanager.Avalonia/          # Avalonia UI (Windows, Linux)
@@ -92,13 +95,13 @@ gregModmanager.sln
 
 ## ✨ Features
 
-✅ **Mod Management** — Install, enable, disable, update, manage profiles  
-✅ **Dependency Resolution** — Automatic conflict detection and installation  
-✅ **Steam Integration** — Auto-detect library, launch via Steam, Workshop support  
-✅ **Smart Installer** — Automatically downloads and installs required VC++ runtimes  
-✅ **Health Monitoring** — Built-in crash reporting and performance telemetry  
-✅ **Cross-Platform** — Windows, Linux, macOS (coming soon)  
-✅ **Localization** — English, German, Spanish (community translations welcome)
+- ✅ **Mod Management** — Install, enable, disable, update, manage profiles
+- ✅ **Dependency Resolution** — Automatic conflict detection and installation
+- ✅ **Steam Integration** — Auto-detect library, launch via Steam, Workshop support
+- ✅ **Smart Installer** — Automatically downloads and installs required VC++ runtimes
+- ✅ **Health Monitoring** — Built-in crash reporting and performance telemetry
+- ✅ **Cross-Platform** — Windows, Linux, macOS (coming soon)
+- ✅ **Localization** — English, German, Spanish (community translations welcome)
 
 ## 🏗️ Architecture
 
@@ -116,6 +119,7 @@ gregModmanager.sln
 ```
 
 **Produces:**
+
 - Windows installer (`.exe`)
 - Windows portable (`.zip`)
 - Linux AppImage, `.deb`, `.rpm`, `.tar.gz`
@@ -174,4 +178,5 @@ MIT License — See [LICENSE](LICENSE)
 - **[Wiki](https://github.com/mleem97/gregModmanager.wiki)** — Documentation (submodule)
 
 ## Maintainers
+
 - teamGreg / mleem97

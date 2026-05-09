@@ -18,7 +18,7 @@ Dieses Dokument definiert die strikten Design-Vorgaben fuer alle Desktop-Anwendu
 Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werden.
 
 | Token | Hex | Verwendung |
-|-------|-----|------------|
+| :--- | :--- | :--- |
 | `SurfaceBase` | `#051424` | Haupt-Hintergrund aller Fenster und Seiten |
 | `SurfaceElevated` | `#0A1E2E` | Karten, Panels, Modale, Flyouts |
 | `SurfaceOverlay` | `#122131` | Hover-States, Trennlinien, Subtle Hervorhebungen |
@@ -32,6 +32,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 | `BorderActive` | `#8AEBFF` | Fokussierte Eingabefelder, aktive Tabs |
 
 **Regeln:**
+
 - Keine transparenten Overlays (`Opacity < 1.0`) fuer Hintergruende.
 - Keine Verlaeufe (Gradients).
 - Keine Schlagschatten (Drop Shadows).
@@ -42,7 +43,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 3. Typografie
 
 | Rolle | Schriftart | Groesse | Gewicht | Zeilenabstand |
-|-------|------------|---------|---------|---------------|
+| :--- | :--- | :--- | :--- | :--- |
 | Display | Space Grotesk | 24 px | 700 | 32 px |
 | Headline | Space Grotesk | 18 px | 600 | 24 px |
 | Title | Inter | 14 px | 600 | 20 px |
@@ -51,6 +52,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 | Mono (Status, Metadaten) | JetBrains Mono | 12 px | 400 | 16 px |
 
 **Regeln:**
+
 - `Inter` ist die Standard-UI-Schrift; `Space Grotesk` nur fuer Ueberschriften und Marken-Elemente.
 - `JetBrains Mono` ist verpflichtend fuer: Dateipfade, IDs, Versionsnummern, Dateigroessen, Zeitstempel, SHA256-Hashes, Steam-AppIDs.
 - Text-Transform: Nie `uppercase` fuer Labels oder Buttons. Nur fuer kleine statische Badges erlaubt.
@@ -68,6 +70,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 - **Trennlinien**: 1 px, Farbe `BorderSubtle`, horizontal oder vertikal.
 
 **Regeln:**
+
 - Keine halben Einheiten (z.B. 4 px nur fuer Hairlines/Trennlinien erlaubt).
 - Kein zentrierter Fliesstext; Linksbuendig ausgerichtet.
 - Listen und Tabellen nutzen volle verfuegbare Breite; letzte Spalte expandiert.
@@ -77,7 +80,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 5. Geometrie & Radien
 
 | Komponente | Radius |
-|------------|--------|
+| :--- | :--- |
 | Fenster (root) | 0 px (scharfe Kanten) |
 | Karten / Panels | 4 px |
 | Buttons | 4 px |
@@ -89,6 +92,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 | Badges | 2 px |
 
 **Regeln:**
+
 - Keine abgerundeten "Bubble"-UIs.
 - Keine vollstaendig runden Buttons (Pill-Shape).
 - Bilder und Thumbnails sind immer quadratisch mit 0 px Radius.
@@ -111,7 +115,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ### 7.1 Buttons
 
 | Variante | Hintergrund | Rahmen | Text |
-|----------|-------------|--------|------|
+| :--- | :--- | :--- | :--- |
 | Primary | `Primary` | none | `SurfaceBase` |
 | Secondary | `SurfaceElevated` | `BorderSubtle` | `OnSurface` |
 | Danger | `Danger` | none | `SurfaceBase` |
@@ -251,7 +255,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 15. Verbotene Muster
 
 | Muster | Ersetzen durch |
-|--------|----------------|
+| :--- | :--- |
 | Native `MessageBox` | `IDialogService` Modale |
 | `ExtendClientAreaToDecorationsHint` | Custom Chrome mit `SystemDecorations="None"` |
 | `ReflectionBindingExtension` | `CompiledBindings` oder `{Binding}` mit Typpruefung |
@@ -288,4 +292,4 @@ Bevor ein PR gemerged wird, muss geprueft werden:
 
 ---
 
-*Letzte Aktualisierung: 2026-05-05*
+###### Letzte Aktualisierung: 2026-05-05

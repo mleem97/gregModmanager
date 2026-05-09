@@ -38,7 +38,7 @@ if (Test-Path -LiteralPath $envFile) {
     Write-Host "[build] Lade Umgebungsvariablen aus .env ..."
     Get-Content $envFile | Where-Object { $_ -match '=' -and $_ -notmatch '^#' } | ForEach-Object {
         $name, $value = $_.Split('=', 2)
-        $env:$($name.Trim()) = $value.Trim()
+        Set-Item -Path "env:$($name.Trim())" -Value $value.Trim()
     }
 }
 

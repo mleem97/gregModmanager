@@ -23,6 +23,14 @@ public partial class EditorPage : UserControl
 {
     private const int MaxWorkshopTags = 20;
 
+    private const string VisibilityPublic = "Public";
+    private const string VisibilityFriendsOnly = "FriendsOnly";
+    private const string VisibilityPrivate = "Private";
+    private const string ProfileDecoration = "decoration";
+    private const string ProfileCode = "code";
+    private const string TypePlacableObject = "PlacableObject";
+    private const string ErrorKey = "Error";
+
     private readonly WorkspaceService _workspace;
     private readonly SteamWorkshopService _steam;
     private readonly AppLogService _log;
@@ -38,9 +46,9 @@ public partial class EditorPage : UserControl
         _steam = steam;
         _log = log;
 
-        VisibilityPicker.ItemsSource = new[] { "Public", "FriendsOnly", "Private" };
-        NativeProfilePicker.ItemsSource = new[] { "decoration", "code" };
-        ModTypePicker.ItemsSource = new[] { "PlacableObject", "MelonloaderPlugin", "Userlib", "DataCenterMod" };
+        VisibilityPicker.ItemsSource = new[] { VisibilityPublic, VisibilityFriendsOnly, VisibilityPrivate };
+        NativeProfilePicker.ItemsSource = new[] { ProfileDecoration, ProfileCode };
+        ModTypePicker.ItemsSource = new[] { TypePlacableObject, "MelonloaderPlugin", "Userlib", "DataCenterMod" };
         CheckResultsList.ItemsSource = _checkResults;
         SetEditorTab(0);
     }
@@ -61,7 +69,7 @@ public partial class EditorPage : UserControl
         {
             _log.Append($"Failed to open project: {ex.Message}");
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), $"Could not open project. {ex.Message}");
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), $"Could not open project. {ex.Message}");
         }
     }
 
@@ -125,18 +133,18 @@ public partial class EditorPage : UserControl
     {
         TitleEntry.Text = _metadata.Title;
         DescriptionEditor.Text = _metadata.Description;
-        VisibilityPicker.SelectedItem = _metadata.Visibility is "Public" or "FriendsOnly" or "Private"
+        VisibilityPicker.SelectedItem = _metadata.Visibility is VisibilityPublic or VisibilityFriendsOnly or VisibilityPrivate
             ? _metadata.Visibility
-            : "Public";
+            : VisibilityPublic;
         TagsEntry.Text = string.Join(", ", _metadata.Tags);
         NeedsgregSwitch.IsChecked = _metadata.Needsgreg;
         NeedsMelonLoaderSwitch.IsChecked = _metadata.NeedsMelonLoader;
         var profile = string.IsNullOrWhiteSpace(_metadata.NativeConfigProfile)
-            ? "decoration"
+            ? ProfileDecoration
             : _metadata.NativeConfigProfile.Trim().ToLowerInvariant();
-        NativeProfilePicker.SelectedItem = profile == "code" ? "code" : "decoration";
+        NativeProfilePicker.SelectedItem = profile == ProfileCode ? ProfileCode : ProfileDecoration;
         var modType = string.IsNullOrWhiteSpace(_metadata.ModType)
-            ? "PlacableObject"
+            ? TypePlacableObject
             : _metadata.ModType;
         ModTypePicker.SelectedItem = modType;
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
@@ -153,8 +161,8 @@ public partial class EditorPage : UserControl
         ViewOnSteamBtn.IsVisible = isUpdate;
 
         UpdateContentSizeUi();
-        UpdateCounts();
-        UpdateTagsHint();
+        UpdateCounts(TitleEntry, DescriptionEditor, TitleCountLabel, DescriptionCountLabel);
+        UpdateTagsHint(TagsEntry, TagsHintLabel);
         RebuildScreenshotGallery();
         RunUploadCheck();
         RebuildWorkshopDepRows();
@@ -193,12 +201,7 @@ public partial class EditorPage : UserControl
 
     private static int CountFilesQuick(string dir)
     {
-        var n = 0;
-        foreach (var _ in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
-        {
-            if (++n >= 5_000_000) return 5_000_000;
-        }
-        return n;
+        return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Take(5_000_000).Count();
     }
 
     #region Workshop dependencies
@@ -231,7 +234,7 @@ public partial class EditorPage : UserControl
         }
     }
 
-    private string FormatWorkshopDepLabel(ulong id)
+    private static string FormatWorkshopDepLabel(ulong id)
     {
         return id.ToString(CultureInfo.InvariantCulture);
     }
@@ -253,11 +256,11 @@ public partial class EditorPage : UserControl
         if (!ulong.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) || id == 0)
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), S.Get("Editor_WorkshopDepInvalidId"));
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), S.Get("Editor_WorkshopDepInvalidId"));
             return;
         }
 
-        if (!await TryAddWorkshopDependencyAsync(id, null))
+        if (!await TryAddWorkshopDependencyAsync(id))
         {
             return;
         }
@@ -265,19 +268,19 @@ public partial class EditorPage : UserControl
         WorkshopDepIdEntry.Text = "";
     }
 
-    private async Task<bool> TryAddWorkshopDependencyAsync(ulong id, string? titleHint)
+    private async Task<bool> TryAddWorkshopDependencyAsync(ulong id)
     {
         if (_metadata.PublishedFileId != 0 && id == _metadata.PublishedFileId)
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), S.Get("Editor_WorkshopDepSelf"));
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), S.Get("Editor_WorkshopDepSelf"));
             return false;
         }
 
         if (_metadata.WorkshopDependencyIds.Contains(id))
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), S.Get("Editor_WorkshopDepDuplicate"));
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), S.Get("Editor_WorkshopDepDuplicate"));
             return false;
         }
 
@@ -321,18 +324,16 @@ public partial class EditorPage : UserControl
 
     #region Editor sub-tabs
 
-    private void OnTabDetails(object? sender, RoutedEventArgs e) => SetEditorTab(0);
-    private void OnTabAssets(object? sender, RoutedEventArgs e) => SetEditorTab(1);
-    private void OnTabPublish(object? sender, RoutedEventArgs e) => SetEditorTab(2);
+    private void SetEditorTab(int index) => SetEditorTab(index, PanelDetails, PanelAssets, PanelPublish, TabBtnDetails, TabBtnAssets, TabBtnPublish);
 
-    private void SetEditorTab(int index)
+    private static void SetEditorTab(int index, Control details, Control assets, Control publish, Button bDetails, Button bAssets, Button bPublish)
     {
-        PanelDetails.IsVisible = index == 0;
-        PanelAssets.IsVisible = index == 1;
-        PanelPublish.IsVisible = index == 2;
-        SetEditorTabStyle(TabBtnDetails, index == 0);
-        SetEditorTabStyle(TabBtnAssets, index == 1);
-        SetEditorTabStyle(TabBtnPublish, index == 2);
+        details.IsVisible = index == 0;
+        assets.IsVisible = index == 1;
+        publish.IsVisible = index == 2;
+        SetEditorTabStyle(bDetails, index == 0);
+        SetEditorTabStyle(bAssets, index == 1);
+        SetEditorTabStyle(bPublish, index == 2);
     }
 
     private static void SetEditorTabStyle(Button btn, bool active)
@@ -359,28 +360,23 @@ public partial class EditorPage : UserControl
 
     #region Field events
 
-    private void OnTitleChanged(object? sender, TextChangedEventArgs e) => UpdateCounts();
+    private void UpdateCounts() => UpdateCounts(TitleEntry, DescriptionEditor, TitleCountLabel, DescriptionCountLabel);
 
-    private void OnDescriptionChanged(object? sender, TextChangedEventArgs e)
+    private static void UpdateCounts(TextBox title, TextBox desc, TextBlock tLabel, TextBlock dLabel)
     {
-        UpdateCounts();
+        var t = title.Text?.Length ?? 0;
+        var d = desc.Text?.Length ?? 0;
+        tLabel.Text = $"{t} / {SteamConstants.MaxTitleLength}";
+        dLabel.Text = $"{d} / {SteamConstants.MaxDescriptionLength}";
     }
 
-    private void OnTagsChanged(object? sender, TextChangedEventArgs e) => UpdateTagsHint();
+    private void UpdateTagsHint() => UpdateTagsHint(TagsEntry, TagsHintLabel);
 
-    private void UpdateCounts()
+    private static void UpdateTagsHint(TextBox tags, TextBlock label)
     {
-        var t = TitleEntry.Text?.Length ?? 0;
-        var d = DescriptionEditor.Text?.Length ?? 0;
-        TitleCountLabel.Text = $"{t} / {SteamConstants.MaxTitleLength}";
-        DescriptionCountLabel.Text = $"{d} / {SteamConstants.MaxDescriptionLength}";
-    }
-
-    private void UpdateTagsHint()
-    {
-        var raw = TagsEntry.Text ?? "";
+        var raw = tags.Text ?? "";
         var count = ParseTags(raw).Count;
-        TagsHintLabel.Text = $"{count} / {MaxWorkshopTags} tags";
+        label.Text = $"{count} / {MaxWorkshopTags} tags";
     }
 
     private static List<string> ParseTags(string? raw)
@@ -398,22 +394,24 @@ public partial class EditorPage : UserControl
 
     #region BBCode formatting
 
-    private void OnBbBold(object? s, RoutedEventArgs e) => InsertBbTag("b");
-    private void OnBbItalic(object? s, RoutedEventArgs e) => InsertBbTag("i");
-    private void OnBbUnderline(object? s, RoutedEventArgs e) => InsertBbTag("u");
-    private void OnBbStrike(object? s, RoutedEventArgs e) => InsertBbTag("strike");
-    private void OnBbH1(object? s, RoutedEventArgs e) => InsertBbTag("h1");
-    private void OnBbH2(object? s, RoutedEventArgs e) => InsertBbTag("h2");
-    private void OnBbH3(object? s, RoutedEventArgs e) => InsertBbTag("h3");
-    private void OnBbCode(object? s, RoutedEventArgs e) => InsertBbTag("code");
-    private void OnBbQuote(object? s, RoutedEventArgs e) => InsertBbTag("quote");
-    private void OnBbSpoiler(object? s, RoutedEventArgs e) => InsertBbTag("spoiler");
+    private void OnBbBold(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "b");
+    private void OnBbItalic(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "i");
+    private void OnBbUnderline(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "u");
+    private void OnBbStrike(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "strike");
+    private void OnBbH1(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h1");
+    private void OnBbH2(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h2");
+    private void OnBbH3(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h3");
+    private void OnBbCode(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "code");
+    private void OnBbQuote(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "quote");
+    private void OnBbSpoiler(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "spoiler");
 
-    private void OnBbUrl(object? s, RoutedEventArgs e)
+    private void OnBbUrl(object? s, RoutedEventArgs e) => OnBbUrl(DescriptionEditor);
+
+    private static void OnBbUrl(TextBox editor)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var start = DescriptionEditor.SelectionStart;
-        var end = DescriptionEditor.SelectionEnd;
+        var text = editor.Text ?? "";
+        var start = editor.SelectionStart;
+        var end = editor.SelectionEnd;
         var selLen = Math.Abs(end - start);
         var cursor = Math.Min(start, end);
 
@@ -421,58 +419,66 @@ public partial class EditorPage : UserControl
         {
             var selected = text.Substring(cursor, selLen);
             var insert = $"[url={selected}]{selected}[/url]";
-            DescriptionEditor.Text = text.Remove(cursor, selLen).Insert(cursor, insert);
-            DescriptionEditor.CaretIndex = cursor + insert.Length;
+            editor.Text = text.Remove(cursor, selLen).Insert(cursor, insert);
+            editor.CaretIndex = cursor + insert.Length;
         }
         else
         {
             var insert = "[url=https://]link text[/url]";
-            DescriptionEditor.Text = text.Insert(cursor, insert);
-            DescriptionEditor.CaretIndex = cursor + 5;
+            editor.Text = text.Insert(cursor, insert);
+            editor.CaretIndex = cursor + 5;
         }
     }
 
-    private void OnBbImg(object? s, RoutedEventArgs e)
+    private void OnBbImg(object? s, RoutedEventArgs e) => OnBbImg(DescriptionEditor);
+
+    private static void OnBbImg(TextBox editor)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var cursor = DescriptionEditor.CaretIndex;
+        var text = editor.Text ?? "";
+        var cursor = editor.CaretIndex;
         var insert = "[img]https://[/img]";
-        DescriptionEditor.Text = text.Insert(cursor, insert);
-        DescriptionEditor.CaretIndex = cursor + 5;
+        editor.Text = text.Insert(cursor, insert);
+        editor.CaretIndex = cursor + 5;
     }
 
-    private void OnBbList(object? s, RoutedEventArgs e)
+    private void OnBbList(object? s, RoutedEventArgs e) => OnBbList(DescriptionEditor);
+
+    private static void OnBbList(TextBox editor)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var cursor = DescriptionEditor.CaretIndex;
+        var text = editor.Text ?? "";
+        var cursor = editor.CaretIndex;
         var insert = "[list]\n[*] Item 1\n[*] Item 2\n[/list]";
-        DescriptionEditor.Text = text.Insert(cursor, insert);
-        DescriptionEditor.CaretIndex = cursor + insert.Length;
+        editor.Text = text.Insert(cursor, insert);
+        editor.CaretIndex = cursor + insert.Length;
     }
 
-    private void OnBbHr(object? s, RoutedEventArgs e)
+    private void OnBbHr(object? s, RoutedEventArgs e) => OnBbHr(DescriptionEditor);
+
+    private static void OnBbHr(TextBox editor)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var cursor = DescriptionEditor.CaretIndex;
+        var text = editor.Text ?? "";
+        var cursor = editor.CaretIndex;
         var insert = "[hr][/hr]";
-        DescriptionEditor.Text = text.Insert(cursor, insert);
-        DescriptionEditor.CaretIndex = cursor + insert.Length;
+        editor.Text = text.Insert(cursor, insert);
+        editor.CaretIndex = cursor + insert.Length;
     }
 
-    private void OnBbTable(object? s, RoutedEventArgs e)
+    private void OnBbTable(object? s, RoutedEventArgs e) => OnBbTable(DescriptionEditor);
+
+    private static void OnBbTable(TextBox editor)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var cursor = DescriptionEditor.CaretIndex;
+        var text = editor.Text ?? "";
+        var cursor = editor.CaretIndex;
         var insert = "[table]\n[tr]\n[th]Header[/th]\n[th]Header[/th]\n[/tr]\n[tr]\n[td]Cell[/td]\n[td]Cell[/td]\n[/tr]\n[/table]";
-        DescriptionEditor.Text = text.Insert(cursor, insert);
-        DescriptionEditor.CaretIndex = cursor + insert.Length;
+        editor.Text = text.Insert(cursor, insert);
+        editor.CaretIndex = cursor + insert.Length;
     }
 
-    private void InsertBbTag(string tag)
+    private static void InsertBbTag(TextBox editor, string tag)
     {
-        var text = DescriptionEditor.Text ?? "";
-        var start = DescriptionEditor.SelectionStart;
-        var end = DescriptionEditor.SelectionEnd;
+        var text = editor.Text ?? "";
+        var start = editor.SelectionStart;
+        var end = editor.SelectionEnd;
         var selLen = Math.Abs(end - start);
         var cursor = Math.Min(start, end);
 
@@ -480,15 +486,15 @@ public partial class EditorPage : UserControl
         {
             var selected = text.Substring(cursor, selLen);
             var wrapped = $"[{tag}]{selected}[/{tag}]";
-            DescriptionEditor.Text = text.Remove(cursor, selLen).Insert(cursor, wrapped);
-            DescriptionEditor.CaretIndex = cursor + wrapped.Length;
+            editor.Text = text.Remove(cursor, selLen).Insert(cursor, wrapped);
+            editor.CaretIndex = cursor + wrapped.Length;
         }
         else
         {
             var open = $"[{tag}]";
             var close = $"[/{tag}]";
-            DescriptionEditor.Text = text.Insert(cursor, open + close);
-            DescriptionEditor.CaretIndex = cursor + open.Length;
+            editor.Text = text.Insert(cursor, open + close);
+            editor.CaretIndex = cursor + open.Length;
         }
     }
 
@@ -501,7 +507,6 @@ public partial class EditorPage : UserControl
         ScreenshotsGallery.Children.Clear();
         foreach (var relPath in _metadata.AdditionalPreviews)
         {
-            var absPath = Path.Combine(_projectRoot, relPath);
             var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
             var lbl = new TextBlock
             {
@@ -669,12 +674,12 @@ public partial class EditorPage : UserControl
     {
         _metadata.Title = TitleEntry.Text ?? "";
         _metadata.Description = DescriptionEditor.Text ?? "";
-        _metadata.Visibility = VisibilityPicker.SelectedItem as string ?? "Public";
+        _metadata.Visibility = VisibilityPicker.SelectedItem as string ?? VisibilityPublic;
         _metadata.Tags = ParseTags(TagsEntry.Text);
-        _metadata.Needsgreg = NeedsgregSwitch.IsChecked == true;
-        _metadata.NeedsMelonLoader = NeedsMelonLoaderSwitch.IsChecked == true;
-        _metadata.NativeConfigProfile = NativeProfilePicker.SelectedItem as string ?? "decoration";
-        _metadata.ModType = ModTypePicker.SelectedItem as string ?? "PlacableObject";
+        _metadata.Needsgreg = NeedsgregSwitch.IsChecked ?? false;
+        _metadata.NeedsMelonLoader = NeedsMelonLoaderSwitch.IsChecked ?? false;
+        _metadata.NativeConfigProfile = NativeProfilePicker.SelectedItem as string ?? ProfileDecoration;
+        _metadata.ModType = ModTypePicker.SelectedItem as string ?? TypePlacableObject;
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
     }
 
@@ -707,8 +712,7 @@ public partial class EditorPage : UserControl
         }
         catch (Exception ex)
         {
-            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), ex.Message);
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
         }
     }
 
@@ -753,7 +757,7 @@ public partial class EditorPage : UserControl
             {
                 SyncStatusLabel.Text = S.Format("Editor_PublishFailed", outcome.Message);
                 var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-                await dialog.ShowMessageAsync(S.Get("Error"), outcome.Message);
+                await dialog.ShowMessageAsync(S.Get(ErrorKey), outcome.Message);
                 return;
             }
 
@@ -794,8 +798,7 @@ public partial class EditorPage : UserControl
         catch (Exception ex)
         {
             SyncStatusLabel.Text = "";
-            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), ex.Message);
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
         }
     }
 

@@ -1,6 +1,7 @@
 # External Dependencies — gregModmanager
 
-> **Note:** This document reflects the current repository structure (Avalonia UI, .NET 9, `src/`/`tests/`/`build/` layout). For additional context, see `README.md` and the project Wiki.
+> [!NOTE]
+> This document reflects the current repository structure (Avalonia UI, .NET 9, `src/`/`tests/`/`build/` layout). For additional context, see `README.md` and the project Wiki.
 
 This document is an **open-source transparency** note: what this application ships or relies on, and how that relates to licenses. It is **not legal advice**.
 
@@ -8,8 +9,8 @@ This document is an **open-source transparency** note: what this application shi
 
 ## Open source at a glance
 
-| | |
-|--|--|
+| Category | Description |
+| :--- | :--- |
 | **This application's source code** | Licensed under the same terms as the containing repository (see root `LICENSE` if present). |
 | **Open-source components we ship or depend on** | **.NET**, **Avalonia UI**, **Microsoft.Extensions.DependencyInjection**, **Facepunch.Steamworks** — typically **MIT** or permissive open-source licenses; see tables below and upstream notices. |
 | **Not open source (binary redistributables)** | **steam_api64.dll** from Valve's **Steamworks SDK** — distributed under Valve's terms, not under a public source license. You must comply with [Steamworks](https://partner.steamgames.com/) agreements when building or redistributing the app. |
@@ -22,7 +23,7 @@ For release outputs (portable ZIP, Setup EXE, Linux tarball): the publish output
 ## Runtime and framework (open source)
 
 | Component | Use | License / terms |
-|-----------|-----|-------------------|
+| :--- | :--- | :--- |
 | **.NET 9** | Runtime and SDK | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) |
 | **Avalonia UI 11.2** | Cross-platform UI framework | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
 | **Microsoft.Extensions.DependencyInjection** | Service registration / DI container | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
@@ -30,7 +31,7 @@ For release outputs (portable ZIP, Setup EXE, Linux tarball): the publish output
 ## NuGet packages (open source)
 
 | Package | Use | License |
-|---------|-----|---------|
+| :--- | :--- | :--- |
 | **Avalonia** | Core Avalonia framework | MIT |
 | **Avalonia.Desktop** | Desktop backend (Windows/Linux/macOS) | MIT |
 | **Avalonia.Themes.Fluent** | Built-in Fluent theme base | MIT |
@@ -43,7 +44,7 @@ For release outputs (portable ZIP, Setup EXE, Linux tarball): the publish output
 ## Binary redistributables (not "open source")
 
 | File | Source | Notes |
-|------|--------|-------|
+| :--- | :--- | :--- |
 | **steam_api64.dll** | [Steamworks SDK](https://partner.steamgames.com/doc/sdk) | Valve **redistributable** for Steam-enabled applications. You do not have source code; distribution is governed by **Steamworks SDK** and Steam partner terms. Do not imply Valve endorses this project. |
 | **steam_appid.txt** | Project / game configuration | Text file containing the Steam AppID (`4170200`); not a library. |
 
@@ -54,7 +55,7 @@ Using Steamworks implies acceptance of Valve's applicable agreements for develop
 The following fonts are embedded as `AvaloniaResource` or `EmbeddedResource` and are used under their respective open-source licenses:
 
 | Font | License | Usage |
-|------|---------|-------|
+| :--- | :--- | :--- |
 | **Inter** | [OFL 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Primary UI font (body, labels, buttons) |
 | **Inter Tight** | [OFL 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Condensed UI variants |
 | **JetBrains Mono** | [OFL 1.1](https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt) | Monospace metadata, status values, paths, IDs |
@@ -64,14 +65,14 @@ The following fonts are embedded as `AvaloniaResource` or `EmbeddedResource` and
 ## Windows components
 
 | Component | Notes |
-|-----------|-------|
+| :--- | :--- |
 | **Visual C++ runtime** | May be required on some PCs; [Microsoft VC++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) (see Microsoft license terms). |
 | **Inno Setup** (build-time) | Used to create the Windows Setup EXE. [Inno Setup License](https://jrsoftware.org/isfaq.php?license) (free for commercial and non-commercial use). |
 
 ## Build tooling
 
 | Tool | Purpose | License |
-|------|---------|---------|
+| :--- | :--- | :--- |
 | **PowerShell 5.1+** | Build orchestration (`build/scripts/build.ps1`) | MIT |
 | **Inno Setup 6** | Windows installer creation (`build/installer/gregModmanager.iss`) | Inno Setup License |
 | **nfpm** | Linux package building (DEB/RPM/Arch) | [Apache-2.0](https://github.com/goreleaser/nfpm/blob/main/LICENSE) |
@@ -99,6 +100,7 @@ Version resolution uses `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csp
 
 - **Tarball** (`gregmodmanager-{version}-linux-x64.tar.gz`) — Self-contained `linux-x64` single-file publish.
 - **Packages** (optional, via `nfpm`):
+
   - `.deb` (Debian/Ubuntu)
   - `.rpm` (Fedora/openSUSE)
   - `.pkg.tar.zst` (Arch Linux)
@@ -122,4 +124,4 @@ The `src/SubDirectoryFixer/` project is a **.NET 6.0** MelonLoader plugin distri
 
 ---
 
-*Last updated: 2026-05-05*
+###### Last updated: 2026-05-05

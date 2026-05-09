@@ -12,7 +12,7 @@
 
 ### Self-Signing und SmartScreen (wichtig)
 
-**Self-Signing ersetzt kein CA-Zertifikat** und **umgeht SmartScreen nicht zuverlässig**. SmartScreen und die Vertrauensbewertung sind auf **öffentlich vertrauenswürdige** Code-Signing-Zertifikate (OV/EV) und **Reputation** ausgelegt. Eine selbst signierte Datei kann weiterhin **Warnungen** auslösen — manchmal sogar **stärker** als „gar nicht signiert“, je nach Heuristik.
+Self-Signing ersetzt kein CA-Zertifikat und umgeht SmartScreen nicht zuverlässig. SmartScreen und die Vertrauensbewertung sind auf öffentlich vertrauenswürdige Code-Signing-Zertifikate (OV/EV) und Reputation ausgelegt. Eine selbst signierte Datei kann weiterhin Warnungen auslösen — manchmal sogar stärker als „gar nicht signiert“, je nach Heuristik.
 
 Wenn du **bewusst** self-signed nutzt: Ziel ist oft ein **fester Anzeigename** und nachvollziehbare Signatur für Kenner — **nicht** das automatische Wegfiltern aller SmartScreen-Meldungen.
 
@@ -33,11 +33,11 @@ $env:CODE_SIGN_THUMBPRINT = '<Thumbprint>'
 
 Oder nur die Setup-EXE: `.\installer\sign-authenticode.ps1 -Path "…\gregModmanager-…-Setup.exe" -Thumbprint …`
 
-**Öffentliche CA (kein „Unbekannter Herausgeber“ für die breite Masse)**
+### Öffentliche CA (kein „Unbekannter Herausgeber“ für die breite Masse)
 
 Windows zeigt **„Unbekannter Herausgeber“** (SmartScreen, Installer, Eigenschaften), wenn:
 
-- die Datei **nicht signiert** ist, oder  
+- die Datei **nicht signiert** ist, oder
 - sie mit einem Zertifikat signiert wurde, das **nicht** zur **vertrauenden Stamm-CA-Kette** passt (typisch: Self-Signed ohne Import des Stammzerts).
 
 Damit die Signatur **flächendeckend als vertrauenswürdig** gilt, brauchst du ein **Code-Signing-Zertifikat** von einer **öffentlichen Zertifizierungsstelle** (DigiCert, Sectigo, SSL.com, GlobalSign …) — **OV oder EV** Authenticode.
@@ -111,7 +111,6 @@ Nimmt die **neueste** `gregModmanager-*-Setup.exe` unter `installer\Output\`, od
 
 ## Referenzen
 
-- [Microsoft: SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)  
-- [DigiCert: Code Signing](https://www.digicert.com/code-signing/)  
+- [Microsoft: SignTool](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)
+- [DigiCert: Code Signing](https://www.digicert.com/code-signing/)
 - [Azure Trusted Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/) (Alternative: Signatur aus der Cloud ohne lokalen PFX)
-

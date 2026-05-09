@@ -28,23 +28,27 @@ public partial class SettingsPage : UserControl
 
         ModStoreSwitch.IsChecked = AppSettings.IsModStoreEnabled();
         GameRootEntry.Text = AppSettings.GetGameRootPath();
-        UpdateGameRootLabel();
+        UpdateGameRootLabel(CurrentGameRootLabel);
         CustomPathEntry.Text = S.Preferences.GetString(WorkspaceService.CustomWorkspacePathKey, "");
         CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
         
         TelemetrySwitch.IsChecked = AppSettings.IsTelemetryEnabled();
     }
 
-    private void OnTelemetryToggled(object? sender, RoutedEventArgs e)
+    private void OnTelemetryToggled(object? sender, RoutedEventArgs e) => OnTelemetryToggled(TelemetrySwitch);
+
+    private static void OnTelemetryToggled(CheckBox toggle)
     {
-        var enabled = TelemetrySwitch.IsChecked ?? true;
+        var enabled = toggle.IsChecked ?? true;
         S.Preferences.SetBool(AppSettings.TelemetryEnabledKey, enabled);
     }
 
-    private void UpdateGameRootLabel()
+    private void UpdateGameRootLabel() => UpdateGameRootLabel(CurrentGameRootLabel);
+
+    private static void UpdateGameRootLabel(TextBlock label)
     {
         var path = AppSettings.GetGameRootPath();
-        CurrentGameRootLabel.Text = string.IsNullOrEmpty(path)
+        label.Text = string.IsNullOrEmpty(path)
             ? S.Get("Settings_GameRootNotSet")
             : S.Format(CurrentPathKey, path);
     }
@@ -115,20 +119,24 @@ public partial class SettingsPage : UserControl
         PathHint.Text = S.Get("Settings_PathReset");
     }
 
-    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e) => OnLanguageChanged(LanguagePicker, LanguageHint);
+
+    private static void OnLanguageChanged(ComboBox picker, TextBlock hint)
     {
-        var idx = LanguagePicker.SelectedIndex;
+        var idx = picker.SelectedIndex;
         if (idx < 0 || idx >= S.SupportedLanguages.Length) return;
         var code = S.SupportedLanguages[idx].Code;
         S.SetLanguage(code);
-        LanguageHint.Text = S.Get("Settings_LanguageRestart");
+        hint.Text = S.Get("Settings_LanguageRestart");
     }
 
-    private void OnModStoreToggled(object? sender, RoutedEventArgs e)
+    private void OnModStoreToggled(object? sender, RoutedEventArgs e) => OnModStoreToggled(ModStoreSwitch, ModStoreHint);
+
+    private static void OnModStoreToggled(CheckBox toggle, TextBlock hint)
     {
-        var enabled = ModStoreSwitch.IsChecked ?? false;
+        var enabled = toggle.IsChecked ?? false;
         S.Preferences.SetBool(AppSettings.ModStoreEnabledKey, enabled);
-        ModStoreHint.Text = S.Get("Settings_RestartEffect");
+        hint.Text = S.Get("Settings_RestartEffect");
     }
 
     private static async void OnOpenLogs(object? sender, RoutedEventArgs e)

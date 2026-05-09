@@ -175,7 +175,7 @@ services.AddTransient<IMyEphemeralService, MyEphemeralService>();
 ### Required Tools
 
 | Tool | Version | Purpose |
-|------|---------|---------|
+| :--- | :--- | :--- |
 | **.NET SDK** | 9.0+ | Build, compile, test |
 | **Visual Studio** / **Rider** / **VS Code** | Latest | Editor and debugging |
 | **Git** | Latest | Version control |
@@ -348,7 +348,7 @@ Located at `scripts/build.ps1`, this is the primary build orchestration for Wind
 The script produces:
 
 | Target | Location | Purpose |
-|--------|----------|---------|
+| :--- | :--- | :--- |
 | **Debug (local)** | `bin/Debug/` | Local testing |
 | **Release (single-file)** | `bin/Release/` | Trimmed, self-contained executable |
 | **Windows Installer** | `dist/gregModmanager-v1.5.1-setup.exe` | Inno Setup installer |
@@ -443,7 +443,7 @@ See `.github/workflows/build-and-release.yml` for the GitHub Actions workflow th
 ### Naming Conventions
 
 | Category | Convention | Example |
-|----------|-----------|---------|
+| :--- | :--- | :--- |
 | **Classes** | PascalCase | `WorkshopSyncService`, `ModItem` |
 | **Methods** | PascalCase | `GetModsAsync()`, `ResolveConflicts()` |
 | **Properties** | PascalCase | `IsEnabled`, `ModCount` |
@@ -862,6 +862,7 @@ Related to #456
 - [ ] Documentation update
 
 ## Testing Done
+
 - [ ] Unit tests added/updated
 - [ ] Manual testing on Windows
 - [ ] Manual testing on Linux
@@ -1095,7 +1096,7 @@ git push origin v1.6.0
 ### Release Types
 
 | Type | Version | Use Case |
-|------|---------|----------|
+| :--- | :--- | :--- |
 | **Stable** | `1.5.0` | Production release, well-tested |
 | **Pre-release** | `1.6.0-alpha.1` | Early preview, may have bugs |
 | **Patch** | `1.5.1` | Bug fix only |
@@ -1226,5 +1227,7 @@ var response = await client.GetAsync("https://api.example.com/data");
 
 ---
 
-**Last Updated:** May 2026  
-**Version:** v1.5.1
+---
+
+###### Last Updated: May 2026
+###### Version: v1.5.1

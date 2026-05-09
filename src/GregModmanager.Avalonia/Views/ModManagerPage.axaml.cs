@@ -27,13 +27,19 @@ public partial class ModManagerPage : UserControl
     private readonly ObservableCollection<WorkshopItemDetailVm> _installedItems = new();
     private readonly ObservableCollection<WorkshopItemDetailVm> _favoritesItems = new();
 
+    private const string TabStoreKey = "store";
+    private const string TabInstalledKey = "installed";
+    private const string TabFavoritesKey = "favorites";
+    private const string TabHealthKey = "health";
+    private const string MelonLoaderReleasesUrl = "https://github.com/LavaGang/MelonLoader/releases";
+
     private int _storePage = 1;
     private bool _storeHasMore;
     private int _installedPage = 1;
     private bool _installedHasMore;
     private int _favoritesPage = 1;
     private bool _favoritesHasMore;
-    private string _currentTab = "store";
+    private string _currentTab = TabStoreKey;
 
     public ModManagerPage(
         SteamWorkshopService steam,
@@ -71,13 +77,15 @@ public partial class ModManagerPage : UserControl
         };
     }
 
-    private void OnSyncStatusChanged(WorkshopSyncEvent evt)
+    private void OnSyncStatusChanged(WorkshopSyncEvent evt) => OnSyncStatusChanged(evt, SyncStatusBar, SyncStatusLabel);
+
+    private static void OnSyncStatusChanged(WorkshopSyncEvent evt, Control bar, TextBlock label)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            SyncStatusBar.IsVisible = true;
-            SyncStatusLabel.Text = evt.Message;
-            SyncStatusBar.Background = evt.Kind switch
+            bar.IsVisible = true;
+            label.Text = evt.Message;
+            bar.Background = evt.Kind switch
             {
                 "warning" => new SolidColorBrush(Color.Parse("#2A1A08")),
                 "complete" or "removed" => new SolidColorBrush(Color.Parse("#0D3835")),
@@ -86,41 +94,41 @@ public partial class ModManagerPage : UserControl
         });
     }
 
-    private void OnTabStore(object? sender, RoutedEventArgs e) => SwitchToTab("store");
-    private void OnTabInstalled(object? sender, RoutedEventArgs e) => SwitchToTab("installed");
-    private void OnTabFavorites(object? sender, RoutedEventArgs e) => SwitchToTab("favorites");
-    private void OnTabHealth(object? sender, RoutedEventArgs e) => SwitchToTab("health");
+    private void OnTabStore(object? sender, RoutedEventArgs e) => SwitchToTab(TabStoreKey);
+    private void OnTabInstalled(object? sender, RoutedEventArgs e) => SwitchToTab(TabInstalledKey);
+    private void OnTabFavorites(object? sender, RoutedEventArgs e) => SwitchToTab(TabFavoritesKey);
+    private void OnTabHealth(object? sender, RoutedEventArgs e) => SwitchToTab(TabHealthKey);
 
     private void OnRefreshCurrentTab(object? sender, RoutedEventArgs e)
     {
         switch (_currentTab)
         {
-            case "store": _ = LoadStoreAsync(); break;
-            case "installed": _ = LoadInstalledAsync(); break;
-            case "favorites": _ = LoadFavoritesAsync(); break;
-            case "health": RefreshChecks(); RefreshPluginList(); break;
+            case TabStoreKey: _ = LoadStoreAsync(); break;
+            case TabInstalledKey: _ = LoadInstalledAsync(); break;
+            case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
+            case TabHealthKey: RefreshChecks(); RefreshPluginList(); break;
         }
     }
 
     private void SwitchToTab(string tab)
     {
         _currentTab = tab;
-        StorePanel.IsVisible = tab == "store";
-        InstalledPanel.IsVisible = tab == "installed";
-        FavoritesPanel.IsVisible = tab == "favorites";
-        HealthPanel.IsVisible = tab == "health";
+        StorePanel.IsVisible = tab == TabStoreKey;
+        InstalledPanel.IsVisible = tab == TabInstalledKey;
+        FavoritesPanel.IsVisible = tab == TabFavoritesKey;
+        HealthPanel.IsVisible = tab == TabHealthKey;
 
-        SetTabActive(TabStore, tab == "store");
-        SetTabActive(TabInstalled, tab == "installed");
-        SetTabActive(TabFavorites, tab == "favorites");
-        SetTabActive(TabHealth, tab == "health");
+        SetTabActive(TabStore, tab == TabStoreKey);
+        SetTabActive(TabInstalled, tab == TabInstalledKey);
+        SetTabActive(TabFavorites, tab == TabFavoritesKey);
+        SetTabActive(TabHealth, tab == TabHealthKey);
 
         switch (tab)
         {
-            case "store": _ = LoadStoreAsync(); break;
-            case "installed": _ = LoadInstalledAsync(); break;
-            case "favorites": _ = LoadFavoritesAsync(); break;
-            case "health": RefreshChecks(); RefreshPluginList(); break;
+            case TabStoreKey: _ = LoadStoreAsync(); break;
+            case TabInstalledKey: _ = LoadInstalledAsync(); break;
+            case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
+            case TabHealthKey: RefreshChecks(); RefreshPluginList(); break;
         }
     }
 
@@ -151,8 +159,8 @@ public partial class ModManagerPage : UserControl
         }
         else
         {
-            var sort = GetSelectedSort();
-            var tag = GetSelectedTag();
+            var sort = GetSelectedSort(SortPicker);
+            var tag = GetSelectedTag(TagFilter);
             result = await _steam.BrowseAsync(_storePage, sort, tag, CancellationToken.None);
         }
 
@@ -207,9 +215,9 @@ public partial class ModManagerPage : UserControl
         if (this.GetVisualRoot() is MainWindow mw) mw.NavigateTo(detail);
     }
 
-    private WorkshopSortMode GetSelectedSort()
+    private static WorkshopSortMode GetSelectedSort(ComboBox picker)
     {
-        return SortPicker.SelectedIndex switch
+        return picker.SelectedIndex switch
         {
             1 => WorkshopSortMode.CreationDate,
             2 => WorkshopSortMode.VoteScore,
@@ -220,10 +228,10 @@ public partial class ModManagerPage : UserControl
         };
     }
 
-    private string? GetSelectedTag()
+    private static string? GetSelectedTag(ComboBox picker)
     {
-        if (TagFilter.SelectedIndex <= 0) return null;
-        return TagFilter.SelectedItem as string;
+        if (picker.SelectedIndex <= 0) return null;
+        return picker.SelectedItem as string;
     }
 
     private async Task LoadInstalledAsync()
@@ -329,7 +337,7 @@ public partial class ModManagerPage : UserControl
         };
     }
 
-    private void OnOpenFolder(object? sender, RoutedEventArgs e)
+    private static void OnOpenFolder(object? sender, RoutedEventArgs e)
     {
         var path = (sender as Button)?.CommandParameter as string;
         if (string.IsNullOrEmpty(path)) return;
@@ -346,9 +354,9 @@ public partial class ModManagerPage : UserControl
         SafeProcess.OpenFolder(path);
     }
 
-    private void OnMelonLoaderDownload(object? sender, RoutedEventArgs e)
+    private static void OnMelonLoaderDownload(object? sender, RoutedEventArgs e)
     {
-        _ = SafeProcess.OpenUrlAsync("https://github.com/LavaGang/MelonLoader/releases");
+        _ = SafeProcess.OpenUrlAsync(MelonLoaderReleasesUrl);
     }
 
     private void OnOpenGameFolder(object? sender, RoutedEventArgs e)
