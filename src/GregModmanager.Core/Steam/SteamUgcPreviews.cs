@@ -18,7 +18,6 @@ internal static class SteamUgcPreviews
 	private static object? _ugcInternal;
 	private static MethodInfo? _startItemUpdate;
 	private static MethodInfo? _addItemPreviewFile;
-	private static MethodInfo? _removeItemPreview;
 	private static MethodInfo? _submitItemUpdate;
 	private static MethodInfo? _getNumAdditionalPreviews;
 	private static MethodInfo? _getAdditionalPreview;
@@ -35,6 +34,8 @@ internal static class SteamUgcPreviews
 		try
 		{
 			var ugcType = typeof(SteamUGC);
+			// S3011: Accessing internal Steamworks API is necessary because Facepunch.Steamworks 
+			// does not expose additional preview management publicly.
 			var internalProp = ugcType.GetProperty("Internal",
 				BindingFlags.Static | BindingFlags.NonPublic);
 			if (internalProp is null) return false;
@@ -47,7 +48,6 @@ internal static class SteamUgcPreviews
 
 			_startItemUpdate = internalType.GetMethod("StartItemUpdate", bf);
 			_addItemPreviewFile = internalType.GetMethod("AddItemPreviewFile", bf);
-			_removeItemPreview = internalType.GetMethod("RemoveItemPreview", bf);
 			_submitItemUpdate = internalType.GetMethod("SubmitItemUpdate", bf);
 			_getNumAdditionalPreviews = internalType.GetMethod("GetQueryUGCNumAdditionalPreviews", bf);
 			_getAdditionalPreview = internalType.GetMethod("GetQueryUGCAdditionalPreview", bf);
@@ -68,9 +68,6 @@ internal static class SteamUgcPreviews
 
 	public static bool IsAvailable => Resolve();
 
-	/// <summary>
-	/// Whether the reflection-based query for additional preview URLs is functional.
-	/// </summary>
 	public static bool CanQueryPreviews =>
 		Resolve()
 		&& _getNumAdditionalPreviews is not null
@@ -78,12 +75,6 @@ internal static class SteamUgcPreviews
 		&& _setReturnAdditionalPreviews is not null
 		&& _resultPageHandleField is not null;
 
-	/// <summary>
-	/// Queries Steam for additional preview image URLs of a published workshop item.
-	/// Uses a details query with <c>SetReturnAdditionalPreviews</c> enabled, then
-	/// reads results via reflection on <c>SteamUGC.Internal</c>.
-	/// </summary>
-	/// <returns>List of image URLs, or empty if none or unavailable.</returns>
 	public static async Task<List<string>> QueryAdditionalPreviewUrlsAsync(ulong publishedFileId)
 	{
 		var urls = new List<string>();
@@ -104,29 +95,9 @@ internal static class SteamUgcPreviews
 			if (handleObj is null) return urls;
 
 			var numPreviews = _getNumAdditionalPreviews!.Invoke(_ugcInternal, [handleObj, (uint)0]);
-			if (numPreviews is not uint count || count == 0) return urls;
-
-			var imagePreviewTypeValue = _itemPreviewType is not null
-				? Activator.CreateInstance(_itemPreviewType)
-				: null;
-
-			for (uint j = 0; j < count; j++)
+			if (numPreviews is uint count && count > 0)
 			{
-				var args = new object?[] { handleObj, (uint)0, j, null, null, imagePreviewTypeValue };
-				var ok = _getAdditionalPreview!.Invoke(_ugcInternal, args);
-				if (ok is not true) continue;
-
-				var url = args[3] as string;
-				if (string.IsNullOrEmpty(url)) continue;
-
-				var previewTypeVal = args[5];
-				if (previewTypeVal is not null && _itemPreviewType is not null)
-				{
-					var typeInt = Convert.ToInt32(previewTypeVal);
-					if (typeInt != 0) continue; // 0 = k_EItemPreviewType_Image
-				}
-
-				urls.Add(url);
+				ExtractPreviewUrls(handleObj, count, urls);
 			}
 		}
 		finally
@@ -137,10 +108,38 @@ internal static class SteamUgcPreviews
 		return urls;
 	}
 
-	/// <summary>
-	/// Uploads additional preview images for a published workshop item.
-	/// This creates a separate update pass specifically for preview files.
-	/// </summary>
+	private static void ExtractPreviewUrls(object handleObj, uint count, List<string> urls)
+	{
+		var imagePreviewTypeValue = _itemPreviewType is not null
+			? Activator.CreateInstance(_itemPreviewType)
+			: null;
+
+		for (uint j = 0; j < count; j++)
+		{
+			var args = new object?[] { handleObj, (uint)0, j, null, null, imagePreviewTypeValue };
+			var ok = _getAdditionalPreview!.Invoke(_ugcInternal, args);
+			if (ok is not true) continue;
+
+			var url = args[3] as string;
+			var previewTypeVal = args[5];
+
+			if (!string.IsNullOrEmpty(url) && IsImageType(previewTypeVal))
+			{
+				urls.Add(url);
+			}
+		}
+	}
+
+	private static bool IsImageType(object? previewTypeVal)
+	{
+		if (previewTypeVal is null || _itemPreviewType is null) return true;
+		try
+		{
+			return Convert.ToInt32(previewTypeVal) == 0; // 0 = k_EItemPreviewType_Image
+		}
+		catch { return false; }
+	}
+
 	public static async Task<bool> UploadAdditionalPreviewsAsync(
 		ulong publishedFileId,
 		IReadOnlyList<string> imagePaths,
@@ -152,61 +151,16 @@ internal static class SteamUgcPreviews
 
 		try
 		{
-			var appId = (AppId)SteamConstants.DataCenterAppId;
-			var fileId = (PublishedFileId)publishedFileId;
-
-			var handle = _startItemUpdate!.Invoke(_ugcInternal, [appId, fileId]);
+			var handle = _startItemUpdate!.Invoke(_ugcInternal, [(AppId)SteamConstants.DataCenterAppId, (PublishedFileId)publishedFileId]);
 			if (handle is null) return false;
 
-			var imagePreviewValue = _itemPreviewType is not null
-				? Enum.ToObject(_itemPreviewType, 0)  // k_EItemPreviewType_Image = 0
-				: (object)0;
-
-			var added = 0;
-			foreach (var path in imagePaths)
-			{
-				ct.ThrowIfCancellationRequested();
-
-				if (!File.Exists(path))
-				{
-					log?.Report($"Screenshot not found, skipping: {Path.GetFileName(path)}");
-					continue;
-				}
-
-				var fi = new FileInfo(path);
-				if (fi.Length > 1_048_576)
-				{
-					log?.Report($"Screenshot too large (>1 MB), skipping: {Path.GetFileName(path)}");
-					continue;
-				}
-
-				var result = _addItemPreviewFile!.Invoke(_ugcInternal, [handle, path, imagePreviewValue]);
-				if (result is true)
-				{
-					added++;
-					log?.Report($"Added preview: {Path.GetFileName(path)}");
-				}
-				else
-				{
-					log?.Report($"Failed to add preview: {Path.GetFileName(path)}");
-				}
-			}
-
-			if (added == 0)
-			{
-				log?.Report("No preview images were added.");
-				return false;
-			}
+			var added = await ProcessPreviewFilesAsync(handle, imagePaths, log, ct);
+			if (added == 0) return false;
 
 			var callResult = _submitItemUpdate!.Invoke(_ugcInternal, [handle, (string?)null]);
 			if (callResult is null) return false;
 
-			for (var i = 0; i < 120; i++)
-			{
-				ct.ThrowIfCancellationRequested();
-				await Task.Delay(500, ct).ConfigureAwait(false);
-				SteamClient.RunCallbacks();
-			}
+			await WaitWithCallbacksAsync(120, ct);
 
 			log?.Report($"Uploaded {added} additional preview image(s).");
 			return true;
@@ -215,6 +169,50 @@ internal static class SteamUgcPreviews
 		{
 			log?.Report($"Additional previews upload error: {ex.Message}");
 			return false;
+		}
+	}
+
+	private static async Task<int> ProcessPreviewFilesAsync(object handle, IReadOnlyList<string> imagePaths, IProgress<string>? log, CancellationToken ct)
+	{
+		var imagePreviewValue = _itemPreviewType is not null ? Enum.ToObject(_itemPreviewType, 0) : (object)0;
+		var added = 0;
+
+		foreach (var path in imagePaths)
+		{
+			ct.ThrowIfCancellationRequested();
+
+			if (!File.Exists(path))
+			{
+				log?.Report($"Screenshot not found, skipping: {Path.GetFileName(path)}");
+				continue;
+			}
+
+			if (new FileInfo(path).Length > 1_048_576)
+			{
+				log?.Report($"Screenshot too large (>1 MB), skipping: {Path.GetFileName(path)}");
+				continue;
+			}
+
+			if (_addItemPreviewFile!.Invoke(_ugcInternal, [handle, path, imagePreviewValue]) is true)
+			{
+				added++;
+				log?.Report($"Added preview: {Path.GetFileName(path)}");
+			}
+			else
+			{
+				log?.Report($"Failed to add preview: {Path.GetFileName(path)}");
+			}
+		}
+		return added;
+	}
+
+	private static async Task WaitWithCallbacksAsync(int intervals, CancellationToken ct)
+	{
+		for (var i = 0; i < intervals; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			await Task.Delay(500, ct).ConfigureAwait(false);
+			SteamClient.RunCallbacks();
 		}
 	}
 }

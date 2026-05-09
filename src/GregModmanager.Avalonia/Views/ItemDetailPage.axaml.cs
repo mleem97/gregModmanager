@@ -16,6 +16,8 @@ public partial class ItemDetailPage : UserControl
     private readonly SteamWorkshopService _steam;
     private WorkshopItemDetailVm? _item;
 
+    public ItemDetailPage() => InitializeComponent();
+
     public ItemDetailPage(SteamWorkshopService steam)
     {
         InitializeComponent();

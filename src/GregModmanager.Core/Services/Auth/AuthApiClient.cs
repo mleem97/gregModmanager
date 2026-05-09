@@ -7,7 +7,6 @@ namespace GregModmanager.Services.Auth;
 
 public class AuthApiClient : IAuthApiClient
 {
-    private const string BaseAuthUrl = "https://gregframework.eu/api/auth";
     private const string DesktopLoginUrl = "https://datacentermods.com/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce";
     private const string RedirectUriValue = "greg://v1/auth/callback";
 

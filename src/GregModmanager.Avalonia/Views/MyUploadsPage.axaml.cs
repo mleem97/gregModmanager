@@ -24,6 +24,8 @@ public partial class MyUploadsPage : UserControl
     private int _page = 1;
     private bool _hasMore;
 
+    public MyUploadsPage() => InitializeComponent();
+
     public MyUploadsPage(SteamWorkshopService steam, WorkspaceService workspace, AppLogService log)
     {
         InitializeComponent();

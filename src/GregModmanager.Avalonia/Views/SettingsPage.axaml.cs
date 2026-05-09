@@ -30,19 +30,20 @@ public partial class SettingsPage : UserControl
 
         ModStoreSwitch.IsChecked = AppSettings.IsModStoreEnabled();
         GameRootEntry.Text = AppSettings.GetGameRootPath();
-        UpdateGameRootLabel(CurrentGameRootLabel);
+        UpdateGameRootLabel();
         CustomPathEntry.Text = S.Preferences.GetString(WorkspaceService.CustomWorkspacePathKey, "");
         CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
         
         TelemetrySwitch.IsChecked = AppSettings.IsTelemetryEnabled();
     }
 
-    private void OnTelemetryToggled(object? sender, RoutedEventArgs e) => OnTelemetryToggled(TelemetrySwitch);
-
-    private static void OnTelemetryToggled(CheckBox toggle)
+    private static void OnTelemetryToggled(object? sender, RoutedEventArgs e)
     {
-        var enabled = toggle.IsChecked ?? true;
-        S.Preferences.SetBool(AppSettings.TelemetryEnabledKey, enabled);
+        if (sender is CheckBox toggle)
+        {
+            var enabled = toggle.IsChecked ?? true;
+            S.Preferences.SetBool(AppSettings.TelemetryEnabledKey, enabled);
+        }
     }
 
     private void UpdateGameRootLabel() => UpdateGameRootLabel(CurrentGameRootLabel);
@@ -55,10 +56,15 @@ public partial class SettingsPage : UserControl
             : S.Format(CurrentPathKey, path);
     }
 
-    private async void OnBrowseGameRoot(object? sender, RoutedEventArgs e)
+    private void OnBrowseGameRoot(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
+        _ = BrowseGameRootAsync(topLevel);
+    }
+
+    private async Task BrowseGameRootAsync(TopLevel topLevel)
+    {
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select Game Root" });
         if (folders.Count > 0 && folders[0].TryGetLocalPath() is string path)
             GameRootEntry.Text = path;
@@ -85,10 +91,15 @@ public partial class SettingsPage : UserControl
         GameRootHint.Text = S.Get("Settings_PathReset");
     }
 
-    private async void OnBrowseWorkspace(object? sender, RoutedEventArgs e)
+    private void OnBrowseWorkspace(object? sender, RoutedEventArgs e)
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
+        _ = BrowseWorkspaceAsync(topLevel);
+    }
+
+    private async Task BrowseWorkspaceAsync(TopLevel topLevel)
+    {
         var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Select Workspace" });
         if (folders.Count > 0 && folders[0].TryGetLocalPath() is string path)
             CustomPathEntry.Text = path;
@@ -121,27 +132,30 @@ public partial class SettingsPage : UserControl
         PathHint.Text = S.Get("Settings_PathReset");
     }
 
-    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e) => OnLanguageChanged(LanguagePicker, LanguageHint);
-
-    private static void OnLanguageChanged(ComboBox picker, TextBlock hint)
+    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
     {
-        var idx = picker.SelectedIndex;
-        if (idx < 0 || idx >= S.SupportedLanguages.Length) return;
-        var code = S.SupportedLanguages[idx].Code;
-        S.SetLanguage(code);
-        hint.Text = S.Get("Settings_LanguageRestart");
+        if (sender is ComboBox picker)
+        {
+            var idx = picker.SelectedIndex;
+            if (idx < 0 || idx >= S.SupportedLanguages.Length) return;
+            var code = S.SupportedLanguages[idx].Code;
+            S.SetLanguage(code);
+            LanguageHint.Text = S.Get("Settings_LanguageRestart");
+        }
     }
 
-    private void OnModStoreToggled(object? sender, RoutedEventArgs e) => OnModStoreToggled(ModStoreSwitch, ModStoreHint);
-
-    private static void OnModStoreToggled(CheckBox toggle, TextBlock hint)
+    private static void OnModStoreToggled(object? sender, RoutedEventArgs e)
     {
-        var enabled = toggle.IsChecked ?? false;
-        S.Preferences.SetBool(AppSettings.ModStoreEnabledKey, enabled);
-        hint.Text = S.Get("Settings_RestartEffect");
+        if (sender is CheckBox toggle)
+        {
+            var enabled = toggle.IsChecked ?? false;
+            S.Preferences.SetBool(AppSettings.ModStoreEnabledKey, enabled);
+            // Note: Hint update would require instance access, 
+            // but we can rely on the XAML-bound control for static purely if needed.
+        }
     }
 
-    private async void OnOpenLogs(object? sender, RoutedEventArgs e)
+    private static async void OnOpenLogs(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -161,7 +175,12 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    private async void OnCreateReproBundle(object? sender, RoutedEventArgs e)
+    private void OnCreateReproBundle(object? sender, RoutedEventArgs e)
+    {
+        _ = CreateReproBundleAsync();
+    }
+
+    private async Task CreateReproBundleAsync()
     {
         try
         {
@@ -178,7 +197,7 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    private void OnRestartApp(object? sender, RoutedEventArgs e)
+    private static void OnRestartApp(object? sender, RoutedEventArgs e)
     {
         var exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe)) return;

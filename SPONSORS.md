@@ -57,6 +57,7 @@ Includes all previous perks, plus:
 ## Important Notes
 
 > [!NOTE]
+>
 > - Perks are cumulative; higher tiers include all benefits of the previous tiers.
 > - If you are a sponsor and want to claim your perks, please join the Discord server and message a moderator with your GitHub username for verification.
 > - For any questions about sponsorship or perks, feel free to reach out in the Discord or open an issue in the repository.

@@ -25,7 +25,7 @@
         <Border Classes="panel">
           <StackPanel Spacing="8">
             <TextBlock Text="TITLE" Classes="micro-label" />
-            <TextBox x:Name="TitleEntry" Classes="input-terminal" TextChanged="OnTitleChanged" />
+            <TextBox x:Name="TitleEntry" Classes="input-terminal" TextChanged="OnMetadataTextChanged" />
             <TextBlock x:Name="TitleCountLabel" Classes="subtext" />
           </StackPanel>
         </Border>
@@ -33,7 +33,7 @@
         <Border Classes="panel">
           <StackPanel Spacing="8">
             <TextBlock Text="DESCRIPTION" Classes="micro-label" />
-            <TextBox x:Name="DescriptionEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="180" TextChanged="OnDescriptionChanged" />
+            <TextBox x:Name="DescriptionEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="180" TextChanged="OnMetadataTextChanged" />
             <TextBlock x:Name="DescriptionCountLabel" Classes="subtext" />
             <WrapPanel Orientation="Horizontal">
               <Button Content="B" Click="OnBbBold" />

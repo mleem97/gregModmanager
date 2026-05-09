@@ -12,6 +12,8 @@ public partial class NewProjectPage : UserControl
     private readonly WorkspaceService _workspace;
     private readonly AppLogService _log;
 
+    public NewProjectPage() => InitializeComponent();
+
     public NewProjectPage(WorkspaceService workspace, AppLogService log)
     {
         InitializeComponent();

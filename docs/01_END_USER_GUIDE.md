@@ -274,7 +274,7 @@ Settings → Privacy → ☐ Check for updates automatically
 ### Troubleshooting Installation
 
 | Problem | Solution |
-|---------|----------|
+| :--- | :--- |
 | **Windows SmartScreen warning** | Click "More info" → "Run anyway" |
 | **"Missing .NET runtime" error** | Download [.NET 9 Runtime](https://dotnet.microsoft.com/download/dotnet/9.0) and install |
 | **"Permission denied" on Linux** | Run `chmod +x ./gregmodmanager` |
@@ -336,7 +336,7 @@ Or if your game is already detected, click **Select** to activate it.
 
 ### Main Window Layout
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  gregModmanager v1.5.1                        ⚙ ? _ □ ✕ │
 ├────────────┬─────────────────────────────────────────────┤
@@ -458,7 +458,7 @@ Or if your game is already detected, click **Select** to activate it.
    - **Launch Options** — Custom command-line arguments
 4. Click **Save**
 
-### Steam Integration
+### Detailed Steam Integration
 
 gregModmanager integrates with Steam:
 
@@ -788,7 +788,7 @@ On first launch, gregModmanager automatically detects your system language and u
 
 Localization files use `ResX` format (standard .NET resource files) and are located at:
 
-```
+```text
 GregModmanager.Core/
   Localization/
     AppStrings.resx          (English - base)

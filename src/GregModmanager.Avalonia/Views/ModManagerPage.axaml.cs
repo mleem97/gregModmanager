@@ -41,6 +41,8 @@ public partial class ModManagerPage : UserControl
     private bool _favoritesHasMore;
     private string _currentTab = TabStoreKey;
 
+    public ModManagerPage() => InitializeComponent();
+
     public ModManagerPage(
         SteamWorkshopService steam,
         ModDependencyService deps,

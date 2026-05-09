@@ -6,11 +6,9 @@ using GregModmanager.Services;
 using GregModmanager.Models.Auth;
 
 namespace GregModmanager.Services.Auth;
-
 public class SessionManager : ISessionManager
 {
     private readonly IAuthApiClient _apiClient;
-    private readonly AppLogService _logger;
     private string _currentRequestId = string.Empty;
 
     public SessionState State { get; private set; } = SessionState.Anonymous;
@@ -19,10 +17,9 @@ public class SessionManager : ISessionManager
     public event Action? StateChanged;
     public event Action<string>? ProtocolInvoked;
 
-    public SessionManager(IAuthApiClient apiClient, AppLogService logger)
+    public SessionManager(IAuthApiClient apiClient)
     {
         _apiClient = apiClient;
-        _logger = logger;
     }
 
     public async Task InitializeAsync()

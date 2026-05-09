@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Services;
@@ -400,15 +401,7 @@ public partial class EditorPage : UserControl
 
     #region BBCode formatting
 
-    private void OnBbBold(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "b");
-    private void OnBbItalic(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "i");
-    private void OnTitleChanged(object? sender, TextChangedEventArgs e)
-    {
-        UpdateCounts();
-        RunUploadCheck();
-    }
-
-    private void OnDescriptionChanged(object? sender, TextChangedEventArgs e)
+    private void OnMetadataTextChanged(object? sender, TextChangedEventArgs e)
     {
         UpdateCounts();
         RunUploadCheck();
@@ -420,16 +413,40 @@ public partial class EditorPage : UserControl
         RunUploadCheck();
     }
 
-    private void OnBbUnderline(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "u");
-    private void OnBbStrike(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "strike");
-    private void OnBbH1(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h1");
-    private void OnBbH2(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h2");
-    private void OnBbH3(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "h3");
-    private void OnBbCode(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "code");
-    private void OnBbQuote(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "quote");
-    private void OnBbSpoiler(object? s, RoutedEventArgs e) => InsertBbTag(DescriptionEditor, "spoiler");
+    private static void OnBbBold(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "b");
+    private static void OnBbItalic(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "i");
+    private static void OnBbUnderline(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "u");
+    private static void OnBbStrike(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "strike");
+    private static void OnBbH1(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "h1");
+    private static void OnBbH2(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "h2");
+    private static void OnBbH3(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "h3");
+    private static void OnBbCode(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "code");
+    private static void OnBbQuote(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "quote");
+    private static void OnBbSpoiler(object? s, RoutedEventArgs e) => InsertBbTagAtDescription(s, "spoiler");
 
-    private void OnBbUrl(object? s, RoutedEventArgs e) => OnBbUrl(DescriptionEditor);
+    private static void InsertBbTagAtDescription(object? sender, string tag)
+    {
+        if (sender is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                InsertBbTag(ep.DescriptionEditor, tag);
+            }
+        }
+    }
+
+    private static void OnBbUrl(object? s, RoutedEventArgs e)
+    {
+        if (s is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                OnBbUrl(ep.DescriptionEditor);
+            }
+        }
+    }
 
     private static void OnBbUrl(TextBox editor)
     {
@@ -454,7 +471,17 @@ public partial class EditorPage : UserControl
         }
     }
 
-    private void OnBbImg(object? s, RoutedEventArgs e) => OnBbImg(DescriptionEditor);
+    private static void OnBbImg(object? s, RoutedEventArgs e)
+    {
+        if (s is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                OnBbImg(ep.DescriptionEditor);
+            }
+        }
+    }
 
     private static void OnBbImg(TextBox editor)
     {
@@ -465,7 +492,17 @@ public partial class EditorPage : UserControl
         editor.CaretIndex = cursor + 5;
     }
 
-    private void OnBbList(object? s, RoutedEventArgs e) => OnBbList(DescriptionEditor);
+    private static void OnBbList(object? s, RoutedEventArgs e)
+    {
+        if (s is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                OnBbList(ep.DescriptionEditor);
+            }
+        }
+    }
 
     private static void OnBbList(TextBox editor)
     {
@@ -476,7 +513,17 @@ public partial class EditorPage : UserControl
         editor.CaretIndex = cursor + insert.Length;
     }
 
-    private void OnBbHr(object? s, RoutedEventArgs e) => OnBbHr(DescriptionEditor);
+    private static void OnBbHr(object? s, RoutedEventArgs e)
+    {
+        if (s is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                OnBbHr(ep.DescriptionEditor);
+            }
+        }
+    }
 
     private static void OnBbHr(TextBox editor)
     {
@@ -487,7 +534,17 @@ public partial class EditorPage : UserControl
         editor.CaretIndex = cursor + insert.Length;
     }
 
-    private void OnBbTable(object? s, RoutedEventArgs e) => OnBbTable(DescriptionEditor);
+    private static void OnBbTable(object? s, RoutedEventArgs e)
+    {
+        if (s is Visual v)
+        {
+            var ep = v.FindAncestorOfType<EditorPage>();
+            if (ep != null)
+            {
+                OnBbTable(ep.DescriptionEditor);
+            }
+        }
+    }
 
     private static void OnBbTable(TextBox editor)
     {
