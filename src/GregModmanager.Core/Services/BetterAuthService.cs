@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Net.Http.Json;
 using GregModmanager.Models;
 
 namespace GregModmanager.Services;
