@@ -9,9 +9,7 @@ namespace GregModmanager.Services;
 /// </summary>
 public sealed class GitVerificationService
 {
-    private static string GitServerUrl => AppSettings.IsLocalBuild 
-        ? "http://localhost:3000/api/v1/user" 
-        : "https://git.datacentermods.com/api/v1/user";
+    private static string GitServerUrl => AppSettings.GitServerUrl;
     private readonly HttpClient _http = new();
 
     public async Task<bool> VerifyUserAsync(string apiToken)

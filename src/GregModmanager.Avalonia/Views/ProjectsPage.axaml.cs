@@ -12,8 +12,8 @@ namespace GregModmanager.Avalonia.Views;
 
 public partial class ProjectsPage : UserControl
 {
-    private readonly WorkspaceService _workspace;
-    private readonly AppLogService _log;
+    private readonly WorkspaceService _workspace = null!;
+    private readonly AppLogService _log = null!;
     private readonly List<ProjectItemVm> _allProjects = new();
     private string _searchQuery = "";
 

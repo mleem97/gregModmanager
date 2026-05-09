@@ -12,8 +12,8 @@ namespace GregModmanager.Avalonia.Views;
 
 public partial class SettingsPage : UserControl
 {
-    private readonly WorkspaceService _workspace;
-    private readonly ReproBundleService _reproBundle;
+    private readonly WorkspaceService _workspace = null!;
+    private readonly ReproBundleService _reproBundle = null!;
     private const string CurrentPathKey = "Settings_CurrentPath";
 
     public SettingsPage() => InitializeComponent();

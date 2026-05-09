@@ -9,9 +9,9 @@ public static class SafeProcess
     /// <summary>
     /// Opens a URL in the default browser safely, ensuring only http and https schemes are allowed.
     /// </summary>
-    public static async Task OpenUrlAsync(string url)
+    public static Task OpenUrlAsync(string url)
     {
-        if (string.IsNullOrWhiteSpace(url)) return;
+        if (string.IsNullOrWhiteSpace(url)) return Task.CompletedTask;
 
         try
         {
@@ -33,6 +33,8 @@ public static class SafeProcess
         {
             AppFileLog.Error($"Failed to open URL: {url}", ex);
         }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>

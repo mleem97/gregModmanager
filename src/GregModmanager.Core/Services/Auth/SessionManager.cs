@@ -22,7 +22,7 @@ public class SessionManager : ISessionManager
         _apiClient = apiClient;
     }
 
-    public async Task InitializeAsync()
+    public Task InitializeAsync()
     {
         ProtocolSingleInstance.StartListening(uri =>
         {
@@ -48,6 +48,7 @@ public class SessionManager : ISessionManager
             State = SessionState.Anonymous;
         }
         StateChanged?.Invoke();
+        return Task.CompletedTask;
     }
 
     public async Task StartBrowserLoginAsync()

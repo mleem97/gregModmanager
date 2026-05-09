@@ -175,7 +175,7 @@ internal static class SteamUgcPreviews
 		}
 	}
 
-	private static async Task<int> ProcessPreviewFilesAsync(object handle, IReadOnlyList<string> imagePaths, IProgress<string>? log, CancellationToken ct)
+	private static Task<int> ProcessPreviewFilesAsync(object handle, IReadOnlyList<string> imagePaths, IProgress<string>? log, CancellationToken ct)
 	{
 		var imagePreviewValue = _itemPreviewType is not null ? Enum.ToObject(_itemPreviewType, 0) : (object)0;
 		var added = 0;
@@ -206,7 +206,7 @@ internal static class SteamUgcPreviews
 				log?.Report($"Failed to add preview: {Path.GetFileName(path)}");
 			}
 		}
-		return added;
+		return Task.FromResult(added);
 	}
 
 	private static async Task WaitWithCallbacksAsync(int intervals, CancellationToken ct)

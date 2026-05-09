@@ -9,8 +9,8 @@ namespace GregModmanager.Avalonia.Views;
 
 public partial class NewProjectPage : UserControl
 {
-    private readonly WorkspaceService _workspace;
-    private readonly AppLogService _log;
+    private readonly WorkspaceService _workspace = null!;
+    private readonly AppLogService _log = null!;
 
     public NewProjectPage() => InitializeComponent();
 

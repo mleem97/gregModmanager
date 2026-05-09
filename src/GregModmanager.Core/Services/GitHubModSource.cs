@@ -39,9 +39,10 @@ public sealed class GitHubModSource : IgregPluginChannelSource
         return list;
     }
 
-    public async Task InstallAsync(PluginPackageInfo plugin, string targetDir)
+    public Task InstallAsync(PluginPackageInfo plugin, string targetDir)
     {
         // logic to download from https://github.com/{owner}/{repo}/releases/latest/download/{plugin.PluginId}.dll
+        return Task.CompletedTask;
     }
 }
 

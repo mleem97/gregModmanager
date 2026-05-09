@@ -13,8 +13,7 @@ namespace GregModmanager.Services;
 
 public sealed class TelemetryService
 {
-    private static readonly string LokiUrl = Environment.GetEnvironmentVariable("TELEMETRY_URL") 
-        ?? (AppSettings.IsLocalBuild ? "http://localhost:3100/loki/api/v1/push" : TelemetrySecrets.LokiUrl);
+    private static readonly string LokiUrl = AppSettings.DefaultLokiUrl;
     
     private static readonly string LokiUser = Environment.GetEnvironmentVariable("TELEMETRY_USER") ?? TelemetrySecrets.LokiUser;
     private static readonly string LokiPass = Environment.GetEnvironmentVariable("TELEMETRY_PASS") ?? TelemetrySecrets.LokiPass;
