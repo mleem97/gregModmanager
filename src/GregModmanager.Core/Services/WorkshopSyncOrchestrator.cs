@@ -91,7 +91,7 @@ public sealed class WorkshopSyncOrchestrator : IDisposable
 		StatusChanged?.Invoke(WorkshopSyncEvent.Removed(removedIds.Count));
 	}
 
-	private string? GetGameRoot()
+	private static string? GetGameRoot()
 	{
 #if WINDOWS || ANDROID || IOS || MACCATALYST
 		var gameRoot = SettingsPage.GetGameRootPath();

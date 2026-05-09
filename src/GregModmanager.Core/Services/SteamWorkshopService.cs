@@ -168,10 +168,9 @@ public sealed class SteamWorkshopService
 			editor = editor.WithPreviewFile(previewPath);
 		}
 
-		foreach (var tag in metadata.Tags.Where(t => !string.IsNullOrWhiteSpace(t)))
-		{
-			editor = editor.WithTag(tag.Trim());
-		}
+		editor = metadata.Tags
+			.Where(t => !string.IsNullOrWhiteSpace(t))
+			.Aggregate(editor, (current, tag) => current.WithTag(tag.Trim()));
 
 		if (!string.IsNullOrWhiteSpace(changeLog))
 		{
@@ -393,15 +392,12 @@ public sealed class SteamWorkshopService
 
 		using var page = pageResult.Value;
 		var list = new List<PublishedWorkshopItemVm>();
-		foreach (Item item in page.Entries)
+		list.AddRange(page.Entries.Select(item => new PublishedWorkshopItemVm
 		{
-			list.Add(new PublishedWorkshopItemVm
-			{
-				PublishedFileId = item.Id.Value,
-				Title = string.IsNullOrWhiteSpace(item.Title) ? $"Item {item.Id.Value}" : item.Title,
-				Updated = item.Updated,
-			});
-		}
+			PublishedFileId = item.Id.Value,
+			Title = string.IsNullOrWhiteSpace(item.Title) ? $"Item {item.Id.Value}" : item.Title,
+			Updated = item.Updated,
+		}));
 
 		return list;
 	}
@@ -824,11 +820,7 @@ public sealed class SteamWorkshopService
 		}
 
 		using var resultPage = pageResult.Value;
-		var items = new List<WorkshopItemDetailVm>();
-		foreach (Item item in resultPage.Entries)
-		{
-			items.Add(MapItemToVm(item));
-		}
+		var items = resultPage.Entries.Select(MapItemToVm).ToList();
 
 		return new WorkshopBrowseResultVm
 		{

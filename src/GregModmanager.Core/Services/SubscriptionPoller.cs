@@ -83,11 +83,7 @@ public sealed class SubscriptionPoller : IDisposable
 		if (!result.HasValue) return null;
 
 		using var page = result.Value;
-		var ids = new HashSet<ulong>();
-		foreach (Item item in page.Entries)
-		{
-			ids.Add(item.Id.Value);
-		}
+		return new HashSet<ulong>(page.Entries.Select(item => item.Id.Value));
 
 		return ids;
 	}

@@ -37,7 +37,7 @@ public class SessionManager : ISessionManager
         {
             State = SessionState.Refreshing;
             StateChanged?.Invoke();
-            // TODO: Call API to exchange refresh token
+            // Placeholder: Call API to exchange refresh token
             // In a real app we would call something like _apiClient.RefreshAsync(...)
             CurrentSession = new ActiveSession
             {
