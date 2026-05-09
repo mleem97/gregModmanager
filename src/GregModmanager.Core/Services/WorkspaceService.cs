@@ -9,10 +9,7 @@ public sealed class WorkspaceService
 {
 	public const string CustomWorkspacePathKey = "CustomWorkspacePath";
 
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		WriteIndented = true,
-	};
+	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.Default.Options;
 
 	private static readonly string LegacyFallbackPath =
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "DataCenterWS");
@@ -156,7 +153,7 @@ public sealed class WorkspaceService
 				Visibility = "Public",
 				PreviewImageRelativePath = "preview.png",
 			};
-			File.WriteAllText(sample, JsonSerializer.Serialize(meta, JsonOptions));
+			File.WriteAllText(sample, JsonSerializer.Serialize(meta, AppJsonContext.Default.WorkshopMetadata));
 		}
 	}
 
@@ -207,7 +204,7 @@ public sealed class WorkspaceService
 		try
 		{
 			var json = File.ReadAllText(path);
-			meta = JsonSerializer.Deserialize<WorkshopMetadata>(json) ?? new WorkshopMetadata();
+			meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.WorkshopMetadata) ?? new WorkshopMetadata();
 		}
 		catch
 		{
@@ -827,7 +824,7 @@ public sealed class WorkspaceService
 		}
 
 		var path = Path.Combine(projectRoot, "metadata.json");
-		File.WriteAllText(path, JsonSerializer.Serialize(metadata, JsonOptions));
+		File.WriteAllText(path, JsonSerializer.Serialize(metadata, AppJsonContext.Default.WorkshopMetadata));
 	}
 
 	private static void CreateUxmlTemplate(string contentRoot, string root, string dirName)

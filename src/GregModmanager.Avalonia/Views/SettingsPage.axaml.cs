@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using GregModmanager.Localization;
 using GregModmanager.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,7 +47,7 @@ public partial class SettingsPage : UserControl
         }
     }
 
-    private void UpdateGameRootLabel() => UpdateGameRootLabel(CurrentGameRootLabel);
+    private void UpdateGameRootLabel() => UpdateGameRootLabel(this.CurrentGameRootLabel);
 
     private static void UpdateGameRootLabel(TextBlock label)
     {
@@ -79,7 +80,7 @@ public partial class SettingsPage : UserControl
             return;
         }
         S.Preferences.SetString(AppSettings.GameRootPathKey, path);
-        UpdateGameRootLabel();
+        this.UpdateGameRootLabel();
         GameRootHint.Text = S.Get("Settings_PathUpdated");
     }
 
@@ -87,7 +88,7 @@ public partial class SettingsPage : UserControl
     {
         S.Preferences.Remove(AppSettings.GameRootPathKey);
         GameRootEntry.Text = "";
-        UpdateGameRootLabel();
+        this.UpdateGameRootLabel();
         GameRootHint.Text = S.Get("Settings_PathReset");
     }
 
@@ -132,15 +133,15 @@ public partial class SettingsPage : UserControl
         PathHint.Text = S.Get("Settings_PathReset");
     }
 
-    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
+    private static void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is ComboBox picker)
+        if (sender is ComboBox picker && picker.FindAncestorOfType<SettingsPage>() is SettingsPage page)
         {
             var idx = picker.SelectedIndex;
             if (idx < 0 || idx >= S.SupportedLanguages.Length) return;
             var code = S.SupportedLanguages[idx].Code;
             S.SetLanguage(code);
-            LanguageHint.Text = S.Get("Settings_LanguageRestart");
+            page.LanguageHint.Text = S.Get("Settings_LanguageRestart");
         }
     }
 

@@ -1,6 +1,8 @@
 #pragma warning disable CS8618
 
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -31,7 +33,6 @@ public partial class ModManagerPage : UserControl
     private const string TabInstalledKey = "installed";
     private const string TabFavoritesKey = "favorites";
     private const string TabHealthKey = "health";
-    private const string MelonLoaderReleasesUrl = "https://github.com/LavaGang/MelonLoader/releases";
 
     private int _storePage = 1;
     private bool _storeHasMore;
@@ -79,7 +80,14 @@ public partial class ModManagerPage : UserControl
         };
     }
 
-    private void OnSyncStatusChanged(WorkshopSyncEvent evt) => OnSyncStatusChanged(evt, SyncStatusBar, SyncStatusLabel);
+    private static void OnSyncStatusChanged(WorkshopSyncEvent evt)
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop 
+            && desktop.MainWindow?.Content is ModManagerPage page)
+        {
+            OnSyncStatusChanged(evt, page.SyncStatusBar, page.SyncStatusLabel);
+        }
+    }
 
     private static void OnSyncStatusChanged(WorkshopSyncEvent evt, Border bar, TextBlock label)
     {
@@ -358,7 +366,7 @@ public partial class ModManagerPage : UserControl
 
     private static void OnMelonLoaderDownload(object? sender, RoutedEventArgs e)
     {
-        _ = SafeProcess.OpenUrlAsync(MelonLoaderReleasesUrl);
+        _ = SafeProcess.OpenUrlAsync(AppSettings.MelonLoaderReleasesUrl);
     }
 
     private void OnOpenGameFolder(object? sender, RoutedEventArgs e)

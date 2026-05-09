@@ -8,6 +8,23 @@ public static class AppSettings
     public const string GameRootPathKey = "GameRootPath";
     public const string TelemetryEnabledKey = "TelemetryEnabled";
 
+    public static bool IsLocalBuild => 
+        string.Equals(Environment.GetEnvironmentVariable("IS_LOCAL_BUILD"), "TRUE", StringComparison.OrdinalIgnoreCase);
+
+    public static string MelonLoaderReleasesUrl => 
+        Environment.GetEnvironmentVariable("MELONLOADER_RELEASES_URL") 
+        ?? (IsLocalBuild ? "http://localhost:5000/releases" : "https://github.com/LavaGang/MelonLoader/releases");
+    
+    public static string DesktopLoginUrlFormat => 
+        Environment.GetEnvironmentVariable("AUTH_LOGIN_URL_FORMAT")
+        ?? (IsLocalBuild 
+            ? "http://localhost:5001/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce" 
+            : "https://datacentermods.com/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce");
+    
+    public static string AuthCallbackRedirectUri => 
+        Environment.GetEnvironmentVariable("AUTH_CALLBACK_REDIRECT_URI")
+        ?? "greg://v1/auth/callback";
+
     public static string GetGameRootPath()
     {
         return S.Preferences.GetString(GameRootPathKey, "");

@@ -13,10 +13,12 @@ namespace GregModmanager.Services;
 
 public sealed class TelemetryService
 {
-    private static readonly string LokiUrl = TelemetrySecrets.LokiUrl;
-    private static readonly string LokiUser = TelemetrySecrets.LokiUser;
-    private static readonly string LokiPass = TelemetrySecrets.LokiPass;
-    private static readonly string LokiTenant = TelemetrySecrets.LokiTenant;
+    private static readonly string LokiUrl = Environment.GetEnvironmentVariable("TELEMETRY_URL") 
+        ?? (AppSettings.IsLocalBuild ? "http://localhost:3100/loki/api/v1/push" : TelemetrySecrets.LokiUrl);
+    
+    private static readonly string LokiUser = Environment.GetEnvironmentVariable("TELEMETRY_USER") ?? TelemetrySecrets.LokiUser;
+    private static readonly string LokiPass = Environment.GetEnvironmentVariable("TELEMETRY_PASS") ?? TelemetrySecrets.LokiPass;
+    private static readonly string LokiTenant = Environment.GetEnvironmentVariable("TELEMETRY_TENANT") ?? TelemetrySecrets.LokiTenant;
 
     private readonly HttpClient _http = new();
     private readonly string _appVersion;
@@ -51,7 +53,7 @@ public sealed class TelemetryService
                 try
                 {
                     var content = await File.ReadAllTextAsync(file);
-                    var report = JsonSerializer.Deserialize<CrashReport>(content);
+                    var report = JsonSerializer.Deserialize(content, AppJsonContext.Default.CrashReport);
                     if (report != null)
                     {
                         var success = await PushToLokiAsync("crash", content, new Dictionary<string, string>
@@ -95,8 +97,11 @@ public sealed class TelemetryService
             foreach (var kvp in extraLabels) labels[kvp.Key] = kvp.Value;
         }
 
-        var jsonOptions = new JsonSerializerOptions { WriteIndented = false };
-        var message = JsonSerializer.Serialize(payload, jsonOptions);
+        var message = payload switch
+        {
+            SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
+            _ => JsonSerializer.Serialize(payload, payload.GetType(), AppJsonContext.Default.Options)
+        };
 
         await PushToLokiAsync(eventName, message, labels);
     }
@@ -144,7 +149,7 @@ public sealed class TelemetryService
                 }
             };
 
-            var response = await _http.PostAsJsonAsync(LokiUrl, request);
+            var response = await _http.PostAsync(LokiUrl, JsonContent.Create(request, AppJsonContext.Default.LokiPushRequest));
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
@@ -161,18 +166,4 @@ public sealed class TelemetryService
         }
     }
 
-    private class LokiPushRequest
-    {
-        [JsonPropertyName("streams")]
-        public List<LokiStream> Streams { get; set; } = new();
-    }
-
-    private class LokiStream
-    {
-        [JsonPropertyName("stream")]
-        public Dictionary<string, string> Stream { get; set; } = new();
-
-        [JsonPropertyName("values")]
-        public List<List<string>> Values { get; set; } = new();
-    }
 }

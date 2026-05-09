@@ -166,11 +166,13 @@ Publish settings must include:
 - Use `CancellationToken` on all async service methods.
 - Keep UI components compact and data-dense.
 
-### 6.2 JSON Serialization
+### 6.2 JSON Serialization & Models
 
 - Use `System.Text.Json` with `[JsonPropertyName(...)]` attributes.
+- **Central Model Management**: All data models (DTOs) should be placed in `src/GregModmanager.Core/Models/`.
+- **JSON Source Generation (AOT Support)**: All models requiring serialization MUST be registered in `src/GregModmanager.Core/Models/AppJsonContext.cs` via `[JsonSerializable]`.
 - Avoid polymorphic deserialization without source generators (trimming-safe).
-- If trimming warnings appear for JSON code, consider adding the type to `TrimmerRoots.xml`.
+- If trimming warnings appear for JSON code, verify the type is in `AppJsonContext`.
 
 ### 6.3 Localization
 

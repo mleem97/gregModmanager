@@ -1,3 +1,5 @@
+using GregModmanager.Models;
+
 namespace GregModmanager.Services;
 
 public static class AppFileLog
@@ -171,7 +173,7 @@ public static class AppFileLog
 		try
 		{
 			var path = Path.Combine(ReportsDir, $"crash-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json");
-			var json = System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+			var json = System.Text.Json.JsonSerializer.Serialize(report, AppJsonContext.Default.CrashReport);
 			File.WriteAllText(path, json);
 		}
 		catch

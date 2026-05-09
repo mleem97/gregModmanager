@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GregModmanager.Models;
 
 namespace GregModmanager.Services;
 
@@ -24,7 +25,7 @@ public sealed class JsonFilePreferences : IPreferences
         try
         {
             var json = File.ReadAllText(_filePath);
-            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+            var dict = JsonSerializer.Deserialize(json, AppJsonContext.Default.DictionaryStringJsonElement);
             if (dict != null)
             {
                 foreach (var kv in dict)
@@ -38,7 +39,7 @@ public sealed class JsonFilePreferences : IPreferences
     {
         lock (_lock)
         {
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(_data));
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(_data, AppJsonContext.Default.DictionaryStringJsonElement));
         }
     }
 

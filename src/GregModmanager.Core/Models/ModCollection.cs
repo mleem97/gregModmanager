@@ -29,3 +29,9 @@ public sealed class ModCollectionEntry
 	public List<ulong> WorkshopDependencyIds { get; set; } = new();
 	public string? Notes { get; set; }
 }
+
+public sealed class CollectionCatalog
+{
+	public int SchemaVersion { get; set; } = 1;
+	public List<ModCollectionDefinition> Collections { get; set; } = new();
+}

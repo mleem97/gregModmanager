@@ -6,14 +6,7 @@ namespace GregModmanager.Services;
 
 public static class NativeModConfigStore
 {
-	private static readonly JsonSerializerOptions JsonOptions = new()
-	{
-		WriteIndented = true,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		ReadCommentHandling = JsonCommentHandling.Skip,
-		AllowTrailingCommas = true,
-	};
+	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.Default.Options;
 
 	public static string ConfigJsonPath(string projectRoot) =>
 		Path.Combine(projectRoot, "content", "config.json");
@@ -30,7 +23,7 @@ public static class NativeModConfigStore
 		}
 
 		var json = File.ReadAllText(path);
-		return JsonSerializer.Deserialize<NativeModConfig>(json, JsonOptions) ?? new NativeModConfig();
+		return JsonSerializer.Deserialize(json, AppJsonContext.Default.NativeModConfig) ?? new NativeModConfig();
 	}
 
 	public static void SaveConfig(string projectRoot, NativeModConfig config)
@@ -42,7 +35,7 @@ public static class NativeModConfigStore
 			Directory.CreateDirectory(dir);
 		}
 
-		var json = JsonSerializer.Serialize(config, JsonOptions);
+		var json = JsonSerializer.Serialize(config, AppJsonContext.Default.NativeModConfig);
 		File.WriteAllText(path, json);
 	}
 
@@ -55,7 +48,7 @@ public static class NativeModConfigStore
 		}
 
 		var json = File.ReadAllText(path);
-		return JsonSerializer.Deserialize<ModOptionsConfigFile>(json, JsonOptions) ?? new ModOptionsConfigFile();
+		return JsonSerializer.Deserialize(json, AppJsonContext.Default.ModOptionsConfigFile) ?? new ModOptionsConfigFile();
 	}
 
 	public static void SaveModOptions(string projectRoot, ModOptionsConfigFile config)
@@ -67,7 +60,7 @@ public static class NativeModConfigStore
 			Directory.CreateDirectory(dir);
 		}
 
-		var json = JsonSerializer.Serialize(config, JsonOptions);
+		var json = JsonSerializer.Serialize(config, AppJsonContext.Default.ModOptionsConfigFile);
 		File.WriteAllText(path, json);
 	}
 }

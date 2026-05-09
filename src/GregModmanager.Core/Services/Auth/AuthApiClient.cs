@@ -7,14 +7,11 @@ namespace GregModmanager.Services.Auth;
 
 public class AuthApiClient : IAuthApiClient
 {
-    private const string DesktopLoginUrl = "https://datacentermods.com/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce";
-    private const string RedirectUriValue = "greg://v1/auth/callback";
-
     public async Task<string> GetLoginUrlAsync(string requestId)
     {
         // Mock returning a URL to launch
-        var escapedRedirect = Uri.EscapeDataString(RedirectUriValue);
-        return await Task.FromResult(string.Format(DesktopLoginUrl, escapedRedirect, requestId));
+        var escapedRedirect = Uri.EscapeDataString(AppSettings.AuthCallbackRedirectUri);
+        return await Task.FromResult(string.Format(AppSettings.DesktopLoginUrlFormat, escapedRedirect, requestId));
     }
 
     public async Task<ActiveSession?> ExchangeCallbackCodeAsync(string requestId, string code, string state, string nonce, string signature)

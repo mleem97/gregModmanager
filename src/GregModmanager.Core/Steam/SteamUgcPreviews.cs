@@ -26,6 +26,7 @@ internal static class SteamUgcPreviews
 	private static FieldInfo? _resultPageHandleField;
 	private static bool _resolved;
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("SonarLint", "S3011", Justification = "Reflection on internal Steamworks APIs is required for additional preview support.")]
 	private static bool Resolve()
 	{
 		if (_resolved) return _ugcInternal is not null;
@@ -34,29 +35,31 @@ internal static class SteamUgcPreviews
 		try
 		{
 			var ugcType = typeof(SteamUGC);
-			// S3011: Accessing internal Steamworks API is necessary because Facepunch.Steamworks 
-			// does not expose additional preview management publicly.
-			var internalProp = ugcType.GetProperty("Internal",
-				BindingFlags.Static | BindingFlags.NonPublic);
+			const BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+
+			var internalProp = ugcType.GetProperty("Internal", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
 			if (internalProp is null) return false;
 
 			_ugcInternal = internalProp.GetValue(null);
 			if (_ugcInternal is null) return false;
 
 			var internalType = _ugcInternal.GetType();
-			const BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
-			_startItemUpdate = internalType.GetMethod("StartItemUpdate", bf);
-			_addItemPreviewFile = internalType.GetMethod("AddItemPreviewFile", bf);
-			_submitItemUpdate = internalType.GetMethod("SubmitItemUpdate", bf);
-			_getNumAdditionalPreviews = internalType.GetMethod("GetQueryUGCNumAdditionalPreviews", bf);
-			_getAdditionalPreview = internalType.GetMethod("GetQueryUGCAdditionalPreview", bf);
-			_setReturnAdditionalPreviews = internalType.GetMethod("SetReturnAdditionalPreviews", bf);
+			void Resolve()
+			{
+				_startItemUpdate = internalType.GetMethod("StartItemUpdate", bf);
+				_addItemPreviewFile = internalType.GetMethod("AddItemPreviewFile", bf);
+				_submitItemUpdate = internalType.GetMethod("SubmitItemUpdate", bf);
+				_getNumAdditionalPreviews = internalType.GetMethod("GetQueryUGCNumAdditionalPreviews", bf);
+				_getAdditionalPreview = internalType.GetMethod("GetQueryUGCAdditionalPreview", bf);
+				_setReturnAdditionalPreviews = internalType.GetMethod("SetReturnAdditionalPreviews", bf);
+			}
+			Resolve();
 
 			_itemPreviewType = internalType.Assembly.GetType("Steamworks.ItemPreviewType");
 
-			_resultPageHandleField = typeof(ResultPage).GetField("Handle",
-				BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+			var handleFld = typeof(ResultPage).GetField("Handle", bf);
+			_resultPageHandleField = handleFld;
 
 			return _startItemUpdate is not null && _addItemPreviewFile is not null;
 		}

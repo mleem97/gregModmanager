@@ -331,7 +331,7 @@ public partial class EditorPage : UserControl
     private void OnTabAssets(object? sender, RoutedEventArgs e) => SetEditorTab(1);
     private void OnTabPublish(object? sender, RoutedEventArgs e) => SetEditorTab(2);
 
-    private void SetEditorTab(int index) => SetEditorTab(index, PanelDetails, PanelAssets, PanelPublish, TabBtnDetails, TabBtnAssets, TabBtnPublish);
+    private void SetEditorTab(int index) => SetEditorTab(index, this.PanelDetails, this.PanelAssets, this.PanelPublish, this.TabBtnDetails, this.TabBtnAssets, this.TabBtnPublish);
 
     private static void SetEditorTab(int index, Control details, Control assets, Control publish, Button bDetails, Button bAssets, Button bPublish)
     {
@@ -367,7 +367,7 @@ public partial class EditorPage : UserControl
 
     #region Field events
 
-    private void UpdateCounts() => UpdateCounts(TitleEntry, DescriptionEditor, TitleCountLabel, DescriptionCountLabel);
+    private void UpdateCounts() => UpdateCounts(this.TitleEntry, this.DescriptionEditor, this.TitleCountLabel, this.DescriptionCountLabel);
 
     private static void UpdateCounts(TextBox title, TextBox desc, TextBlock tLabel, TextBlock dLabel)
     {
@@ -377,7 +377,7 @@ public partial class EditorPage : UserControl
         dLabel.Text = $"{d} / {SteamConstants.MaxDescriptionLength}";
     }
 
-    private void UpdateTagsHint() => UpdateTagsHint(TagsEntry, TagsHintLabel);
+    private void UpdateTagsHint() => UpdateTagsHint(this.TagsEntry, this.TagsHintLabel);
 
     private static void UpdateTagsHint(TextBox tags, TextBlock label)
     {

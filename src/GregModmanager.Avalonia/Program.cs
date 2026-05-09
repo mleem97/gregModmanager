@@ -111,9 +111,20 @@ internal static class Program
             AppFileLog.Error("Avalonia Program exception", ex);
             DebugNdjsonSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, exType = ex.GetType().FullName, ex.StackTrace });
             DebugSessionLog.Write("H1", LogCategory, "exception", new { ex.Message, ex.StackTrace });
+            
+            if (OperatingSystem.IsWindows() && !args.Contains("--headless"))
+            {
+                // Native fallback to inform user about startup crash
+                Win32MessageBox(IntPtr.Zero, 
+                    $"Der gregModmanager konnte nicht gestartet werden.\n\nFehler: {ex.Message}\n\nEin Crash-Bericht wurde unter %AppData%\\GregModmanager\\logs\\reports angelegt.", 
+                    "gregModmanager - Startup Crash", 0x10);
+            }
             throw;
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int Win32MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()

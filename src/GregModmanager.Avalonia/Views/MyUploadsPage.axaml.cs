@@ -1,5 +1,6 @@
 #pragma warning disable CS8618
 
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -36,9 +37,15 @@ public partial class MyUploadsPage : UserControl
         Loaded += (_, _) => _ = LoadListAsync();
     }
 
-    private void OnUploadsSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateSelectionCount();
+    private static void OnUploadsSelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateSelectionCount(sender as Control);
 
-    private void UpdateSelectionCount() => UpdateSelectionCount(UploadsList, SelectionCountLabel);
+    private static void UpdateSelectionCount(Control? trigger)
+    {
+        if (trigger is Visual v && v.FindAncestorOfType<MyUploadsPage>() is MyUploadsPage page)
+        {
+            UpdateSelectionCount(page.UploadsList, page.SelectionCountLabel);
+        }
+    }
 
     private static void UpdateSelectionCount(ListBox list, TextBlock label)
     {
@@ -63,7 +70,7 @@ public partial class MyUploadsPage : UserControl
             PageLabel.Text = S.Format("PageWithTotal", _page, result.TotalResults);
 
             UploadsList.SelectedItems?.Clear();
-            UpdateSelectionCount();
+            UpdateSelectionCount(UploadsList);
             _log.Append($"Workshop uploads: {result.TotalResults} item(s), page {_page}.");
         }
         catch (Exception ex)

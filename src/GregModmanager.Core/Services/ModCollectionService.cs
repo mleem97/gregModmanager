@@ -6,7 +6,7 @@ namespace GregModmanager.Services;
 public sealed class ModCollectionService
 {
 	private readonly object _gate = new();
-	private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+	private readonly JsonSerializerOptions _jsonOptions = AppJsonContext.Default.Options;
 	private readonly TelemetryService _telemetry;
 	private readonly string _storagePath;
 	private CollectionCatalog _catalog;
@@ -210,7 +210,7 @@ public sealed class ModCollectionService
 		}
 		sw.Stop();
 
-		_ = _telemetry.TrackEventAsync("sync_collection", new
+		_ = _telemetry.TrackEventAsync("sync_collection", new SyncCollectionEvent
 		{
 			collectionId = collectionId,
 			collectionName = collection.Name,
@@ -235,7 +235,7 @@ public sealed class ModCollectionService
 			}
 
 			var json = File.ReadAllText(_storagePath);
-			return JsonSerializer.Deserialize<CollectionCatalog>(json, _jsonOptions) ?? new CollectionCatalog();
+			return JsonSerializer.Deserialize(json, AppJsonContext.Default.CollectionCatalog) ?? new CollectionCatalog();
 		}
 		catch
 		{
@@ -245,12 +245,6 @@ public sealed class ModCollectionService
 
 	private void SaveCatalog()
 	{
-		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, _jsonOptions));
-	}
-
-	private sealed class CollectionCatalog
-	{
-		public int SchemaVersion { get; set; } = 1;
-		public List<ModCollectionDefinition> Collections { get; set; } = new();
+		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.Default.CollectionCatalog));
 	}
 }
