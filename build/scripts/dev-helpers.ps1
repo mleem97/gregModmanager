@@ -139,7 +139,7 @@ function Fix-UiPageResourcesAll {
 # If script is called with -Action parameter, execute the corresponding function
 # ============================================================================
 if ($Action) {
-    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
     Set-Location $repoRoot
     
     switch ($Action) {

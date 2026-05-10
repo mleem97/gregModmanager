@@ -19,7 +19,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $buildPath = Join-Path $repoRoot "bin\$Configuration\net9.0-windows10.0.19041.0\$Platform"
 $exePath = Join-Path $buildPath 'GregModmanager.exe'
 

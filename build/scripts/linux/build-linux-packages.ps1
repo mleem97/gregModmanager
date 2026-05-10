@@ -10,7 +10,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $linuxScript = Join-Path $PSScriptRoot 'build-linux-packages.sh'
 
 if (-not (Test-Path -LiteralPath $linuxScript)) {
@@ -81,4 +81,3 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[linux-pack/windows] Done. Packages are in: $resolvedOutput"
-

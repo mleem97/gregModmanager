@@ -10,7 +10,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $bashScript = Join-Path $PSScriptRoot 'build-avalonia-packages.sh'
 
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
