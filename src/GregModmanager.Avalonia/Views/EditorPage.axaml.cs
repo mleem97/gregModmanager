@@ -204,7 +204,7 @@ public partial class EditorPage : UserControl
 
     private static int CountFilesQuick(string dir)
     {
-        return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Take(5_000_000).Count();
+        return Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Count();
     }
 
     #region Workshop dependencies
