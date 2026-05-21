@@ -96,11 +96,19 @@ public sealed class TelemetryService
             foreach (var kvp in extraLabels) labels[kvp.Key] = kvp.Value;
         }
 
-        var message = payload switch
+        string message = "";
+        if (payload is SyncCollectionEvent sync)
         {
-            SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
-            _ => JsonSerializer.Serialize(payload, payload.GetType(), AppJsonContext.Default.Options)
-        };
+            message = JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent);
+        }
+        else if (payload is AppStartupEvent startup)
+        {
+            message = JsonSerializer.Serialize(startup, AppJsonContext.Default.AppStartupEvent);
+        }
+        else if (payload != null)
+        {
+            message = JsonSerializer.Serialize(payload.ToString(), AppJsonContext.Default.String);
+        }
 
         await PushToLokiAsync(eventName, message, labels);
     }
