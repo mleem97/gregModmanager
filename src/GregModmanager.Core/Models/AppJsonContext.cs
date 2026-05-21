@@ -34,6 +34,7 @@ namespace GregModmanager.Models;
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(RalphTaskStatus))]
 [JsonSerializable(typeof(AssetModMetadata))]
+[JsonSerializable(typeof(StartupEvent))]
 public partial class AppJsonContext : JsonSerializerContext
 {
 }

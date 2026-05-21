@@ -21,13 +21,12 @@ public partial class App : Application
         
         var telemetry = Services.GetRequiredService<TelemetryService>();
         _ = telemetry.ReportCrashesAsync();
-        _ = telemetry.TrackEventAsync("startup", new 
-        {
-            steamActive = GregModmanager.Steam.SteamApiNativeLoader.IsLoaded,
-            culture = System.Globalization.CultureInfo.CurrentCulture.Name,
-            osDescription = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
-            dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
-        });
+        _ = telemetry.TrackEventAsync("startup", new GregModmanager.Models.StartupEvent(
+            GregModmanager.Steam.SteamApiNativeLoader.IsLoaded,
+            System.Globalization.CultureInfo.CurrentCulture.Name,
+            System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+        ));
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
