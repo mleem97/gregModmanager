@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PROJECT_PATH="$REPO_ROOT/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj"
 OUTPUT_ROOT="${1:-$REPO_ROOT/artifacts/avalonia-linux}"
 VERSION="${2:-1.1.0}"
