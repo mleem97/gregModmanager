@@ -1,5 +1,9 @@
 using System.Text.Json;
 using GregModmanager.Models;
+using GregModmanager.Localization;
+using System.Collections.Generic;
+using System.Net.Http;
+using System;
 
 namespace GregModmanager.Services;
 
@@ -18,11 +22,7 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 	public IReadOnlyList<PluginPackageInfo> ListPlugins()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var url = Preferences.Default.Get(PrefKeyBetaServerUrl, string.Empty);
-#else
-		var url = "";
-#endif
+		var url = S.Preferences.GetString(PrefKeyBetaServerUrl, string.Empty);
 		if (string.IsNullOrWhiteSpace(url))
 		{
 			throw new InvalidOperationException(
@@ -34,12 +34,13 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 		try
 		{
-			var response = _http.GetAsync(endpoint).GetAwaiter().GetResult();
+			using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+			using var response = _http.Send(request);
 			response.EnsureSuccessStatusCode();
 
-			var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+			using var stream = response.Content.ReadAsStream();
 
-			var plugins = JsonSerializer.Deserialize(json, AppJsonContext.Default.ListPluginPackageInfo);
+			var plugins = JsonSerializer.Deserialize(stream, AppJsonContext.Default.ListPluginPackageInfo);
 
 			return plugins ?? new List<PluginPackageInfo>();
 		}
