@@ -234,8 +234,8 @@ public sealed class ModCollectionService
 				return new CollectionCatalog();
 			}
 
-			var json = File.ReadAllText(_storagePath);
-			return JsonSerializer.Deserialize(json, AppJsonContext.Default.CollectionCatalog) ?? new CollectionCatalog();
+			using var stream = File.OpenRead(_storagePath);
+			return JsonSerializer.Deserialize(stream, AppJsonContext.Default.CollectionCatalog) ?? new CollectionCatalog();
 		}
 		catch
 		{
@@ -245,6 +245,7 @@ public sealed class ModCollectionService
 
 	private void SaveCatalog()
 	{
-		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.Default.CollectionCatalog));
+		using var stream = new FileStream(_storagePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 32768);
+		JsonSerializer.Serialize(stream, _catalog, AppJsonContext.Default.CollectionCatalog);
 	}
 }
