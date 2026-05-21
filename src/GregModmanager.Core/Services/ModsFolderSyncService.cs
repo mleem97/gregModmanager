@@ -148,13 +148,13 @@ public sealed class ModsFolderSyncService
 
 	private static void CopyDirectoryRecursive(string sourceDir, string destDir)
 	{
-		foreach (var dir in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
+		foreach (var dir in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories))
 		{
 			var relative = Path.GetRelativePath(sourceDir, dir);
 			Directory.CreateDirectory(Path.Combine(destDir, relative));
 		}
 
-		foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+		foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
 		{
 			var relative = Path.GetRelativePath(sourceDir, file);
 			File.Copy(file, Path.Combine(destDir, relative), overwrite: true);
