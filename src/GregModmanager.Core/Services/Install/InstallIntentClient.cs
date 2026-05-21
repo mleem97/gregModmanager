@@ -14,9 +14,12 @@ public class InstallIntentClient : IInstallIntentClient
     private readonly ISessionManager _sessionManager;
     private readonly HashSet<string> _consumedIntents = new();
 
-    public InstallIntentClient(ISessionManager sessionManager)
+    private readonly IIntentSignatureVerifier _signatureVerifier;
+
+    public InstallIntentClient(ISessionManager sessionManager, IIntentSignatureVerifier signatureVerifier)
     {
         _sessionManager = sessionManager;
+        _signatureVerifier = signatureVerifier;
     }
 
     public async Task HandleIntentAsync(string rawUri)
@@ -109,9 +112,7 @@ public class InstallIntentClient : IInstallIntentClient
             return Task.FromResult<string?>("Missing cryptographic signature.");
         }
 
-        // TODO: Implement actual cryptographic ECDSA/HMAC signature verification against server public key
-        // For the Vertical Slice (Phase 3), we require the signature to at least match a mock known structure.
-        if (intent.Signature != "valid_dummy_sig" && intent.Signature.Length < 32)
+        if (!_signatureVerifier.VerifySignature(intent))
         {
             return Task.FromResult<string?>("Signature format invalid or unrecognized.");
         }

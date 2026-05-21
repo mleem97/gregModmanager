@@ -165,6 +165,7 @@ internal static class Program
         services.AddSingleton<GregModmanager.Services.Auth.IAuthApiClient, GregModmanager.Services.Auth.AuthApiClient>();
         services.AddSingleton<GregModmanager.Services.Auth.ISessionManager, GregModmanager.Services.Auth.SessionManager>();
         services.AddSingleton<GregModmanager.Services.Install.IInstallIntentClient, GregModmanager.Services.Install.InstallIntentClient>();
+        services.AddSingleton<GregModmanager.Services.Install.IIntentSignatureVerifier, GregModmanager.Services.Install.DummyIntentSignatureVerifier>();
 
         services.AddSingleton<IDialogService, DialogService>();
 
