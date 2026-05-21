@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added unit tests for `GitHubModSource.ListPlugins` to increase coverage for deterministic behavior.
 - **JSON Source Generation (AOT Support)**: Centralized registry in `AppJsonContext.cs` for all serialized models (`AuthResponse`, `DebugLogPayload`, `RalphTaskStatus`, `AssetModMetadata`, etc.) to ensure stability in trimmed builds.
 - `global.json`: Pinned .NET SDK to 9.0.313 for build reproducibility and to bypass broken preview SDKs.
 - `DESIGN.md` documenting the **Terminal Core** design system (colors, typography, layout grid, component specs, forbidden patterns).
