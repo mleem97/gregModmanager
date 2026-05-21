@@ -151,7 +151,7 @@ public sealed class SteamWorkshopService
 		{
 			var markerPath = Path.Combine(contentFolder, "greg-modmanager.meta.json");
 			var markerJson = System.Text.Json.JsonSerializer.Serialize(new ModStoreMarker { modType = metadata.ModType }, AppJsonContext.Default.ModStoreMarker);
-			File.WriteAllText(markerPath, markerJson);
+			await File.WriteAllTextAsync(markerPath, markerJson, cancellationToken);
 		}
 		catch
 		{
