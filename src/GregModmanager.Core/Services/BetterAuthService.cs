@@ -21,9 +21,9 @@ public sealed class BetterAuthService
                 return await response.Content.ReadFromJsonAsync(AppJsonContext.Default.AuthResponse);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Log error
+            AppFileLog.Error("Failed to login", ex);
         }
         return null;
     }
@@ -38,8 +38,9 @@ public sealed class BetterAuthService
             var response = await _http.SendAsync(request);
             return response.IsSuccessStatusCode;
         }
-        catch
+        catch (Exception ex)
         {
+            AppFileLog.Error("Failed to verify session", ex);
             return false;
         }
     }
