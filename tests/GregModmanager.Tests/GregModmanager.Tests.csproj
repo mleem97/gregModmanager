@@ -17,6 +17,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GregModmanager.Core\GregModmanager.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj" />
+  </ItemGroup>
 </Project>
 
 
