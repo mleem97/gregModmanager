@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace GregModmanager.Services;
@@ -48,12 +50,13 @@ public static class SafeProcess
         {
             if (OperatingSystem.IsWindows())
             {
-                Process.Start(new ProcessStartInfo
+                var startInfo = new ProcessStartInfo
                 {
                     FileName = "explorer.exe",
-                    Arguments = $"\"{path}\"",
                     UseShellExecute = false
-                });
+                };
+                startInfo.ArgumentList.Add(path);
+                Process.Start(startInfo);
             }
             else
             {
@@ -81,12 +84,13 @@ public static class SafeProcess
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
-                Arguments = $"/select,\"{filePath}\"",
                 UseShellExecute = false
-            });
+            };
+            startInfo.ArgumentList.Add("/select," + filePath);
+            Process.Start(startInfo);
         }
         catch (Exception ex)
         {
@@ -97,18 +101,33 @@ public static class SafeProcess
     /// <summary>
     /// Launches an executable with UseShellExecute = false.
     /// </summary>
-    public static void LaunchApp(string exePath, string arguments = "")
+    public static void LaunchApp(string exePath, IEnumerable<string>? arguments = null)
     {
         if (string.IsNullOrWhiteSpace(exePath)) return;
 
+        if (!Path.IsPathRooted(exePath) || !File.Exists(exePath))
+        {
+            AppFileLog.Error($"Blocked attempt to launch unverified or non-absolute executable: {exePath}");
+            return;
+        }
+
         try
         {
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = exePath,
-                Arguments = arguments,
                 UseShellExecute = false
-            });
+            };
+
+            if (arguments != null)
+            {
+                foreach (var arg in arguments)
+                {
+                    startInfo.ArgumentList.Add(arg);
+                }
+            }
+
+            Process.Start(startInfo);
         }
         catch (Exception ex)
         {

@@ -202,7 +202,7 @@ public partial class SettingsPage : UserControl
     {
         var exe = Environment.ProcessPath;
         if (string.IsNullOrEmpty(exe)) return;
-        SafeProcess.LaunchApp(exe);
+        SafeProcess.LaunchApp(exe, null);
         if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             desktop.Shutdown();
     }
