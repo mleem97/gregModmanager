@@ -6,7 +6,7 @@ namespace GregModmanager.Services;
 public sealed class ModCollectionService
 {
 	private readonly object _gate = new();
-	private readonly JsonSerializerOptions _jsonOptions = AppJsonContext.Default.Options;
+	private readonly JsonSerializerOptions _jsonOptions = AppJsonContext.SharedOptions;
 	private readonly TelemetryService _telemetry;
 	private readonly string _storagePath;
 	private CollectionCatalog _catalog;
@@ -235,7 +235,7 @@ public sealed class ModCollectionService
 			}
 
 			var json = File.ReadAllText(_storagePath);
-			return JsonSerializer.Deserialize(json, AppJsonContext.Default.CollectionCatalog) ?? new CollectionCatalog();
+			return JsonSerializer.Deserialize<CollectionCatalog>(json, AppJsonContext.SharedOptions) ?? new CollectionCatalog();
 		}
 		catch
 		{
@@ -245,6 +245,6 @@ public sealed class ModCollectionService
 
 	private void SaveCatalog()
 	{
-		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.Default.CollectionCatalog));
+		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.SharedOptions));
 	}
 }

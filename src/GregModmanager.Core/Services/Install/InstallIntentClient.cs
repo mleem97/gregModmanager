@@ -103,18 +103,26 @@ public class InstallIntentClient : IInstallIntentClient
             return Task.FromResult<string?>($"Intent ID {intent.IntentId} was already consumed (Replay Protection).");
         }
 
-        // 6. Signature Validation (Mock logic conforming to Phase 3 requirements)
+        // 6. Signature Validation
         if (string.IsNullOrEmpty(intent.Signature))
         {
             return Task.FromResult<string?>("Missing cryptographic signature.");
         }
 
-        // TODO: Implement actual cryptographic ECDSA/HMAC signature verification against server public key
-        // For the Vertical Slice (Phase 3), we require the signature to at least match a mock known structure.
-        if (intent.Signature != "valid_dummy_sig" && intent.Signature.Length < 32)
+        // Reject known dummy/placeholder signatures
+        if (intent.Signature == "valid_dummy_sig")
         {
-            return Task.FromResult<string?>("Signature format invalid or unrecognized.");
+            return Task.FromResult<string?>("Signature is a placeholder — cryptographic verification required.");
         }
+
+        // Require minimum length for a valid cryptographic signature (Base64-encoded ECDSA P-256 = ~64 chars)
+        if (intent.Signature.Length < 64)
+        {
+            return Task.FromResult<string?>("Signature too short for a valid cryptographic signature.");
+        }
+
+        // TODO: Implement actual cryptographic ECDSA/HMAC signature verification against server public key
+        // Currently accepts well-formed signatures; full verification pending server key infrastructure.
 
         return Task.FromResult<string?>(null); // Null means valid!
     }

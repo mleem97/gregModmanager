@@ -264,12 +264,18 @@ jobs:
           tarName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.tar.gz"
           tar -czf "./artifacts/${tarName}" -C ./publish/linux-x64 .
           echo "tar_name=${tarName}" >> "$GITHUB_OUTPUT"
+          # Create Linux standalone ZIP
+          zipName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.zip"
+          cd ./publish/linux-x64 && zip -r "../../artifacts/${zipName}" . && cd ../..
+          echo "zip_name=${zipName}" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball
         uses: actions/upload-artifact@v4
         with:
           name: linux-portable
-          path: artifacts/gregModmanager-*-Linux.tar.gz
+          path: |
+            artifacts/gregModmanager-*-Linux.tar.gz
+            artifacts/gregModmanager-*-Linux.zip
           if-no-files-found: error
 
       - name: Attest Linux Build

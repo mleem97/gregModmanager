@@ -34,12 +34,16 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 		try
 		{
-			var response = _http.GetAsync(endpoint).GetAwaiter().GetResult();
-			response.EnsureSuccessStatusCode();
+			// Use Task.Run to avoid deadlocks from sync-over-async on UI threads
+			var plugins = Task.Run(async () =>
+			{
+				var response = await _http.GetAsync(endpoint).ConfigureAwait(false);
+				response.EnsureSuccessStatusCode();
 
-			var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+				var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-			var plugins = JsonSerializer.Deserialize(json, AppJsonContext.Default.ListPluginPackageInfo);
+				return JsonSerializer.Deserialize<List<PluginPackageInfo>>(json, AppJsonContext.SharedOptions);
+			}).GetAwaiter().GetResult();
 
 			return plugins ?? new List<PluginPackageInfo>();
 		}

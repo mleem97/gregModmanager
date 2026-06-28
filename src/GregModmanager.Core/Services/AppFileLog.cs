@@ -173,7 +173,7 @@ public static class AppFileLog
 		try
 		{
 			var path = Path.Combine(ReportsDir, $"crash-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json");
-			var json = System.Text.Json.JsonSerializer.Serialize(report, AppJsonContext.Default.CrashReport);
+			var json = System.Text.Json.JsonSerializer.Serialize(report, AppJsonContext.SharedOptions);
 			File.WriteAllText(path, json);
 		}
 		catch

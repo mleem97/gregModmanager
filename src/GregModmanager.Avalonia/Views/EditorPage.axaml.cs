@@ -36,6 +36,7 @@ public partial class EditorPage : UserControl
     private readonly SteamWorkshopService _steam;
     private readonly AppLogService _log;
     private readonly ObservableCollection<UploadCheckResult> _checkResults = new();
+    private readonly Dictionary<ulong, string> _workshopDepTitles = new();
 
     private string _projectRoot = "";
     private WorkshopMetadata _metadata = new();
@@ -237,8 +238,12 @@ public partial class EditorPage : UserControl
         }
     }
 
-    private static string FormatWorkshopDepLabel(ulong id)
+    private string FormatWorkshopDepLabel(ulong id)
     {
+        if (_workshopDepTitles.TryGetValue(id, out var title))
+        {
+            return $"{title} ({id})";
+        }
         return id.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -249,6 +254,7 @@ public partial class EditorPage : UserControl
             var item = await _steam.GetItemDetailsAsync(id, CancellationToken.None).ConfigureAwait(false);
             if (item is null) continue;
 
+            _workshopDepTitles[id] = item.Title;
             Dispatcher.UIThread.Post(RebuildWorkshopDepRows);
         }
     }

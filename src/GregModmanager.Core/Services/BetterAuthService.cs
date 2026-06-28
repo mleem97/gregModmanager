@@ -14,11 +14,11 @@ public sealed class BetterAuthService
         try
         {
             var payload = new LoginRequest { Email = email, Password = password };
-            var response = await _http.PostAsJsonAsync($"{BaseUrl}/sign-in/email", payload, AppJsonContext.Default.LoginRequest);
+            var response = await _http.PostAsJsonAsync($"{BaseUrl}/sign-in/email", payload, AppJsonContext.SharedOptions);
 
             if (response.IsSuccessStatusCode)
             {
-                return await response.Content.ReadFromJsonAsync(AppJsonContext.Default.AuthResponse);
+                return await response.Content.ReadFromJsonAsync<AuthResponse>(AppJsonContext.SharedOptions);
             }
         }
         catch (Exception)

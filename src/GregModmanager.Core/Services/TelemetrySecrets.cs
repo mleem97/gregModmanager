@@ -2,12 +2,12 @@ namespace GregModmanager.Services;
 
 internal static class TelemetrySecrets
 {
-    // Diese Werte werden während des CI/CD-Builds durch echte Daten ersetzt.
-    // Lokal werden sie einfach als Platzhalter belassen (Telemetrie ist dann inaktiv).
-    public const string LokiUrl = "http://telemetry.datacentermods.com/loki/api/v1/push";
-    public const string LokiUser = "managerclient";
-    public const string LokiPass = "99Feuerwehrauto!";
-    public const string LokiTenant = "managerclient";
+    // Credentials are injected via environment variables at runtime.
+    // Falls back to empty strings (telemetry inactive) if not configured.
+    public static string LokiUrl => Environment.GetEnvironmentVariable("GREG_LOKI_URL") ?? "";
+    public static string LokiUser => Environment.GetEnvironmentVariable("GREG_LOKI_USER") ?? "";
+    public static string LokiPass => Environment.GetEnvironmentVariable("GREG_LOKI_PASS") ?? "";
+    public static string LokiTenant => Environment.GetEnvironmentVariable("GREG_LOKI_TENANT") ?? "";
 }
 
 

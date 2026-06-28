@@ -9,7 +9,7 @@ public sealed class WorkspaceService
 {
 	public const string CustomWorkspacePathKey = "CustomWorkspacePath";
 
-	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.Default.Options;
+	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.SharedOptions;
 
 	private static readonly string LegacyFallbackPath =
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "DataCenterWS");
@@ -153,7 +153,7 @@ public sealed class WorkspaceService
 				Visibility = "Public",
 				PreviewImageRelativePath = "preview.png",
 			};
-			File.WriteAllText(sample, JsonSerializer.Serialize(meta, AppJsonContext.Default.WorkshopMetadata));
+			File.WriteAllText(sample, JsonSerializer.Serialize(meta, AppJsonContext.SharedOptions));
 		}
 	}
 
@@ -204,7 +204,7 @@ public sealed class WorkspaceService
 		try
 		{
 			var json = File.ReadAllText(path);
-			meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.WorkshopMetadata) ?? new WorkshopMetadata();
+			meta = JsonSerializer.Deserialize<WorkshopMetadata>(json, AppJsonContext.SharedOptions) ?? new WorkshopMetadata();
 		}
 		catch
 		{
@@ -251,7 +251,7 @@ public sealed class WorkspaceService
 		var root = Path.Combine(WorkspaceRoot, dirName);
 		if (Directory.Exists(root))
 		{
-			throw new InvalidOperationException($"A project folder named \"{{dirName}}\" already exists.");
+			throw new InvalidOperationException($"A project folder named \"{dirName}\" already exists.");
 		}
 
 		var content = Path.Combine(root, "content");
@@ -421,7 +421,7 @@ public sealed class WorkspaceService
 				""";
 		}
 
-		File.WriteAllText(Path.Combine(srcDir, $"{{projectName}}.csproj"), csproj.Trim());
+		File.WriteAllText(Path.Combine(srcDir, $"{projectName}.csproj"), csproj.Trim());
 		File.WriteAllText(Path.Combine(srcDir, "Main.cs"), mainCs.Trim());
 	}
 
@@ -824,7 +824,7 @@ public sealed class WorkspaceService
 		}
 
 		var path = Path.Combine(projectRoot, "metadata.json");
-		File.WriteAllText(path, JsonSerializer.Serialize(metadata, AppJsonContext.Default.WorkshopMetadata));
+		File.WriteAllText(path, JsonSerializer.Serialize(metadata, AppJsonContext.SharedOptions));
 	}
 
 	private static void CreateUxmlTemplate(string contentRoot, string root, string dirName)
@@ -895,7 +895,7 @@ public sealed class WorkspaceService
 			}
 			""";
 
-		File.WriteAllText(Path.Combine(srcDir, $"{{dirName}}.csproj"), csproj.Trim());
+		File.WriteAllText(Path.Combine(srcDir, $"{dirName}.csproj"), csproj.Trim());
 		File.WriteAllText(Path.Combine(srcDir, "Main.cs"), mainCs.Trim());
 
 		// UXML/USS Assets folder in content
@@ -927,7 +927,7 @@ public sealed class WorkspaceService
 			Tags = new[] { "asset", type },
 			IsStandalone = true
 		};
-		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, AppJsonContext.Default.AssetModMetadata));
+		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, AppJsonContext.SharedOptions));
 	}
 }
 

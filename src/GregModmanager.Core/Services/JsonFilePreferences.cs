@@ -25,7 +25,7 @@ public sealed class JsonFilePreferences : IPreferences
         try
         {
             var json = File.ReadAllText(_filePath);
-            var dict = JsonSerializer.Deserialize(json, AppJsonContext.Default.DictionaryStringJsonElement);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, AppJsonContext.SharedOptions);
             if (dict != null)
             {
                 foreach (var kv in dict)
@@ -39,7 +39,7 @@ public sealed class JsonFilePreferences : IPreferences
     {
         lock (_lock)
         {
-            File.WriteAllText(_filePath, JsonSerializer.Serialize(_data, AppJsonContext.Default.DictionaryStringJsonElement));
+            File.WriteAllText(_filePath, JsonSerializer.Serialize(_data, AppJsonContext.SharedOptions));
         }
     }
 
@@ -75,17 +75,17 @@ public sealed class JsonFilePreferences : IPreferences
 
     public void SetString(string key, string value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.String); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.SharedOptions); Save(); }
     }
 
     public void SetBool(string key, bool value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.Boolean); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.SharedOptions); Save(); }
     }
 
     public void SetInt(string key, int value)
     {
-        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.Default.Int32); Save(); }
+        lock (_lock) { _data[key] = JsonSerializer.SerializeToElement(value, AppJsonContext.SharedOptions); Save(); }
     }
 
     public void Remove(string key)

@@ -2,13 +2,13 @@
 
 This folder contains comprehensive documentation for end users, mod creators, and contributors.
 
-## 📖 Main Documentation Files
+## Main Documentation Files
 
-### 1. **End-User Guide** (`01_END_USER_GUIDE.md`)
+### 1. End-User Guide (`01_END_USER_GUIDE.md`)
 
 Complete guide for everyday users of gregModmanager:
 
-- Installation on Windows, Linux, macOS (planned)
+- Installation on Windows, Linux, macOS (planned, unconfirmed)
 - Getting started and first-run setup
 - User interface overview
 - Managing games and mods
@@ -17,7 +17,7 @@ Complete guide for everyday users of gregModmanager:
 
 **Audience:** All end users
 
-### 2. **Mod & Plugin Creator Guide** (`02_MOD_CREATOR_GUIDE.md`)
+### 2. Mod and Plugin Creator Guide (`02_MOD_CREATOR_GUIDE.md`)
 
 Comprehensive guide for creators making mods, plugins, and extensions:
 
@@ -32,7 +32,7 @@ Comprehensive guide for creators making mods, plugins, and extensions:
 
 **Audience:** Mod developers, plugin creators
 
-### 3. **Contributor Guide** (`03_CONTRIBUTOR_GUIDE.md`)
+### 3. Contributor Guide (`03_CONTRIBUTOR_GUIDE.md`)
 
 Technical guide for developers contributing to gregModmanager:
 
@@ -48,7 +48,7 @@ Technical guide for developers contributing to gregModmanager:
 
 **Audience:** Contributors, maintainers, developers
 
-### 4. **Documentation Index** (`INDEX.md`)
+### 4. Documentation Index (`INDEX.md`)
 
 Quick navigation index for all documentation:
 
@@ -62,7 +62,7 @@ Quick navigation index for all documentation:
 
 ---
 
-## 📂 Examples Directory
+## Examples Directory
 
 ### `examples/manifests/`
 
@@ -95,56 +95,56 @@ Example mod structures and implementations (to be expanded with working examples
 
 ---
 
-## 🎯 Quick Navigation
+## Quick Navigation
 
 ### I'm a
 
 **End User:**
 
-1. Start with [End-User Guide](01_END_USER_GUIDE.md) § [Getting Started](01_END_USER_GUIDE.md#getting-started)
+1. Start with [End-User Guide](01_END_USER_GUIDE.md) - Getting Started
 2. See [Troubleshooting](01_END_USER_GUIDE.md#troubleshooting--faq) if you hit issues
 3. Check [FAQ](01_END_USER_GUIDE.md#faq) for common questions
 
 **Mod Creator:**
 
-1. Read [Mod Creator Guide](02_MOD_CREATOR_GUIDE.md) § [Modding Ecosystem Overview](02_MOD_CREATOR_GUIDE.md#modding-ecosystem-overview)
+1. Read [Mod Creator Guide](02_MOD_CREATOR_GUIDE.md) - Modding Ecosystem Overview
 2. Follow the section for your package type (Game Mod, Plugin, gregCore, UserLib)
 3. Use the example manifests in `examples/manifests/`
 4. See [Publishing](02_MOD_CREATOR_GUIDE.md#publishing-mods-to-datacentermods.com) for distribution
 
 **Contributor:**
 
-1. Read [Contributor Guide](03_CONTRIBUTOR_GUIDE.md) § [Development Environment Setup](03_CONTRIBUTOR_GUIDE.md#development-environment-setup)
+1. Read [Contributor Guide](03_CONTRIBUTOR_GUIDE.md) - Development Environment Setup
 2. Follow the build instructions
 3. Read [Coding Standards](03_CONTRIBUTOR_GUIDE.md#coding-standards--conventions)
 4. Review [Contributing Workflow](03_CONTRIBUTOR_GUIDE.md#contributing-workflow--pull-requests)
 
 ---
 
-## 📚 Documentation by Topic
+## Documentation by Topic
 
 | Topic | File | Section |
 |-------|------|---------|
-| Installation | End-User Guide | § Installation & Platform Support |
-| Building locally | Contributor Guide | § Development Environment Setup |
-| Creating mods | Mod Creator Guide | § Creating Game Mods |
-| Creating plugins | Mod Creator Guide | § Creating MelonLoader Plugins |
-| Dependencies | Mod Creator Guide | § Defining Dependencies |
-| Manifests | Mod Creator Guide | § Plugin Manifest Files |
-| Publishing | Mod Creator Guide | § Publishing to datacentermods.com |
-| Architecture | Contributor Guide | § Project Overview & Architecture |
-| Testing | Contributor Guide | § Testing |
-| Contributing | Contributor Guide | § Contributing Workflow |
-| Release process | Contributor Guide | § Release & Versioning Process |
+| Installation | End-User Guide | Installation and Platform Support |
+| Building locally | Contributor Guide | Development Environment Setup |
+| Creating mods | Mod Creator Guide | Creating Game Mods |
+| Creating plugins | Mod Creator Guide | Creating MelonLoader Plugins |
+| Dependencies | Mod Creator Guide | Defining Dependencies |
+| Manifests | Mod Creator Guide | Plugin Manifest Files |
+| Publishing | Mod Creator Guide | Publishing to datacentermods.com |
+| Architecture | Contributor Guide | Project Overview and Architecture |
+| Testing | Contributor Guide | Testing |
+| Contributing | Contributor Guide | Contributing Workflow |
+| Release process | Contributor Guide | Release and Versioning Process |
 
 ---
 
-## 🔗 Related Resources
+## Related Resources
 
 ### Inside This Repository
 
 - **README.md** — Project overview (top-level)
-- **RELEASENOTE.md** — Version history and changelog
+- **CHANGELOG.md** — Version history and changelog
 - **EXTERNAL_DEPENDENCIES.md** — Third-party library inventory
 - **AGENTS.md** — System architecture and build constraints
 - **LICENSE** — MIT license
@@ -156,11 +156,11 @@ Example mod structures and implementations (to be expanded with working examples
 - **[melonwiki.xyz](https://melonwiki.xyz)** — MelonLoader documentation
 - **[GitHub Repository](https://github.com/mleem97/gregModmanager)** — Source code
 - **[GitHub Issues](https://github.com/mleem97/gregModmanager/issues)** — Bug reports
-- **[GitHub Discussions](https://github.com/mleem97/gregModmanager/discussions)** — Questions & ideas
+- **[GitHub Discussions](https://github.com/mleem97/gregModmanager/discussions)** — Questions and ideas
 
 ---
 
-## 📝 Contributing to Documentation
+## Contributing to Documentation
 
 Found an error? Want to improve the docs? Here's how:
 
@@ -175,14 +175,14 @@ Found an error? Want to improve the docs? Here's how:
 
 ---
 
-## 📋 Version Information
+## Version Information
 
-**Documentation Version:** v1.5.1  
-**Last Updated:** May 2026
+**Documentation Version:** v1.6.0
+**Last Updated:** June 2026
 
 This documentation covers:
 
-- **gregModmanager** v1.5.1+
+- **gregModmanager** v1.6.0+
 - **.NET** 9.0+
 - **Avalonia UI** 11.2+
 - **MelonLoader** 0.6.0+

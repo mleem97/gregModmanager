@@ -234,13 +234,111 @@ public static class SteamApiNativeLoader
 		else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 		{
 			var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-			Add(Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
-			Add(Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+			// Standard Steam library paths
+			var steamRoots = new[]
+			{
+				Path.Combine(home, ".local", "share", SteamFolderName),
+				Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant()),
+				Path.Combine(home, ".steam", "root"),
+			};
+
+			foreach (var steamRoot in steamRoots)
+			{
+				// Direct game install
+				Add(Path.Combine(steamRoot, SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+				// Proton prefix (compatdata) — the game runs inside a Wine/Proton prefix
+				var compatData = Path.Combine(steamRoot, SteamAppsFolderName, "compatdata", "4170200", "pfx");
+				Add(Path.Combine(compatData, "drive_c", "Program Files (x86)", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+				Add(Path.Combine(compatData, "drive_c", "Program Files", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+			}
+
+			// Parse libraryfolders.vdf for additional Steam library paths
+			foreach (var libPath in EnumerateSteamLibraryFolders())
+			{
+				Add(Path.Combine(libPath, SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+				// Proton prefix in additional libraries
+				var compatData = Path.Combine(libPath, SteamAppsFolderName, "compatdata", "4170200", "pfx");
+				Add(Path.Combine(compatData, "drive_c", "Program Files (x86)", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+				Add(Path.Combine(compatData, "drive_c", "Program Files", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+			}
 		}
 
 		foreach (var root in seen)
 		{
 			yield return root;
+		}
+	}
+
+	private static IEnumerable<string> EnumerateSteamLibraryFolders()
+	{
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+		{
+			yield break;
+		}
+
+		var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+		var vdfPaths = new[]
+		{
+			Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, "libraryfolders.vdf"),
+			Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, "libraryfolders.vdf"),
+			Path.Combine(home, ".steam", "root", SteamAppsFolderName, "libraryfolders.vdf"),
+		};
+
+		foreach (var vdfPath in vdfPaths)
+		{
+			if (!File.Exists(vdfPath))
+			{
+				continue;
+			}
+
+			foreach (var path in ParseLibraryFoldersVdf(vdfPath))
+			{
+				yield return path;
+			}
+
+			yield break;
+		}
+	}
+
+	/// <summary>
+	/// Parses Valve's libraryfolders.vdf to find additional Steam library paths.
+	/// Format: "path"		"/mnt/games/SteamLibrary"
+	/// </summary>
+	private static IEnumerable<string> ParseLibraryFoldersVdf(string vdfPath)
+	{
+		string[] lines;
+		try
+		{
+			lines = File.ReadAllLines(vdfPath);
+		}
+		catch
+		{
+			yield break;
+		}
+
+		foreach (var line in lines)
+		{
+			// Look for lines like: "path"		"/some/path"
+			var trimmed = line.Trim();
+			if (!trimmed.StartsWith("\"path\"", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			var parts = trimmed.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+			if (parts.Length < 2)
+			{
+				continue;
+			}
+
+			var value = parts[^1].Trim().Trim('"');
+			if (!string.IsNullOrEmpty(value) && Directory.Exists(value))
+			{
+				yield return value;
+			}
 		}
 	}
 }
