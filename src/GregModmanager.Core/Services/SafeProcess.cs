@@ -48,12 +48,13 @@ public static class SafeProcess
         {
             if (OperatingSystem.IsWindows())
             {
-                Process.Start(new ProcessStartInfo
+                var psi = new ProcessStartInfo
                 {
                     FileName = "explorer.exe",
-                    Arguments = $"\"{path}\"",
                     UseShellExecute = false
-                });
+                };
+                psi.ArgumentList.Add(path);
+                Process.Start(psi);
             }
             else
             {
@@ -81,12 +82,13 @@ public static class SafeProcess
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var psi = new ProcessStartInfo
             {
                 FileName = "explorer.exe",
-                Arguments = $"/select,\"{filePath}\"",
                 UseShellExecute = false
-            });
+            };
+            psi.ArgumentList.Add($"/select,{filePath}");
+            Process.Start(psi);
         }
         catch (Exception ex)
         {
