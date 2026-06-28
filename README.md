@@ -15,7 +15,7 @@
 Cross-platform desktop Mod Manager for the gregFramework ecosystem.
 
 > [!NOTE]
-> *gregModmanager* is an independent community project developed by the author. The project name and any related domains (e.g. `gregmodmanager.eu`) are **not** owned by the author. Official hubs of the ecosystem are [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
+> *gregModmanager* is an independent community project developed by the author. The project name and any related domains (e.g. `gregmodmanager.eu`) are owned by the author. Official hubs of the ecosystem are [gregframework.eu](https://gregframework.eu) and [datacentermods.com](https://datacentermods.com).
 
 ## What is gregModmanager?
 
