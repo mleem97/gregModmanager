@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+#if WINDOWS
 using Microsoft.Win32;
+#endif
 
 namespace GregModmanager.Steam;
 
@@ -18,7 +20,8 @@ public static class SteamApiNativeLoader
 	private const string PluginsFolderName = "Plugins";
 	private const string ArchFolderName = "x86_64";
 
-	private static readonly string DllFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api.so";
+	private static readonly string DllFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api64.so";
+	private static readonly string DllFileNameFallback = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api.so";
 	private const string UnityDataFolderName = "Data Center_Data";
 	private static IntPtr _module;
 	public static bool IsLoaded => _module != IntPtr.Zero;
@@ -100,12 +103,23 @@ public static class SteamApiNativeLoader
 
 		try
 		{
-			return NativeLibrary.TryLoad(DllFileName, out _module);
+			if (NativeLibrary.TryLoad(DllFileName, out _module))
+				return true;
 		}
-		catch
+		catch { }
+
+		// Fallback: try alternative library name (e.g. libsteam_api.so if libsteam_api64.so not found)
+		if (!string.IsNullOrEmpty(DllFileNameFallback) && DllFileNameFallback != DllFileName)
 		{
-			return false;
+			try
+			{
+				if (NativeLibrary.TryLoad(DllFileNameFallback, out _module))
+					return true;
+			}
+			catch { }
 		}
+
+		return false;
 	}
 
 	private static readonly List<string> _attemptedPaths = new();
@@ -124,6 +138,16 @@ public static class SteamApiNativeLoader
 			_attemptedPaths.Add(path2);
 			yield return path1;
 			yield return path2;
+			// Also try fallback
+			if (DllFileNameFallback != DllFileName)
+			{
+				var fb1 = Path.Combine(_customGameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				var fb2 = Path.Combine(_customGameRoot, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				_attemptedPaths.Add(fb1);
+				_attemptedPaths.Add(fb2);
+				yield return fb1;
+				yield return fb2;
+			}
 		}
 
 		var steamCommonPath = Path.Combine(
@@ -141,6 +165,11 @@ public static class SteamApiNativeLoader
 		{
 			var nativeSubPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 			yield return Path.Combine(envRoot, nativeSubPath);
+			if (DllFileNameFallback != DllFileName)
+			{
+				var fbPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				yield return Path.Combine(envRoot, fbPath);
+			}
 		}
 
 		foreach (var path in EnumerateWalkingUpFrom(AppContext.BaseDirectory))
@@ -151,12 +180,16 @@ public static class SteamApiNativeLoader
 		foreach (var gameRoot in EnumerateHeuristicGameRoots())
 		{
 			yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
+			if (DllFileNameFallback != DllFileName)
+				yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
 		}
 
 		var baseDir = AppContext.BaseDirectory;
 		if (!string.IsNullOrEmpty(baseDir))
 		{
 			yield return Path.Combine(baseDir, DllFileName);
+			if (DllFileNameFallback != DllFileName)
+				yield return Path.Combine(baseDir, DllFileNameFallback);
 		}
 	}
 
@@ -213,6 +246,7 @@ public static class SteamApiNativeLoader
 
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 		{
+#if WINDOWS
 			try
 			{
 				using var key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\Valve\{SteamFolderName}");
@@ -226,6 +260,7 @@ public static class SteamApiNativeLoader
 			{
 				// ignored
 			}
+#endif
 
 			Add(Path.Combine(
 				Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),

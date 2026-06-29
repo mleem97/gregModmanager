@@ -17,7 +17,7 @@ public sealed class RalphSyncService
 			Message = message,
 			TimestampUtc = DateTime.UtcNow,
 		};
-		File.WriteAllText(path, JsonSerializer.Serialize(payload, AppJsonContext.SharedOptions));
+		File.WriteAllText(path, JsonSerializer.Serialize(payload, AppJsonContext.Default.RalphTaskStatus));
 	}
 }
 

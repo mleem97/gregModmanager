@@ -67,6 +67,7 @@ public partial class App : Application
 
     private static void ShowFatalError(Exception ex)
     {
+#if WINDOWS
         if (OperatingSystem.IsWindows())
         {
             try
@@ -82,8 +83,11 @@ public partial class App : Application
                 // Last resort: silent exit
             }
         }
+#endif
     }
 
+#if WINDOWS
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int Win32MessageBox(IntPtr hWnd, string text, string caption, uint type);
+#endif
 }

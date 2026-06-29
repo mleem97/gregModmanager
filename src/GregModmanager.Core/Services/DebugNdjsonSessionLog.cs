@@ -27,7 +27,7 @@ internal static class DebugNdjsonSessionLog
 			};
 			if (data != null)
 			{
-				root["data"] = JsonSerializer.SerializeToNode(data, AppJsonContext.SharedOptions);
+				root["data"] = JsonSerializer.SerializeToNode(data, AppJsonContext.Default.DebugLogPayload);
 			}
 
 			File.AppendAllText(LogPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = false }) + Environment.NewLine);

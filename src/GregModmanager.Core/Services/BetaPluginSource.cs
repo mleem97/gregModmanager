@@ -42,7 +42,7 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 				var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-				return JsonSerializer.Deserialize<List<PluginPackageInfo>>(json, AppJsonContext.SharedOptions);
+				return JsonSerializer.Deserialize(json, AppJsonContext.Default.ListPluginPackageInfo);
 			}).GetAwaiter().GetResult();
 
 			return plugins ?? new List<PluginPackageInfo>();

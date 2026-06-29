@@ -23,7 +23,7 @@ public static class NativeModConfigStore
 		}
 
 		var json = File.ReadAllText(path);
-		return JsonSerializer.Deserialize<NativeModConfig>(json, AppJsonContext.SharedOptions) ?? new NativeModConfig();
+		return JsonSerializer.Deserialize(json, AppJsonContext.Default.NativeModConfig) ?? new NativeModConfig();
 	}
 
 	public static void SaveConfig(string projectRoot, NativeModConfig config)
@@ -35,7 +35,7 @@ public static class NativeModConfigStore
 			Directory.CreateDirectory(dir);
 		}
 
-		var json = JsonSerializer.Serialize(config, AppJsonContext.SharedOptions);
+		var json = JsonSerializer.Serialize(config, AppJsonContext.Default.NativeModConfig);
 		File.WriteAllText(path, json);
 	}
 
@@ -48,7 +48,7 @@ public static class NativeModConfigStore
 		}
 
 		var json = File.ReadAllText(path);
-		return JsonSerializer.Deserialize<ModOptionsConfigFile>(json, AppJsonContext.SharedOptions) ?? new ModOptionsConfigFile();
+		return JsonSerializer.Deserialize(json, AppJsonContext.Default.ModOptionsConfigFile) ?? new ModOptionsConfigFile();
 	}
 
 	public static void SaveModOptions(string projectRoot, ModOptionsConfigFile config)
@@ -60,7 +60,7 @@ public static class NativeModConfigStore
 			Directory.CreateDirectory(dir);
 		}
 
-		var json = JsonSerializer.Serialize(config, AppJsonContext.SharedOptions);
+		var json = JsonSerializer.Serialize(config, AppJsonContext.Default.ModOptionsConfigFile);
 		File.WriteAllText(path, json);
 	}
 }

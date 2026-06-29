@@ -153,7 +153,7 @@ public sealed class WorkspaceService
 				Visibility = "Public",
 				PreviewImageRelativePath = "preview.png",
 			};
-			File.WriteAllText(sample, JsonSerializer.Serialize(meta, AppJsonContext.SharedOptions));
+			File.WriteAllText(sample, JsonSerializer.Serialize(meta, AppJsonContext.Default.WorkshopMetadata));
 		}
 	}
 
@@ -204,7 +204,7 @@ public sealed class WorkspaceService
 		try
 		{
 			var json = File.ReadAllText(path);
-			meta = JsonSerializer.Deserialize<WorkshopMetadata>(json, AppJsonContext.SharedOptions) ?? new WorkshopMetadata();
+			meta = JsonSerializer.Deserialize(json, AppJsonContext.Default.WorkshopMetadata) ?? new WorkshopMetadata();
 		}
 		catch
 		{
@@ -824,7 +824,7 @@ public sealed class WorkspaceService
 		}
 
 		var path = Path.Combine(projectRoot, "metadata.json");
-		File.WriteAllText(path, JsonSerializer.Serialize(metadata, AppJsonContext.SharedOptions));
+		File.WriteAllText(path, JsonSerializer.Serialize(metadata, AppJsonContext.Default.WorkshopMetadata));
 	}
 
 	private static void CreateUxmlTemplate(string contentRoot, string root, string dirName)
@@ -927,7 +927,7 @@ public sealed class WorkspaceService
 			Tags = new[] { "asset", type },
 			IsStandalone = true
 		};
-		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, AppJsonContext.SharedOptions));
+		File.WriteAllText(Path.Combine(contentRoot, "modstore.meta.json"), JsonSerializer.Serialize(modstoreMeta, AppJsonContext.Default.AssetModMetadata));
 	}
 }
 

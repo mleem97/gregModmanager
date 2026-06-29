@@ -235,7 +235,7 @@ public sealed class ModCollectionService
 			}
 
 			var json = File.ReadAllText(_storagePath);
-			return JsonSerializer.Deserialize<CollectionCatalog>(json, AppJsonContext.SharedOptions) ?? new CollectionCatalog();
+			return JsonSerializer.Deserialize(json, AppJsonContext.Default.CollectionCatalog) ?? new CollectionCatalog();
 		}
 		catch
 		{
@@ -245,6 +245,6 @@ public sealed class ModCollectionService
 
 	private void SaveCatalog()
 	{
-		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.SharedOptions));
+		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.Default.CollectionCatalog));
 	}
 }

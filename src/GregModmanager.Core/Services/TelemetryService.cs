@@ -52,7 +52,7 @@ public sealed class TelemetryService
                 try
                 {
                     var content = await File.ReadAllTextAsync(file);
-                    var report = JsonSerializer.Deserialize<CrashReport>(content, AppJsonContext.SharedOptions);
+                    var report = JsonSerializer.Deserialize(content, AppJsonContext.Default.CrashReport);
                     if (report != null)
                     {
                         var success = await PushToLokiAsync("crash", content, new Dictionary<string, string>
@@ -98,8 +98,10 @@ public sealed class TelemetryService
 
         var message = payload switch
         {
-            SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.SharedOptions),
-            _ => JsonSerializer.Serialize(payload, payload.GetType(), AppJsonContext.SharedOptions)
+            SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
+            DebugLogPayload debug => JsonSerializer.Serialize(debug, AppJsonContext.Default.DebugLogPayload),
+            string s => s,
+            _ => "{}"
         };
 
         await PushToLokiAsync(eventName, message, labels);
@@ -148,7 +150,7 @@ public sealed class TelemetryService
                 }
             };
 
-            var json = JsonSerializer.Serialize(request, AppJsonContext.SharedOptions);
+            var json = JsonSerializer.Serialize(request, AppJsonContext.Default.LokiPushRequest);
             var response = await _http.PostAsync(LokiUrl, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
             if (!response.IsSuccessStatusCode)
             {

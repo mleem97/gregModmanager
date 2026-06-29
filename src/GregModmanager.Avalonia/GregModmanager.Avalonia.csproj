@@ -16,13 +16,22 @@
     <SelfContained>true</SelfContained>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
-    <InvariantGlobalization>false</InvariantGlobalization>
+    <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en;de;es;it;ja;pl;ru;zh</SatelliteResourceLanguages>
   </PropertyGroup>
 
-  <!-- Default to win-x64 if no RuntimeIdentifier is specified -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == ''">
+  <!-- Default RuntimeIdentifier: win-x64 on Windows, linux-x64 on Linux -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('Windows'))">
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('Linux'))">
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <DefineConstants>$(DefineConstants);LINUX</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('OSX'))">
+    <RuntimeIdentifier>osx-x64</RuntimeIdentifier>
+    <DefineConstants>$(DefineConstants);OSX</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

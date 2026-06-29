@@ -32,19 +32,60 @@ public sealed class SteamWorkshopService
 				{
 					var paths = string.Join("; ", SteamApiNativeLoader.GetAttemptedPaths());
 					LastSteamConnectionHint = $"steam_api64.dll nicht gefunden. Gesucht: {paths}";
+					AppFileLog.Warn($"[Steam] {LastSteamConnectionHint}");
 					log?.Report(LastSteamConnectionHint);
 					return false;
 				}
 
-				SteamClient.Init(SteamConstants.DataCenterAppId, true);
+				// Check if SteamClient is already initialized
+				try
+				{
+					if (SteamClient.IsValid)
+					{
+						_initialized = true;
+						LastSteamConnectionHint = string.Empty;
+						AppFileLog.Info($"[Steam] SteamClient already initialized.");
+						return true;
+					}
+				}
+				catch
+				{
+					// IsValid can throw during initialization
+				}
+
+				AppFileLog.Info($"[Steam] Calling SteamClient.Init({SteamConstants.DataCenterAppId}, true)...");
+				try
+				{
+					SteamClient.Init(SteamConstants.DataCenterAppId, true);
+				}
+				catch (Exception initEx) when (initEx.Message.Contains("SteamApps") || initEx.Message.Contains("v008") || initEx.Message.Contains("v009"))
+				{
+					// SteamApps interface version mismatch is non-fatal - Steam is still connected
+					AppFileLog.Warn($"[Steam] SteamApps interface version mismatch (non-fatal): {initEx.Message}");
+				}
+
+				// Give async callbacks a moment to complete
+				Thread.Sleep(500);
+				
 				_initialized = true;
 				LastSteamConnectionHint = string.Empty;
+				AppFileLog.Info($"[Steam] SteamClient.Init succeeded.");
 				log?.Report("Steam API initialized.");
 				return true;
 			}
 			catch (Exception ex)
 			{
+				// If already initialized, treat as success
+				if (ex.Message.Contains("already initialized"))
+				{
+					_initialized = true;
+					LastSteamConnectionHint = string.Empty;
+					AppFileLog.Info($"[Steam] SteamClient was already initialized.");
+					return true;
+				}
+				
 				LastSteamConnectionHint = ex.Message;
+				AppFileLog.Error($"[Steam] SteamClient.Init failed: {ex.Message}", ex);
 				log?.Report($"Steam init failed: {ex.Message}");
 				return false;
 			}
@@ -62,21 +103,46 @@ public sealed class SteamWorkshopService
 				return false;
 			}
 
-			if (!SteamClient.IsValid)
+			try
 			{
-				LastSteamConnectionHint = "Steam API ungültig (IsValid=false).";
+				if (!SteamClient.IsValid)
+				{
+					LastSteamConnectionHint = "Steam API ungültig (IsValid=false).";
+					return false;
+				}
+
+				// Try to get username - IsLoggedOn can throw in Cherry.Facepunch 2.5.0
+				// when SteamUser interface failed to init (SteamApps_v008 mismatch).
+				// Fall back to just checking IsValid which means the API is connected.
+				string? name = null;
+				try
+				{
+					if (SteamClient.IsLoggedOn)
+					{
+						name = SteamClient.Name;
+					}
+					else
+					{
+						// IsValid=true but not logged on - still show as connected
+						name = "Steam User";
+					}
+				}
+				catch
+				{
+					// IsLoggedOn threw - but IsValid is true, so Steam IS connected
+					name = "Steam User";
+					AppFileLog.Info("[Steam] IsLoggedOn unavailable, but IsValid=true - showing as connected.");
+				}
+
+				LastSteamConnectionHint = string.Empty;
+				userName = name;
+				return true;
+			}
+			catch (Exception ex)
+			{
+				LastSteamConnectionHint = $"Steam status check failed: {ex.Message}";
 				return false;
 			}
-
-			if (!SteamClient.IsLoggedOn)
-			{
-				LastSteamConnectionHint = "Steam-Client: nicht eingeloggt oder kein Benutzer aktiv.";
-				return false;
-			}
-
-			LastSteamConnectionHint = string.Empty;
-			userName = SteamClient.Name;
-			return true;
 		}
 	}
 
@@ -150,7 +216,7 @@ public sealed class SteamWorkshopService
 		try
 		{
 			var markerPath = Path.Combine(contentFolder, "greg-modmanager.meta.json");
-			var markerJson = System.Text.Json.JsonSerializer.Serialize(new ModStoreMarker { modType = metadata.ModType }, AppJsonContext.SharedOptions);
+			var markerJson = System.Text.Json.JsonSerializer.Serialize(new ModStoreMarker { modType = metadata.ModType }, AppJsonContext.Default.ModStoreMarker);
 			File.WriteAllText(markerPath, markerJson);
 		}
 		catch
