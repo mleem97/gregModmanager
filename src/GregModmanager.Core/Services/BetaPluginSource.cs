@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 
 namespace GregModmanager.Services;
@@ -18,11 +19,7 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 	public IReadOnlyList<PluginPackageInfo> ListPlugins()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var url = Preferences.Default.Get(PrefKeyBetaServerUrl, string.Empty);
-#else
-		var url = "";
-#endif
+		var url = S.Preferences.GetString(PrefKeyBetaServerUrl, string.Empty);
 		if (string.IsNullOrWhiteSpace(url))
 		{
 			throw new InvalidOperationException(

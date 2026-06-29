@@ -101,13 +101,11 @@ public sealed class WorkshopSyncOrchestrator : IDisposable
 
 	private static string? GetGameRoot()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var gameRoot = SettingsPage.GetGameRootPath();
+		var gameRoot = AppSettings.GetGameRootPath();
 		if (!string.IsNullOrEmpty(gameRoot))
 		{
 			return gameRoot;
 		}
-#endif
 		return Steam.SteamApiNativeLoader.GetGameRoot();
 	}
 

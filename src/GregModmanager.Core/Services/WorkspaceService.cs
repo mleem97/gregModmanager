@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Steamworks;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Steam;
 
@@ -40,14 +41,12 @@ public sealed class WorkspaceService
 				return _cachedWorkspaceRoot;
 			}
 
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-			var custom = Preferences.Default.Get(CustomWorkspacePathKey, "");
+			var custom = S.Preferences.GetString(CustomWorkspacePathKey, "");
 			if (!string.IsNullOrWhiteSpace(custom) && Directory.Exists(custom))
 			{
 				_cachedWorkspaceRoot = custom;
 				return _cachedWorkspaceRoot;
 			}
-#endif
 
 			_steam?.EnsureInitialized(null);
 			var fromGame = TryGetGameWorkshopDirectory();
