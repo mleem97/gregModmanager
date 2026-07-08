@@ -95,10 +95,15 @@ public sealed class ModsFolderSyncService
 	/// <summary>
 	/// Sync multiple items downloaded via <see cref="WorkshopDownloadService"/>.
 	/// </summary>
+	public IReadOnlyList<SyncResult> SyncItems(IReadOnlyList<(ulong Id, string LocalDir)> items, string gameRoot)
+	{
+		return SyncItems(items, gameRoot, log: null);
+	}
+
 	public IReadOnlyList<SyncResult> SyncItems(
 		IReadOnlyList<(ulong Id, string LocalDir)> items,
 		string gameRoot,
-		IProgress<string>? log = null)
+		IProgress<string>? log)
 	{
 		var results = new List<SyncResult>(items.Count);
 		foreach (var (id, localDir) in items)
@@ -148,13 +153,13 @@ public sealed class ModsFolderSyncService
 
 	private static void CopyDirectoryRecursive(string sourceDir, string destDir)
 	{
-		foreach (var dir in Directory.EnumerateDirectories(sourceDir, "*", SearchOption.AllDirectories))
+		foreach (var dir in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
 		{
 			var relative = Path.GetRelativePath(sourceDir, dir);
 			Directory.CreateDirectory(Path.Combine(destDir, relative));
 		}
 
-		foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+		foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
 		{
 			var relative = Path.GetRelativePath(sourceDir, file);
 			File.Copy(file, Path.Combine(destDir, relative), overwrite: true);
@@ -169,4 +174,3 @@ public readonly record struct SyncResult(bool Success, string? DestinationPath, 
 }
 
 public readonly record struct SyncProgressArgs(ulong PublishedFileId, bool Success, string? DestinationPath);
-

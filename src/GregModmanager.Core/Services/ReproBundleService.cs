@@ -9,7 +9,12 @@ public sealed class ReproBundleService
 {
 	private const string AppFolderName = "gregModmanager";
 
-	public Task<string> CreateBundleAsync(CancellationToken cancellationToken = default)
+	public Task<string> CreateBundleAsync()
+	{
+		return CreateBundleAsync(CancellationToken.None);
+	}
+
+	public Task<string> CreateBundleAsync(CancellationToken cancellationToken)
 	{
 		var now = DateTime.Now;
 		var root = Path.Combine(
@@ -85,28 +90,33 @@ public sealed class ReproBundleService
 			}
 
 			Directory.CreateDirectory(targetDir);
-			foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+			foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
 			{
-				try
-				{
-					var relativePath = Path.GetRelativePath(sourceDir, file);
-					var dest = Path.Combine(targetDir, relativePath);
-					var destDir = Path.GetDirectoryName(dest);
-					if (!string.IsNullOrWhiteSpace(destDir))
-					{
-						Directory.CreateDirectory(destDir);
-					}
-					File.Copy(file, dest, true);
-				}
-				catch
-				{
-					// skip unreadable files
-				}
+				CopyDiagnosticFile(sourceDir, targetDir, file);
 			}
 		}
 		catch
 		{
 			// ignore copy failures in diagnostics collection
+		}
+	}
+
+	private static void CopyDiagnosticFile(string sourceDir, string targetDir, string file)
+	{
+		try
+		{
+			var relativePath = Path.GetRelativePath(sourceDir, file);
+			var dest = Path.Combine(targetDir, relativePath);
+			var destDir = Path.GetDirectoryName(dest);
+			if (!string.IsNullOrWhiteSpace(destDir))
+			{
+				Directory.CreateDirectory(destDir);
+			}
+			File.Copy(file, dest, true);
+		}
+		catch
+		{
+			// skip unreadable files
 		}
 	}
 
@@ -118,21 +128,11 @@ public sealed class ReproBundleService
 		}
 
 		var outputPath = Path.Combine(stagingDir, "eventlog.txt");
-		var psCommand = "$events = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddDays(-2)} | Where-Object { ($_.ProviderName -in @('Application Error','.NET Runtime','Windows Error Reporting')) -and $_.Message -match 'GregModmanager' } | Select-Object -First 200 TimeCreated,ProviderName,Id,LevelDisplayName,Message; if (-not $events) { 'No matching events found.' } else { $events | Format-List | Out-String -Width 240 }";
+		const string psCommand = "$events = Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddDays(-2)} | Where-Object { ($_.ProviderName -in @('Application Error','.NET Runtime','Windows Error Reporting')) -and $_.Message -match 'GregModmanager' } | Select-Object -First 200 TimeCreated,ProviderName,Id,LevelDisplayName,Message; if (-not $events) { 'No matching events found.' } else { $events | Format-List | Out-String -Width 240 }";
 
 		try
 		{
-			var startInfo = new ProcessStartInfo
-			{
-				FileName = "powershell.exe",
-				Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"{psCommand}\"",
-				UseShellExecute = false,
-				RedirectStandardOutput = true,
-				RedirectStandardError = true,
-				CreateNoWindow = true
-			};
-
-			using var proc = Process.Start(startInfo);
+			using var proc = StartPowerShell(psCommand);
 			if (proc is null)
 			{
 				File.WriteAllText(outputPath, "Could not start powershell.exe for event log export.");
@@ -143,23 +143,46 @@ public sealed class ReproBundleService
 			var error = proc.StandardError.ReadToEnd();
 			proc.WaitForExit(7000);
 
-			var sb = new StringBuilder();
-			sb.AppendLine("Recent Application log events for GregModmanager (last 48h)");
-			sb.AppendLine();
-			sb.AppendLine(output);
-
-			if (!string.IsNullOrWhiteSpace(error))
-			{
-				sb.AppendLine("--- STDERR ---");
-				sb.AppendLine(error);
-			}
-
-			File.WriteAllText(outputPath, sb.ToString());
+			WriteEventLogOutput(outputPath, output, error);
 		}
 		catch (Exception ex)
 		{
 			File.WriteAllText(outputPath, $"Could not read Event Log: {ex.Message}");
 		}
 	}
-}
 
+	private static Process? StartPowerShell(string command)
+	{
+		var startInfo = new ProcessStartInfo
+		{
+			FileName = "powershell.exe",
+			UseShellExecute = false,
+			RedirectStandardOutput = true,
+			RedirectStandardError = true,
+			CreateNoWindow = true
+		};
+		startInfo.ArgumentList.Add("-NoProfile");
+		startInfo.ArgumentList.Add("-ExecutionPolicy");
+		startInfo.ArgumentList.Add("Bypass");
+		startInfo.ArgumentList.Add("-Command");
+		startInfo.ArgumentList.Add(command);
+
+		return Process.Start(startInfo);
+	}
+
+	private static void WriteEventLogOutput(string outputPath, string output, string error)
+	{
+		var sb = new StringBuilder();
+		sb.AppendLine("Recent Application log events for GregModmanager (last 48h)");
+		sb.AppendLine();
+		sb.AppendLine(output);
+
+		if (!string.IsNullOrWhiteSpace(error))
+		{
+			sb.AppendLine("--- STDERR ---");
+			sb.AppendLine(error);
+		}
+
+		File.WriteAllText(outputPath, sb.ToString());
+	}
+}

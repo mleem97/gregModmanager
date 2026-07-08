@@ -20,11 +20,26 @@ public sealed class WorkshopDownloadService
 	/// <summary>
 	/// Downloads a single Workshop item. Returns the local install directory on success, null on failure.
 	/// </summary>
+	public Task<DownloadResult> DownloadItemAsync(ulong publishedFileId)
+	{
+		return DownloadItemAsync(publishedFileId, progress: null, log: null, CancellationToken.None);
+	}
+
+	public Task<DownloadResult> DownloadItemAsync(ulong publishedFileId, IProgress<float>? progress)
+	{
+		return DownloadItemAsync(publishedFileId, progress, log: null, CancellationToken.None);
+	}
+
+	public Task<DownloadResult> DownloadItemAsync(ulong publishedFileId, IProgress<float>? progress, IProgress<string>? log)
+	{
+		return DownloadItemAsync(publishedFileId, progress, log, CancellationToken.None);
+	}
+
 	public async Task<DownloadResult> DownloadItemAsync(
 		ulong publishedFileId,
-		IProgress<float>? progress = null,
-		IProgress<string>? log = null,
-		CancellationToken ct = default)
+		IProgress<float>? progress,
+		IProgress<string>? log,
+		CancellationToken ct)
 	{
 		if (!_steam.EnsureInitialized(log))
 			return DownloadResult.Fail("Steam is not available.");
@@ -61,10 +76,20 @@ public sealed class WorkshopDownloadService
 	/// <summary>
 	/// Downloads multiple items sequentially, reporting aggregate progress.
 	/// </summary>
+	public Task<IReadOnlyList<DownloadResult>> DownloadItemsAsync(IReadOnlyList<ulong> ids)
+	{
+		return DownloadItemsAsync(ids, log: null, CancellationToken.None);
+	}
+
+	public Task<IReadOnlyList<DownloadResult>> DownloadItemsAsync(IReadOnlyList<ulong> ids, IProgress<string>? log)
+	{
+		return DownloadItemsAsync(ids, log, CancellationToken.None);
+	}
+
 	public async Task<IReadOnlyList<DownloadResult>> DownloadItemsAsync(
 		IReadOnlyList<ulong> ids,
-		IProgress<string>? log = null,
-		CancellationToken ct = default)
+		IProgress<string>? log,
+		CancellationToken ct)
 	{
 		var results = new List<DownloadResult>(ids.Count);
 		for (var i = 0; i < ids.Count; i++)
@@ -85,4 +110,3 @@ public readonly record struct DownloadResult(bool Success, string? LocalDirector
 	public static DownloadResult Ok(string directory, string title) => new(true, directory, title, null);
 	public static DownloadResult Fail(string error) => new(false, null, "", error);
 }
-

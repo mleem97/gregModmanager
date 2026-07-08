@@ -4,7 +4,7 @@ namespace SubDirectoryFixer;
 
 public static class SubDirectoryFixerBootstrap
 {
-    public static string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
+    public static string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
 
     public static string Describe()
     {

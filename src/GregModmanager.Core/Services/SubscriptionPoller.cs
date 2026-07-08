@@ -10,6 +10,7 @@ namespace GregModmanager.Services;
 /// </summary>
 public sealed class SubscriptionPoller : IDisposable
 {
+	private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(30);
 	private readonly SteamWorkshopService _steam;
 	private readonly TimeSpan _interval;
 	private HashSet<ulong> _knownIds = new();
@@ -19,10 +20,15 @@ public sealed class SubscriptionPoller : IDisposable
 	public event Action<IReadOnlyList<ulong>>? NewSubscriptionsDetected;
 	public event Action<IReadOnlyList<ulong>>? UnsubscriptionsDetected;
 
-	public SubscriptionPoller(SteamWorkshopService steam, TimeSpan? interval = null)
+	public SubscriptionPoller(SteamWorkshopService steam)
+		: this(steam, DefaultInterval)
+	{
+	}
+
+	public SubscriptionPoller(SteamWorkshopService steam, TimeSpan interval)
 	{
 		_steam = steam;
-		_interval = interval ?? TimeSpan.FromSeconds(30);
+		_interval = interval;
 	}
 
 	public void Start()
@@ -92,4 +98,3 @@ public sealed class SubscriptionPoller : IDisposable
 		_cts?.Dispose();
 	}
 }
-

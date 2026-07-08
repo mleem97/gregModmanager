@@ -9,9 +9,15 @@ namespace GregModmanager.Avalonia.Services;
 
 public interface IDialogService
 {
-    Task<bool> ShowConfirmAsync(string title, string message, string ok = "OK", string cancel = "Cancel");
-    Task ShowMessageAsync(string title, string message, string ok = "OK");
-    Task<string?> ShowPromptAsync(string title, string message, string ok = "OK", string cancel = "Cancel", string initialValue = "");
+    Task<bool> ShowConfirmAsync(string title, string message);
+    Task<bool> ShowConfirmAsync(string title, string message, string ok);
+    Task<bool> ShowConfirmAsync(string title, string message, string ok, string cancel);
+    Task ShowMessageAsync(string title, string message);
+    Task ShowMessageAsync(string title, string message, string ok);
+    Task<string?> ShowPromptAsync(string title, string message);
+    Task<string?> ShowPromptAsync(string title, string message, string ok);
+    Task<string?> ShowPromptAsync(string title, string message, string ok, string cancel);
+    Task<string?> ShowPromptAsync(string title, string message, string ok, string cancel, string initialValue);
 }
 
 public sealed class DialogService : IDialogService
@@ -23,7 +29,17 @@ public sealed class DialogService : IDialogService
         return null;
     }
 
-    public async Task<bool> ShowConfirmAsync(string title, string message, string ok = "OK", string cancel = "Cancel")
+    public Task<bool> ShowConfirmAsync(string title, string message)
+    {
+        return ShowConfirmAsync(title, message, "OK", "Cancel");
+    }
+
+    public Task<bool> ShowConfirmAsync(string title, string message, string ok)
+    {
+        return ShowConfirmAsync(title, message, ok, "Cancel");
+    }
+
+    public async Task<bool> ShowConfirmAsync(string title, string message, string ok, string cancel)
     {
         var window = GetTopLevel();
         if (window == null) return false;
@@ -67,7 +83,12 @@ public sealed class DialogService : IDialogService
         return result == true;
     }
 
-    public async Task ShowMessageAsync(string title, string message, string ok = "OK")
+    public Task ShowMessageAsync(string title, string message)
+    {
+        return ShowMessageAsync(title, message, "OK");
+    }
+
+    public async Task ShowMessageAsync(string title, string message, string ok)
     {
         var window = GetTopLevel();
         if (window == null) return;
@@ -106,7 +127,22 @@ public sealed class DialogService : IDialogService
         await dialog.ShowDialog(window);
     }
 
-    public async Task<string?> ShowPromptAsync(string title, string message, string ok = "OK", string cancel = "Cancel", string initialValue = "")
+    public Task<string?> ShowPromptAsync(string title, string message)
+    {
+        return ShowPromptAsync(title, message, "OK", "Cancel", string.Empty);
+    }
+
+    public Task<string?> ShowPromptAsync(string title, string message, string ok)
+    {
+        return ShowPromptAsync(title, message, ok, "Cancel", string.Empty);
+    }
+
+    public Task<string?> ShowPromptAsync(string title, string message, string ok, string cancel)
+    {
+        return ShowPromptAsync(title, message, ok, cancel, string.Empty);
+    }
+
+    public async Task<string?> ShowPromptAsync(string title, string message, string ok, string cancel, string initialValue)
     {
         var window = GetTopLevel();
         if (window == null) return null;
