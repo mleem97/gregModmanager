@@ -15,20 +15,15 @@ public sealed class AppLogService
 		var line = $"{DateTime.Now:HH:mm:ss} {message}";
 		AppFileLog.Info(message);
 
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		MainThread.BeginInvokeOnMainThread(() =>
+		// Caller must ensure UI thread access when modifying ObservableCollection.
+		// In Avalonia, use Dispatcher.UIThread.Post() before calling Append() if needed.
+		Lines.Add(line);
+		while (Lines.Count > MaxLines)
 		{
-#endif
-			Lines.Add(line);
-			while (Lines.Count > MaxLines)
-			{
-				Lines.RemoveAt(0);
-			}
+			Lines.RemoveAt(0);
+		}
 
-			LineAppended?.Invoke(this, EventArgs.Empty);
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		});
-#endif
+		LineAppended?.Invoke(this, EventArgs.Empty);
 	}
 }
 

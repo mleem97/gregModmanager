@@ -57,7 +57,7 @@ gregModmanager recognizes and manages four primary package types:
 
 - **Windows 10/11** (x64) — primary platform, fully supported
 - **Linux** (x64) — Debian, Ubuntu, Fedora, Arch, and other distributions supported via AppImage, .deb, .rpm
-- **macOS** — planned for future releases (Intel and Apple Silicon)
+- **macOS** — planned, but not confirmed (may or may not happen)
 
 ### External Ecosystems
 
@@ -117,7 +117,7 @@ Display server support:
 - **X11** — fully supported
 - **Wayland** — partially supported; some UI rendering may differ
 
-#### macOS (Planned)
+#### macOS (Planned — Uncertain)
 
 - **Target OS:** macOS 11+ (Big Sur and later)
 - **Architectures:** Intel x86-64, Apple Silicon (ARM64)
@@ -735,7 +735,7 @@ If you encounter a bug:
 ### FAQ
 
 **Q: Can I use gregModmanager on macOS?**  
-A: Not yet. macOS support is planned for Q3 2026.
+A: Not yet. macOS support is planned, but it is not confirmed whether it will be available.
 
 **Q: Do I need to be online to use gregModmanager?**  
 A: Not for installed mods. Browsing and installing from datacentermods.com requires internet.

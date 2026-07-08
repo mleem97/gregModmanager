@@ -15,7 +15,7 @@ public sealed record SubDirectoryFixerInstallResult(SubDirectoryFixerInstallStat
 
 public static class SubDirectoryFixerInstallerService
 {
-    private const string PayloadRelativePath = "SubDirectoryFixer\\SubDirectoryFixer.dll";
+    private static readonly string PayloadRelativePath = Path.Combine("SubDirectoryFixer", "SubDirectoryFixer.dll");
     private const string TargetFileName = "SubDirectoryFixer.dll";
     private const string MarkerFileName = ".gregmodmanager-subdirfixer.sha256";
 

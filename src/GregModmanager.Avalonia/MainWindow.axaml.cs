@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
     private Control? _currentPage;
+    private System.Timers.Timer? _statusTimer;
 
     public MainWindow(
         IServiceProvider services,
@@ -38,34 +39,72 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        var installResult = await SubDirectoryFixerInstallerService.EnsureInstalledAsync(AppSettings.GetGameRootPath());
-        if (installResult.Status is SubDirectoryFixerInstallStatus.Installed or SubDirectoryFixerInstallStatus.Failed)
+        try
         {
-            AppFileLog.Info(installResult.Message);
-        }
-
-        await _session.InitializeAsync();
-        var args = Environment.GetCommandLineArgs();
-        foreach (var arg in args)
-        {
-            if (arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase))
+            var gameRoot = AppSettings.GetGameRootPath();
+            if (!string.IsNullOrEmpty(gameRoot))
             {
-                if (arg.Contains("/auth/callback"))
-                    await _session.HandleProtocolCallbackAsync(arg);
-                else if (arg.Contains("/install/intent"))
+                try
                 {
-                    var installClient = _services.GetRequiredService<GregModmanager.Services.Install.IInstallIntentClient>();
-                    await installClient.HandleIntentAsync(arg);
+                    var installResult = await SubDirectoryFixerInstallerService.EnsureInstalledAsync(gameRoot);
+                    if (installResult.Status is SubDirectoryFixerInstallStatus.Installed or SubDirectoryFixerInstallStatus.Failed)
+                    {
+                        AppFileLog.Info(installResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppFileLog.Error("SubDirectoryFixer install failed (non-fatal)", ex);
                 }
             }
+
+            await _session.InitializeAsync();
+
+            var args = Environment.GetCommandLineArgs();
+            foreach (var arg in args)
+            {
+                if (arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        if (arg.Contains("/auth/callback"))
+                            await _session.HandleProtocolCallbackAsync(arg);
+                        else if (arg.Contains("/install/intent"))
+                        {
+                            var installClient = _services.GetRequiredService<GregModmanager.Services.Install.IInstallIntentClient>();
+                            await installClient.HandleIntentAsync(arg);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppFileLog.Error($"Protocol handler failed for: {arg}", ex);
+                    }
+                }
+            }
+
+            var timer = new System.Timers.Timer(2000);
+            timer.Elapsed += (_, _) =>
+            {
+                try
+                {
+                    Dispatcher.UIThread.Post(UpdateStatusIndicators);
+                }
+                catch (Exception ex)
+                {
+                    AppFileLog.Error("Status timer tick failed", ex);
+                }
+            };
+            timer.AutoReset = true;
+            timer.Start();
+            _statusTimer = timer;
+
+            NavigateTo<ProjectsPage>();
         }
-
-        var timer = new System.Timers.Timer(2000);
-        timer.Elapsed += (_, _) => Dispatcher.UIThread.Post(UpdateStatusIndicators);
-        timer.AutoReset = true;
-        timer.Start();
-
-        NavigateTo<ProjectsPage>();
+        catch (Exception ex)
+        {
+            AppFileLog.MarkCrash("MainWindow.OnLoaded", ex);
+            AppFileLog.Error("MainWindow.OnLoaded failed", ex);
+        }
     }
 
     private void UpdateStatusIndicators()
@@ -162,6 +201,9 @@ public partial class MainWindow : Window
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e)
     {
+        _statusTimer?.Stop();
+        _statusTimer?.Dispose();
+        _statusTimer = null;
         Close();
     }
 }

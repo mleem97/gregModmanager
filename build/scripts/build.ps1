@@ -300,6 +300,11 @@ else {
 }
 
 $wantSign = $Sign
+# Always use self-signed certificate if no explicit signing is configured
+if (-not $wantSign -and -not $env:CODE_SIGN_THUMBPRINT -and -not $env:CODE_SIGN_PFX) {
+    $wantSign = $true
+    Write-Host '[build] Using self-signed certificate for code signing (no CODE_SIGN_THUMBPRINT or CODE_SIGN_PFX set).'
+}
 $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
 $iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
 $winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
@@ -400,6 +405,7 @@ if (-not $SkipLinux) {
     }
     New-Item -ItemType Directory -Path $linuxPublishDir -Force | Out-Null
 
+    Invoke-BuildSubDirectoryFixer
     Write-Host '[build] dotnet publish Linux (linux-x64) ...'
     & dotnet publish $projPath -c Release -r linux-x64 `
         --self-contained true /p:PublishTrimmed=true /p:TrimMode=full `
@@ -410,6 +416,14 @@ if (-not $SkipLinux) {
     $linuxBin = Join-Path $linuxPublishDir 'GregModmanager'
     if (-not (Test-Path -LiteralPath $linuxBin)) { throw "Linux-Binary nicht gefunden: $linuxBin" }
 
+    # Linux Standalone ZIP
+    $linuxZipPath = Join-Path $installerOutDir ("gregModmanager-{0}{1}-Linux.zip" -f $ver, $verInfo.PreSuffix)
+    if (Test-Path -LiteralPath $linuxZipPath) { Remove-Item -LiteralPath $linuxZipPath -Force }
+    Write-Host "[build] Packe Linux Standalone ZIP: $linuxZipPath"
+    Compress-Archive -Path (Join-Path $linuxPublishDir '*') -DestinationPath $linuxZipPath -CompressionLevel Optimal
+    New-Sha256File -TargetPath $linuxZipPath
+
+    # Linux Tarball
     $tarName = "gregModmanager-$ver$($verInfo.PreSuffix)-Linux.tar.gz"
     $tarPath = Join-Path $artifactsDir $tarName
     if (Test-Path -LiteralPath $tarPath) { Remove-Item -LiteralPath $tarPath -Force }

@@ -99,7 +99,9 @@ public sealed class TelemetryService
         var message = payload switch
         {
             SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
-            _ => JsonSerializer.Serialize(payload, payload.GetType(), AppJsonContext.Default.Options)
+            DebugLogPayload debug => JsonSerializer.Serialize(debug, AppJsonContext.Default.DebugLogPayload),
+            string s => s,
+            _ => "{}"
         };
 
         await PushToLokiAsync(eventName, message, labels);
@@ -148,7 +150,8 @@ public sealed class TelemetryService
                 }
             };
 
-            var response = await _http.PostAsync(LokiUrl, JsonContent.Create(request, AppJsonContext.Default.LokiPushRequest));
+            var json = JsonSerializer.Serialize(request, AppJsonContext.Default.LokiPushRequest);
+            var response = await _http.PostAsync(LokiUrl, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();

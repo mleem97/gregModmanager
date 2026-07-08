@@ -50,10 +50,18 @@ VersionInfoVersion={#MyAppNumericVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoProductName={#MyAppName}
+SetupIconFile=
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
+
+[Messages]
+BeveledLabel=gregModmanager v{#MyAppVersion} - Community Mod Manager
+
+[CustomMessages]
+english.WelcomeLabel2=This will install {#MyAppName} {#MyAppVersion} on your computer.%n%nNOTE: This software is signed with a self-signed certificate. Windows SmartScreen may show a warning when running the installer or the application. This is normal for open-source community projects without an expensive code signing certificate.%n%nTo proceed despite the warning, click "More info" and then "Run anyway" in the SmartScreen dialog.%n%nClick Next to continue, or Cancel to exit Setup.
+german.WelcomeLabel2=Hiermit wird {#MyAppName} {#MyAppVersion} auf Ihrem Computer installiert.%n%nHINWEIS: Diese Software ist mit einem selbstsignierten Zertifikat signiert. Windows SmartScreen kann beim Ausfuehren des Installers oder der Anwendung eine Warnung anzeigen. Dies ist normal fuer Open-Source-Projekte ohne ein teures Code-Signing-Zertifikat.%n%nUm trotz der Warnung fortzufahren, klicken Sie auf "Weitere Informationen" und dann auf "Trotzdem ausfuehren".%n%nKlicken Sie auf Weiter, um fortzufahren, oder auf Abbrechen, um das Setup zu beenden.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce

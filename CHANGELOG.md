@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **CI Build Error**: Replaced MAUI `Preferences.Default` and Avalonia `SettingsPage` references in Core services with platform-agnostic `S.Preferences` and `AppSettings` APIs, restoring Windows/Linux build compatibility.
+
+## [1.6.1] - 2026-06-29
+
+### Fixed
+
+- **CI Build Error**: Replaced MAUI `Preferences.Default` and Avalonia `SettingsPage` references in Core services with platform-agnostic `S.Preferences` and `AppSettings` APIs, restoring Windows/Linux build compatibility.
+
 ### Added
 
 - **JSON Source Generation (AOT Support)**: Centralized registry in `AppJsonContext.cs` for all serialized models (`AuthResponse`, `DebugLogPayload`, `RalphTaskStatus`, `AssetModMetadata`, etc.) to ensure stability in trimmed builds.

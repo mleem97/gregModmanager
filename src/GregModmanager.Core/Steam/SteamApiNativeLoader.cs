@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+#if WINDOWS
 using Microsoft.Win32;
+#endif
 
 namespace GregModmanager.Steam;
 
@@ -18,7 +20,8 @@ public static class SteamApiNativeLoader
 	private const string PluginsFolderName = "Plugins";
 	private const string ArchFolderName = "x86_64";
 
-	private static readonly string DllFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api.so";
+	private static readonly string DllFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api64.so";
+	private static readonly string DllFileNameFallback = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "steam_api64.dll" : "libsteam_api.so";
 	private const string UnityDataFolderName = "Data Center_Data";
 	private static IntPtr _module;
 	public static bool IsLoaded => _module != IntPtr.Zero;
@@ -100,12 +103,23 @@ public static class SteamApiNativeLoader
 
 		try
 		{
-			return NativeLibrary.TryLoad(DllFileName, out _module);
+			if (NativeLibrary.TryLoad(DllFileName, out _module))
+				return true;
 		}
-		catch
+		catch { }
+
+		// Fallback: try alternative library name (e.g. libsteam_api.so if libsteam_api64.so not found)
+		if (!string.IsNullOrEmpty(DllFileNameFallback) && DllFileNameFallback != DllFileName)
 		{
-			return false;
+			try
+			{
+				if (NativeLibrary.TryLoad(DllFileNameFallback, out _module))
+					return true;
+			}
+			catch { }
 		}
+
+		return false;
 	}
 
 	private static readonly List<string> _attemptedPaths = new();
@@ -124,6 +138,16 @@ public static class SteamApiNativeLoader
 			_attemptedPaths.Add(path2);
 			yield return path1;
 			yield return path2;
+			// Also try fallback
+			if (DllFileNameFallback != DllFileName)
+			{
+				var fb1 = Path.Combine(_customGameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				var fb2 = Path.Combine(_customGameRoot, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				_attemptedPaths.Add(fb1);
+				_attemptedPaths.Add(fb2);
+				yield return fb1;
+				yield return fb2;
+			}
 		}
 
 		var steamCommonPath = Path.Combine(
@@ -141,6 +165,11 @@ public static class SteamApiNativeLoader
 		{
 			var nativeSubPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
 			yield return Path.Combine(envRoot, nativeSubPath);
+			if (DllFileNameFallback != DllFileName)
+			{
+				var fbPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				yield return Path.Combine(envRoot, fbPath);
+			}
 		}
 
 		foreach (var path in EnumerateWalkingUpFrom(AppContext.BaseDirectory))
@@ -151,12 +180,16 @@ public static class SteamApiNativeLoader
 		foreach (var gameRoot in EnumerateHeuristicGameRoots())
 		{
 			yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
+			if (DllFileNameFallback != DllFileName)
+				yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
 		}
 
 		var baseDir = AppContext.BaseDirectory;
 		if (!string.IsNullOrEmpty(baseDir))
 		{
 			yield return Path.Combine(baseDir, DllFileName);
+			if (DllFileNameFallback != DllFileName)
+				yield return Path.Combine(baseDir, DllFileNameFallback);
 		}
 	}
 
@@ -213,6 +246,7 @@ public static class SteamApiNativeLoader
 
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 		{
+#if WINDOWS
 			try
 			{
 				using var key = Registry.LocalMachine.OpenSubKey($@"SOFTWARE\WOW6432Node\Valve\{SteamFolderName}");
@@ -226,6 +260,7 @@ public static class SteamApiNativeLoader
 			{
 				// ignored
 			}
+#endif
 
 			Add(Path.Combine(
 				Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
@@ -234,13 +269,111 @@ public static class SteamApiNativeLoader
 		else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 		{
 			var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-			Add(Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
-			Add(Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+			// Standard Steam library paths
+			var steamRoots = new[]
+			{
+				Path.Combine(home, ".local", "share", SteamFolderName),
+				Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant()),
+				Path.Combine(home, ".steam", "root"),
+			};
+
+			foreach (var steamRoot in steamRoots)
+			{
+				// Direct game install
+				Add(Path.Combine(steamRoot, SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+				// Proton prefix (compatdata) — the game runs inside a Wine/Proton prefix
+				var compatData = Path.Combine(steamRoot, SteamAppsFolderName, "compatdata", "4170200", "pfx");
+				Add(Path.Combine(compatData, "drive_c", "Program Files (x86)", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+				Add(Path.Combine(compatData, "drive_c", "Program Files", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+			}
+
+			// Parse libraryfolders.vdf for additional Steam library paths
+			foreach (var libPath in EnumerateSteamLibraryFolders())
+			{
+				Add(Path.Combine(libPath, SteamAppsFolderName, CommonFolderName, GameFolderName));
+
+				// Proton prefix in additional libraries
+				var compatData = Path.Combine(libPath, SteamAppsFolderName, "compatdata", "4170200", "pfx");
+				Add(Path.Combine(compatData, "drive_c", "Program Files (x86)", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+				Add(Path.Combine(compatData, "drive_c", "Program Files", SteamFolderName, SteamAppsFolderName, CommonFolderName, GameFolderName));
+			}
 		}
 
 		foreach (var root in seen)
 		{
 			yield return root;
+		}
+	}
+
+	private static IEnumerable<string> EnumerateSteamLibraryFolders()
+	{
+		if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+		{
+			yield break;
+		}
+
+		var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+		var vdfPaths = new[]
+		{
+			Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, "libraryfolders.vdf"),
+			Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, "libraryfolders.vdf"),
+			Path.Combine(home, ".steam", "root", SteamAppsFolderName, "libraryfolders.vdf"),
+		};
+
+		foreach (var vdfPath in vdfPaths)
+		{
+			if (!File.Exists(vdfPath))
+			{
+				continue;
+			}
+
+			foreach (var path in ParseLibraryFoldersVdf(vdfPath))
+			{
+				yield return path;
+			}
+
+			yield break;
+		}
+	}
+
+	/// <summary>
+	/// Parses Valve's libraryfolders.vdf to find additional Steam library paths.
+	/// Format: "path"		"/mnt/games/SteamLibrary"
+	/// </summary>
+	private static IEnumerable<string> ParseLibraryFoldersVdf(string vdfPath)
+	{
+		string[] lines;
+		try
+		{
+			lines = File.ReadAllLines(vdfPath);
+		}
+		catch
+		{
+			yield break;
+		}
+
+		foreach (var line in lines)
+		{
+			// Look for lines like: "path"		"/some/path"
+			var trimmed = line.Trim();
+			if (!trimmed.StartsWith("\"path\"", StringComparison.OrdinalIgnoreCase))
+			{
+				continue;
+			}
+
+			var parts = trimmed.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+			if (parts.Length < 2)
+			{
+				continue;
+			}
+
+			var value = parts[^1].Trim().Trim('"');
+			if (!string.IsNullOrEmpty(value) && Directory.Exists(value))
+			{
+				yield return value;
+			}
 		}
 	}
 }

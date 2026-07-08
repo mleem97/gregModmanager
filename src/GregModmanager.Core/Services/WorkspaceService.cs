@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Steamworks;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Steam;
 
@@ -9,7 +10,7 @@ public sealed class WorkspaceService
 {
 	public const string CustomWorkspacePathKey = "CustomWorkspacePath";
 
-	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.Default.Options;
+	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.SharedOptions;
 
 	private static readonly string LegacyFallbackPath =
 		Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "DataCenterWS");
@@ -40,14 +41,12 @@ public sealed class WorkspaceService
 				return _cachedWorkspaceRoot;
 			}
 
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-			var custom = Preferences.Default.Get(CustomWorkspacePathKey, "");
+			var custom = S.Preferences.GetString(CustomWorkspacePathKey, "");
 			if (!string.IsNullOrWhiteSpace(custom) && Directory.Exists(custom))
 			{
 				_cachedWorkspaceRoot = custom;
 				return _cachedWorkspaceRoot;
 			}
-#endif
 
 			_steam?.EnsureInitialized(null);
 			var fromGame = TryGetGameWorkshopDirectory();
@@ -251,7 +250,7 @@ public sealed class WorkspaceService
 		var root = Path.Combine(WorkspaceRoot, dirName);
 		if (Directory.Exists(root))
 		{
-			throw new InvalidOperationException($"A project folder named \"{{dirName}}\" already exists.");
+			throw new InvalidOperationException($"A project folder named \"{dirName}\" already exists.");
 		}
 
 		var content = Path.Combine(root, "content");
@@ -421,7 +420,7 @@ public sealed class WorkspaceService
 				""";
 		}
 
-		File.WriteAllText(Path.Combine(srcDir, $"{{projectName}}.csproj"), csproj.Trim());
+		File.WriteAllText(Path.Combine(srcDir, $"{projectName}.csproj"), csproj.Trim());
 		File.WriteAllText(Path.Combine(srcDir, "Main.cs"), mainCs.Trim());
 	}
 
@@ -685,7 +684,7 @@ public sealed class WorkspaceService
 		}
 
 		Directory.CreateDirectory(destDir);
-		foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+foreach (var file in Directory.EnumerateFiles(sourceDir, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
 		{
 			var rel = Path.GetRelativePath(sourceDir, file);
 			var target = Path.Combine(destDir, rel);
@@ -895,7 +894,7 @@ public sealed class WorkspaceService
 			}
 			""";
 
-		File.WriteAllText(Path.Combine(srcDir, $"{{dirName}}.csproj"), csproj.Trim());
+		File.WriteAllText(Path.Combine(srcDir, $"{dirName}.csproj"), csproj.Trim());
 		File.WriteAllText(Path.Combine(srcDir, "Main.cs"), mainCs.Trim());
 
 		// UXML/USS Assets folder in content

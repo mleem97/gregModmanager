@@ -1,10 +1,35 @@
+# Build outputs
 bin/
 obj/
-.vs/
-
-# Build artifacts
 artifacts/
 publish/
+
+# Visual Studio
+.vs/
+*.user
+*.userosscache
+*.suo
+*.rsuser
+*.DotSettings.user
+project.lock.json
+
+# Rider / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Build artifacts
 installer/Output/
 *.zip
 *.tar.gz
@@ -12,15 +37,17 @@ installer/Output/
 *.rpm
 *.pkg.tar.zst
 
+# Local environment secrets
+.env
+
 # Internal documentation must never be published
 InternalDocs/
 docs/internal/
 **/*_INTERNAL*.md
 **/*.internal.md
-# Local environment secrets
-.env
 
-# IDEs
-.idea/
-.vscode/
-.user
+# Test results
+TestResults/
+coverage/
+*.coverage
+*.coveragexml

@@ -82,11 +82,32 @@ public partial class ModManagerPage : UserControl
 
     private static void OnSyncStatusChanged(WorkshopSyncEvent evt)
     {
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop 
-            && desktop.MainWindow?.Content is ModManagerPage page)
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            OnSyncStatusChanged(evt, page.SyncStatusBar, page.SyncStatusLabel);
+            var mainWindow = desktop.MainWindow;
+            if (mainWindow is null) return;
+
+            // Traverse visual tree to find the active ModManagerPage
+            var page = FindDescendant<ModManagerPage>(mainWindow);
+            if (page is not null)
+            {
+                OnSyncStatusChanged(evt, page.SyncStatusBar, page.SyncStatusLabel);
+            }
         }
+    }
+
+    private static T? FindDescendant<T>(Control parent) where T : Control
+    {
+        foreach (var child in parent.GetVisualChildren())
+        {
+            if (child is T match) return match;
+            if (child is Control control)
+            {
+                var result = FindDescendant<T>(control);
+                if (result is not null) return result;
+            }
+        }
+        return null;
     }
 
     private static void OnSyncStatusChanged(WorkshopSyncEvent evt, Border bar, TextBlock label)

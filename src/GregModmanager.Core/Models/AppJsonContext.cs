@@ -1,6 +1,8 @@
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Collections.Generic;
+using GregModmanager.Models.Auth;
 
 namespace GregModmanager.Models;
 
@@ -34,6 +36,39 @@ namespace GregModmanager.Models;
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(RalphTaskStatus))]
 [JsonSerializable(typeof(AssetModMetadata))]
+[JsonSerializable(typeof(TokenExchangeRequest))]
+[JsonSerializable(typeof(TokenExchangeResponse))]
 public partial class AppJsonContext : JsonSerializerContext
 {
+    /// <summary>
+    /// Shared options with source-generated resolver. Use this for all JSON operations.
+    /// </summary>
+    public static JsonSerializerOptions SharedOptions { get; } = CreateSharedOptions();
+
+    private static JsonSerializerOptions CreateSharedOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+
+        try
+        {
+            // Source generator sets TypeInfoResolver on Default.Options
+            var defaultResolver = Default?.Options?.TypeInfoResolver;
+            if (defaultResolver != null)
+            {
+                options.TypeInfoResolver = defaultResolver;
+            }
+        }
+        catch
+        {
+            // Source generator did not produce output — fall back to reflection
+        }
+
+        return options;
+    }
 }
