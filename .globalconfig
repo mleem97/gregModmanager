@@ -1,0 +1,10 @@
+is_global = true
+
+# The repository intentionally keeps several generated/template-heavy UI and parser files together
+# to preserve XAML/code-behind locality and Steam BBCode parser readability. Track structural
+# refactors separately from security and correctness fixes.
+dotnet_diagnostic.S104.severity = none
+dotnet_diagnostic.S138.severity = none
+
+# Some public APIs preserve ergonomic overload-compatible signatures while older callers migrate.
+dotnet_diagnostic.S2360.severity = none

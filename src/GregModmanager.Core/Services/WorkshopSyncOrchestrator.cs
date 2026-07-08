@@ -45,37 +45,45 @@ public sealed class WorkshopSyncOrchestrator : IDisposable
 
 	private async void OnNewSubscriptions(IReadOnlyList<ulong> newIds)
 	{
-		var gameRoot = GetGameRoot();
-		if (string.IsNullOrEmpty(gameRoot))
+		try
+		{
+			var gameRoot = GetGameRoot();
+			if (string.IsNullOrEmpty(gameRoot))
+			{
+				StatusChanged?.Invoke(WorkshopSyncEvent.Warning(
+					"Game root not configured — skipping Workshop sync."));
+				return;
+			}
+
+			StatusChanged?.Invoke(WorkshopSyncEvent.DownloadStarted(newIds.Count));
+
+			var log = new Progress<string>(msg =>
+				StatusChanged?.Invoke(WorkshopSyncEvent.Info(msg)));
+
+			var results = await _downloader.DownloadItemsAsync(newIds, log).ConfigureAwait(false);
+
+			var toSync = new List<(ulong Id, string LocalDir)>();
+			for (var i = 0; i < results.Count; i++)
+			{
+				var r = results[i];
+				if (r.Success && r.LocalDirectory is not null)
+					toSync.Add((newIds[i], r.LocalDirectory));
+			}
+
+			if (toSync.Count > 0)
+			{
+				StatusChanged?.Invoke(WorkshopSyncEvent.SyncStarted(toSync.Count));
+				_sync.SyncItems(toSync, gameRoot, log);
+			}
+
+			StatusChanged?.Invoke(WorkshopSyncEvent.Complete(
+				toSync.Count, results.Count - toSync.Count));
+		}
+		catch (Exception ex)
 		{
 			StatusChanged?.Invoke(WorkshopSyncEvent.Warning(
-				"Game root not configured — skipping Workshop sync."));
-			return;
+				$"Workshop sync failed: {ex.Message}"));
 		}
-
-		StatusChanged?.Invoke(WorkshopSyncEvent.DownloadStarted(newIds.Count));
-
-		var log = new Progress<string>(msg =>
-			StatusChanged?.Invoke(WorkshopSyncEvent.Info(msg)));
-
-		var results = await _downloader.DownloadItemsAsync(newIds, log).ConfigureAwait(false);
-
-		var toSync = new List<(ulong Id, string LocalDir)>();
-		for (var i = 0; i < results.Count; i++)
-		{
-			var r = results[i];
-			if (r.Success && r.LocalDirectory is not null)
-				toSync.Add((newIds[i], r.LocalDirectory));
-		}
-
-		if (toSync.Count > 0)
-		{
-			StatusChanged?.Invoke(WorkshopSyncEvent.SyncStarted(toSync.Count));
-			_sync.SyncItems(toSync, gameRoot, log);
-		}
-
-		StatusChanged?.Invoke(WorkshopSyncEvent.Complete(
-			toSync.Count, results.Count - toSync.Count));
 	}
 
 	private void OnUnsubscriptions(IReadOnlyList<ulong> removedIds)
@@ -93,13 +101,11 @@ public sealed class WorkshopSyncOrchestrator : IDisposable
 
 	private static string? GetGameRoot()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var gameRoot = SettingsPage.GetGameRootPath();
+		var gameRoot = AppSettings.GetGameRootPath();
 		if (!string.IsNullOrEmpty(gameRoot))
 		{
 			return gameRoot;
 		}
-#endif
 		return Steam.SteamApiNativeLoader.GetGameRoot();
 	}
 
@@ -108,6 +114,7 @@ public sealed class WorkshopSyncOrchestrator : IDisposable
 		Stop();
 		_poller.NewSubscriptionsDetected -= OnNewSubscriptions;
 		_poller.UnsubscriptionsDetected -= OnUnsubscriptions;
+		_poller.Dispose();
 	}
 }
 

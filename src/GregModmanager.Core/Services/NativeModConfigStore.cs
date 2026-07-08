@@ -6,7 +6,7 @@ namespace GregModmanager.Services;
 
 public static class NativeModConfigStore
 {
-	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.Default.Options;
+	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.SharedOptions;
 
 	public static string ConfigJsonPath(string projectRoot) =>
 		Path.Combine(projectRoot, "content", "config.json");

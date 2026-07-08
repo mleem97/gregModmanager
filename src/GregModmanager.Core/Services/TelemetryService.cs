@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -80,7 +81,12 @@ public sealed class TelemetryService
         }
     }
 
-    public async Task TrackEventAsync(string eventName, object payload, Dictionary<string, string>? extraLabels = null)
+    public Task TrackEventAsync(string eventName, object payload)
+    {
+        return TrackEventAsync(eventName, payload, extraLabels: null);
+    }
+
+    public async Task TrackEventAsync(string eventName, object payload, Dictionary<string, string>? extraLabels)
     {
         if (!AppSettings.IsTelemetryEnabled()) return;
         
@@ -111,7 +117,7 @@ public sealed class TelemetryService
         var raw = $"{Environment.MachineName}-{Environment.UserName}";
         using var sha = System.Security.Cryptography.SHA256.Create();
         var hash = sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(raw));
-        return BitConverter.ToString(hash).Replace("-", "").Substring(0, 12).ToLower();
+        return BitConverter.ToString(hash).Replace("-", string.Empty, StringComparison.Ordinal).Substring(0, 12).ToLower(CultureInfo.InvariantCulture);
     }
 
     private async Task<bool> PushToLokiAsync(string job, string line, Dictionary<string, string> labels)
@@ -131,7 +137,7 @@ public sealed class TelemetryService
             foreach (var kvp in labels) streamLabels[kvp.Key] = kvp.Value;
 
             // Loki values: [ "nanoseconds", "line" ]
-            var timestampNs = (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000000).ToString();
+            var timestampNs = (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1000000).ToString(CultureInfo.InvariantCulture);
             
             var request = new LokiPushRequest
             {
@@ -148,7 +154,8 @@ public sealed class TelemetryService
                 }
             };
 
-            var response = await _http.PostAsync(LokiUrl, JsonContent.Create(request, AppJsonContext.Default.LokiPushRequest));
+            var json = JsonSerializer.Serialize(request, AppJsonContext.Default.LokiPushRequest);
+            var response = await _http.PostAsync(LokiUrl, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();

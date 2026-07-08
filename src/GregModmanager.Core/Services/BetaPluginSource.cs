@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 
 namespace GregModmanager.Services;
@@ -10,7 +11,7 @@ namespace GregModmanager.Services;
 public sealed class BetaPluginSource : IgregPluginChannelSource
 {
 	/// <summary>Preferences key for the beta server base URL.</summary>
-	public const string PrefKeyBetaServerUrl = "greg_beta_server_url";
+	public static string PrefKeyBetaServerUrl => "greg_beta_server_url";
 
 	private static readonly HttpClient _http = new();
 
@@ -18,11 +19,7 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 	public IReadOnlyList<PluginPackageInfo> ListPlugins()
 	{
-#if WINDOWS || ANDROID || IOS || MACCATALYST
-		var url = Preferences.Default.Get(PrefKeyBetaServerUrl, string.Empty);
-#else
-		var url = "";
-#endif
+		var url = S.Preferences.GetString(PrefKeyBetaServerUrl, string.Empty);
 		if (string.IsNullOrWhiteSpace(url))
 		{
 			throw new InvalidOperationException(
@@ -34,12 +31,16 @@ public sealed class BetaPluginSource : IgregPluginChannelSource
 
 		try
 		{
-			var response = _http.GetAsync(endpoint).GetAwaiter().GetResult();
-			response.EnsureSuccessStatusCode();
+			// Use Task.Run to avoid deadlocks from sync-over-async on UI threads
+			var plugins = Task.Run(async () =>
+			{
+				var response = await _http.GetAsync(endpoint).ConfigureAwait(false);
+				response.EnsureSuccessStatusCode();
 
-			var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+				var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-			var plugins = JsonSerializer.Deserialize(json, AppJsonContext.Default.ListPluginPackageInfo);
+				return JsonSerializer.Deserialize(json, AppJsonContext.Default.ListPluginPackageInfo);
+			}).GetAwaiter().GetResult();
 
 			return plugins ?? new List<PluginPackageInfo>();
 		}

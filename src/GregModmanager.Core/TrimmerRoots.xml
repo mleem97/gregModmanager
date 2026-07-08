@@ -9,6 +9,11 @@
   </assembly>
 
   <!-- Preserve Steamworks internals accessed via reflection in SteamUgcPreviews -->
+  <!-- Windows build -->
   <assembly fullname="Facepunch.Steamworks.Win64" preserve="all" />
+  <!-- Linux/macOS build -->
+  <assembly fullname="Facepunch.Steamworks.Posix" preserve="all" />
+  <!-- Generic fallback -->
+  <assembly fullname="Facepunch.Steamworks" preserve="all" />
 </linker>
 

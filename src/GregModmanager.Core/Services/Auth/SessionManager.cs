@@ -34,14 +34,40 @@ public class SessionManager : ISessionManager
         {
             State = SessionState.Refreshing;
             StateChanged?.Invoke();
-            // Placeholder: Call API to exchange refresh token
-            // In a real app we would call something like _apiClient.RefreshAsync(...)
-            CurrentSession = new ActiveSession
+
+            // Exchange refresh token for new session via API
+            _ = Task.Run(async () =>
             {
-                AccessToken = "mock_access_from_refresh",
-                User = new AccountIdentity { DisplayName = "Restored User", Roles = new[] { "user" } }
-            };
-            State = SessionState.Authenticated;
+                try
+                {
+                    var session = await _apiClient.ExchangeCallbackCodeAsync(
+                        requestId: string.Empty,
+                        code: string.Empty,
+                        state: "refresh",
+                        nonce: string.Empty,
+                        signature: refresh);
+
+                    if (session != null)
+                    {
+                        CurrentSession = session;
+                        State = SessionState.Authenticated;
+                        AppFileLog.Info("Session restored from refresh token.");
+                    }
+                    else
+                    {
+                        S.Preferences.Remove("greg_refresh_token");
+                        State = SessionState.Anonymous;
+                        AppFileLog.Warn("Refresh token exchange failed. Cleared stored token.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppFileLog.Error("Refresh token exchange failed", ex);
+                    S.Preferences.Remove("greg_refresh_token");
+                    State = SessionState.Anonymous;
+                }
+                StateChanged?.Invoke();
+            });
         }
         else
         {
@@ -106,7 +132,7 @@ public class SessionManager : ISessionManager
             {
                 CurrentSession = session;
                 State = SessionState.Authenticated;
-                S.Preferences.SetString("greg_refresh_token", "mock_refresh"); // from real response
+                S.Preferences.SetString("greg_refresh_token", session.AccessToken);
                 StateChanged?.Invoke();
                 AppFileLog.Info("User session authenticated successfully.");
             }

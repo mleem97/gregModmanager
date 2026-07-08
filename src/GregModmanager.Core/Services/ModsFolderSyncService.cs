@@ -95,10 +95,15 @@ public sealed class ModsFolderSyncService
 	/// <summary>
 	/// Sync multiple items downloaded via <see cref="WorkshopDownloadService"/>.
 	/// </summary>
+	public IReadOnlyList<SyncResult> SyncItems(IReadOnlyList<(ulong Id, string LocalDir)> items, string gameRoot)
+	{
+		return SyncItems(items, gameRoot, log: null);
+	}
+
 	public IReadOnlyList<SyncResult> SyncItems(
 		IReadOnlyList<(ulong Id, string LocalDir)> items,
 		string gameRoot,
-		IProgress<string>? log = null)
+		IProgress<string>? log)
 	{
 		var results = new List<SyncResult>(items.Count);
 		foreach (var (id, localDir) in items)
@@ -169,4 +174,3 @@ public readonly record struct SyncResult(bool Success, string? DestinationPath, 
 }
 
 public readonly record struct SyncProgressArgs(ulong PublishedFileId, bool Success, string? DestinationPath);
-

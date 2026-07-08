@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 using GregModmanager.Models.Install;
@@ -103,20 +105,90 @@ public class InstallIntentClient : IInstallIntentClient
             return Task.FromResult<string?>($"Intent ID {intent.IntentId} was already consumed (Replay Protection).");
         }
 
-        // 6. Signature Validation (Mock logic conforming to Phase 3 requirements)
+        // 6. Signature Validation
         if (string.IsNullOrEmpty(intent.Signature))
         {
             return Task.FromResult<string?>("Missing cryptographic signature.");
         }
 
-        // TODO: Implement actual cryptographic ECDSA/HMAC signature verification against server public key
-        // For the Vertical Slice (Phase 3), we require the signature to at least match a mock known structure.
-        if (intent.Signature != "valid_dummy_sig" && intent.Signature.Length < 32)
+        // Reject known dummy/placeholder signatures
+        if (intent.Signature == "valid_dummy_sig")
         {
-            return Task.FromResult<string?>("Signature format invalid or unrecognized.");
+            return Task.FromResult<string?>("Signature is a placeholder — cryptographic verification required.");
+        }
+
+        // Require minimum length for a valid cryptographic signature (Base64-encoded ECDSA P-256 = ~64 chars)
+        if (intent.Signature.Length < 64)
+        {
+            return Task.FromResult<string?>("Signature too short for a valid cryptographic signature.");
+        }
+
+        // 7. Cryptographic ECDSA P-256 signature verification
+        var signatureError = VerifyEcdsaSignature(intent);
+        if (!string.IsNullOrEmpty(signatureError))
+        {
+            return Task.FromResult<string?>(signatureError);
         }
 
         return Task.FromResult<string?>(null); // Null means valid!
     }
 
+    private static string? VerifyEcdsaSignature(InstallIntentContext intent)
+    {
+        try
+        {
+            // Load server public key from environment variable (Base64-encoded uncompressed EC point)
+            var publicKeyBase64 = Environment.GetEnvironmentVariable("INSTALL_INTENT_PUBLIC_KEY");
+            if (string.IsNullOrEmpty(publicKeyBase64))
+            {
+                return "Server public key not configured (INSTALL_INTENT_PUBLIC_KEY). Cannot verify signature.";
+            }
+
+            var publicKeyBytes = Convert.FromBase64String(publicKeyBase64);
+
+            // Create ECDsa instance from the public key
+            using var ecdsa = ECDsa.Create();
+            try
+            {
+                ecdsa.ImportSubjectPublicKeyInfo(publicKeyBytes, out _);
+            }
+            catch
+            {
+                return "Invalid server public key format. Expected SubjectPublicKeyInfo (SPKI) encoding.";
+            }
+
+            // Build the signed payload: intentId|packageId|subjectId|expiresAt
+            var payload = $"{intent.IntentId}|{intent.PackageId}|{intent.SubjectId}|{intent.ExpiresAt}";
+            var payloadBytes = Encoding.UTF8.GetBytes(payload);
+
+            // Decode the signature from Base64
+            byte[] signatureBytes;
+            try
+            {
+                signatureBytes = Convert.FromBase64String(intent.Signature);
+            }
+            catch
+            {
+                return "Invalid signature encoding. Expected Base64.";
+            }
+
+            // Verify the ECDSA P-256 signature with SHA-256
+            var isValid = ecdsa.VerifyData(payloadBytes, signatureBytes, HashAlgorithmName.SHA256);
+            if (!isValid)
+            {
+                return "Cryptographic signature verification failed. Signature does not match payload.";
+            }
+
+            return null; // Valid
+        }
+        catch (FormatException)
+        {
+            return "Invalid Base64 encoding in signature or public key.";
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Signature verification error", ex);
+            return $"Signature verification error: {ex.Message}";
+        }
+    }
 }

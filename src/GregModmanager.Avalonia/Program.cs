@@ -114,17 +114,21 @@ internal static class Program
             
             if (OperatingSystem.IsWindows() && !args.Contains("--headless"))
             {
+#if WINDOWS
                 // Native fallback to inform user about startup crash
                 Win32MessageBox(IntPtr.Zero, 
                     $"Der gregModmanager konnte nicht gestartet werden.\n\nFehler: {ex.Message}\n\nEin Crash-Bericht wurde unter %AppData%\\GregModmanager\\logs\\reports angelegt.", 
                     "gregModmanager - Startup Crash", 0x10);
+#endif
             }
             throw;
         }
     }
 
+#if WINDOWS
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int Win32MessageBox(IntPtr hWnd, string text, string caption, uint type);
+#endif
 
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()

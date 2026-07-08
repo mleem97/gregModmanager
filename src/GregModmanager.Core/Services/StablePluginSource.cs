@@ -34,7 +34,7 @@ public sealed class StablePluginSource : IgregPluginChannelSource
 			return;
 		}
 
-		foreach (var dll in Directory.GetFiles(dir, "*.dll"))
+		foreach (var dll in Directory.EnumerateFiles(dir, "*.dll"))
 		{
 			var name = Path.GetFileNameWithoutExtension(dll);
 			if (!name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
