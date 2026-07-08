@@ -85,7 +85,9 @@ public static class AppFileLog
 
 	public static void Warn(string message) => Write("WARN", message, null);
 
-	public static void Error(string message, Exception? ex = null) => Write("ERROR", message, ex);
+	public static void Error(string message) => Write("ERROR", message, null);
+
+	public static void Error(string message, Exception ex) => Write("ERROR", message, ex);
 
 	public static void StartSession()
 	{
@@ -128,7 +130,12 @@ public static class AppFileLog
 		}
 	}
 
-	public static void MarkCrash(string source, Exception? ex = null)
+	public static void MarkCrash(string source)
+	{
+		MarkCrash(source, null);
+	}
+
+	public static void MarkCrash(string source, Exception? ex)
 	{
 		try
 		{
@@ -207,4 +214,3 @@ public static class AppFileLog
 		}
 	}
 }
-
