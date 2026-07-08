@@ -85,7 +85,7 @@ public sealed class ReproBundleService
 			}
 
 			Directory.CreateDirectory(targetDir);
-			foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+			foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
 			{
 				try
 				{
