@@ -11,7 +11,7 @@ namespace GregModmanager.Services;
 public sealed class BetaPluginSource : IgregPluginChannelSource
 {
 	/// <summary>Preferences key for the beta server base URL.</summary>
-	public const string PrefKeyBetaServerUrl = "greg_beta_server_url";
+	public static string PrefKeyBetaServerUrl => "greg_beta_server_url";
 
 	private static readonly HttpClient _http = new();
 
