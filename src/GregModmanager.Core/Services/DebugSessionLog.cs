@@ -32,7 +32,12 @@ internal static class DebugSessionLog
 		return Path.Combine(Path.GetTempPath(), "debug-9fc458.log");
 	}
 
-	public static void Write(string hypothesisId, string location, string message, object? data = null)
+	public static void Write(string hypothesisId, string location, string message)
+	{
+		Write(hypothesisId, location, message, data: null);
+	}
+
+	public static void Write(string hypothesisId, string location, string message, object? data)
 	{
 		try
 		{
@@ -59,7 +64,14 @@ internal static class DebugSessionLog
 #else
 	internal static string LogFilePath => string.Empty;
 
-	public static void Write(string hypothesisId, string location, string message, object? data = null) { }
+	public static void Write(string hypothesisId, string location, string message)
+	{
+		Write(hypothesisId, location, message, data: null);
+	}
+
+	public static void Write(string hypothesisId, string location, string message, object? data)
+	{
+		// Release builds intentionally discard debug-session events to avoid user I/O and package-size overhead.
+	}
 #endif
 }
-
