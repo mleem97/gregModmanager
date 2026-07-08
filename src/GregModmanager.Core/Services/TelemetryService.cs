@@ -105,9 +105,7 @@ public sealed class TelemetryService
         var message = payload switch
         {
             SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
-            DebugLogPayload debug => JsonSerializer.Serialize(debug, AppJsonContext.Default.DebugLogPayload),
-            string s => s,
-            _ => "{}"
+            _ => JsonSerializer.Serialize((object)payload, AppJsonContext.Default.Object)
         };
 
         await PushToLokiAsync(eventName, message, labels);
