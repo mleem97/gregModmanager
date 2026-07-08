@@ -685,7 +685,7 @@ public sealed class WorkspaceService
 		}
 
 		Directory.CreateDirectory(destDir);
-		foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+foreach (var file in Directory.EnumerateFiles(sourceDir, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
 		{
 			var rel = Path.GetRelativePath(sourceDir, file);
 			var target = Path.Combine(destDir, rel);
