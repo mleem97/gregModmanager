@@ -38,18 +38,29 @@ public sealed class ModCollectionService
 		}
 	}
 
-	public ModCollectionDefinition EnsureCollection(string name, string? description = null, ModCollectionSourceKind sourceKind = ModCollectionSourceKind.Local, string? sourceName = null)
+	public ModCollectionDefinition EnsureCollection(string name)
+	{
+		return EnsureCollection(name, description: null, ModCollectionSourceKind.Local, sourceName: null);
+	}
+
+	public ModCollectionDefinition EnsureCollection(string name, string? description)
+	{
+		return EnsureCollection(name, description, ModCollectionSourceKind.Local, sourceName: null);
+	}
+
+	public ModCollectionDefinition EnsureCollection(string name, string? description, ModCollectionSourceKind sourceKind)
+	{
+		return EnsureCollection(name, description, sourceKind, sourceName: null);
+	}
+
+	public ModCollectionDefinition EnsureCollection(string name, string? description, ModCollectionSourceKind sourceKind, string? sourceName)
 	{
 		lock (_gate)
 		{
 			var existing = _catalog.Collections.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
 			if (existing is not null)
 			{
-				if (!string.IsNullOrWhiteSpace(description)) existing.Description = description;
-				existing.SourceKind = sourceKind;
-				existing.SourceName = sourceName ?? existing.SourceName;
-				existing.UpdatedUtc = DateTimeOffset.UtcNow;
-				SaveCatalog();
+				UpdateExistingCollection(existing, description, sourceKind, sourceName);
 				return existing;
 			}
 
@@ -66,14 +77,34 @@ public sealed class ModCollectionService
 		}
 	}
 
-	public ModCollectionDefinition EnsureCollectionForItem(string collectionName, ulong publishedFileId, string title, string sourceName, string modType = "PlacableObject")
+	public ModCollectionDefinition EnsureCollectionForItem(string collectionName, ulong publishedFileId, string title, string sourceName)
 	{
-		var collection = EnsureCollection(collectionName, sourceName: sourceName);
+		return EnsureCollectionForItem(collectionName, publishedFileId, title, sourceName, "PlacableObject");
+	}
+
+	public ModCollectionDefinition EnsureCollectionForItem(string collectionName, ulong publishedFileId, string title, string sourceName, string modType)
+	{
+		var collection = EnsureCollection(collectionName, description: null, ModCollectionSourceKind.Local, sourceName);
 		AddItem(collection.Id, publishedFileId, title, sourceName, modType);
 		return collection;
 	}
 
-	public bool AddItem(Guid collectionId, ulong publishedFileId, string title, string sourceName, string modType = "PlacableObject", IEnumerable<ulong>? workshopDependencyIds = null, string? notes = null)
+	public bool AddItem(Guid collectionId, ulong publishedFileId, string title, string sourceName)
+	{
+		return AddItem(collectionId, publishedFileId, title, sourceName, "PlacableObject", workshopDependencyIds: null, notes: null);
+	}
+
+	public bool AddItem(Guid collectionId, ulong publishedFileId, string title, string sourceName, string modType)
+	{
+		return AddItem(collectionId, publishedFileId, title, sourceName, modType, workshopDependencyIds: null, notes: null);
+	}
+
+	public bool AddItem(Guid collectionId, ulong publishedFileId, string title, string sourceName, string modType, IEnumerable<ulong>? workshopDependencyIds)
+	{
+		return AddItem(collectionId, publishedFileId, title, sourceName, modType, workshopDependencyIds, notes: null);
+	}
+
+	public bool AddItem(Guid collectionId, ulong publishedFileId, string title, string sourceName, string modType, IEnumerable<ulong>? workshopDependencyIds, string? notes)
 	{
 		lock (_gate)
 		{
@@ -81,15 +112,7 @@ public sealed class ModCollectionService
 			if (collection is null) return false;
 			if (collection.Items.Any(x => x.PublishedFileId == publishedFileId)) return true;
 
-			collection.Items.Add(new ModCollectionEntry
-			{
-				PublishedFileId = publishedFileId,
-				Title = title.Trim(),
-				SourceName = sourceName.Trim(),
-				ModType = string.IsNullOrWhiteSpace(modType) ? "PlacableObject" : modType.Trim(),
-				WorkshopDependencyIds = workshopDependencyIds?.Distinct().ToList() ?? new List<ulong>(),
-				Notes = notes,
-			});
+			collection.Items.Add(CreateEntry(publishedFileId, title, sourceName, modType, workshopDependencyIds, notes));
 			collection.UpdatedUtc = DateTimeOffset.UtcNow;
 			SaveCatalog();
 			return true;
@@ -135,94 +158,156 @@ public sealed class ModCollectionService
 		}
 	}
 
+	public Task<bool> SyncCollectionAsync(Guid collectionId, WorkshopDownloadService downloader, ModsFolderSyncService sync, string gameRoot)
+	{
+		return SyncCollectionAsync(collectionId, downloader, sync, gameRoot, log: null, CancellationToken.None);
+	}
+
+	public Task<bool> SyncCollectionAsync(Guid collectionId, WorkshopDownloadService downloader, ModsFolderSyncService sync, string gameRoot, IProgress<string>? log)
+	{
+		return SyncCollectionAsync(collectionId, downloader, sync, gameRoot, log, CancellationToken.None);
+	}
+
 	public async Task<bool> SyncCollectionAsync(
 		Guid collectionId,
 		WorkshopDownloadService downloader,
 		ModsFolderSyncService sync,
 		string gameRoot,
-		IProgress<string>? log = null,
-		CancellationToken ct = default)
+		IProgress<string>? log,
+		CancellationToken ct)
 	{
-		ModCollectionDefinition? collection;
+		var collection = GetCollectionForSync(collectionId, log);
+		if (collection is null || !IsGameRootConfigured(gameRoot, log))
+		{
+			return false;
+		}
+
+		var context = new CollectionSyncContext(collection, downloader, sync, gameRoot, log, ct);
+		var result = await ProcessCollectionQueueAsync(context).ConfigureAwait(false);
+		TrackSyncResult(collectionId, collection, result);
+		return result.AnySucceeded;
+	}
+
+	private void UpdateExistingCollection(ModCollectionDefinition existing, string? description, ModCollectionSourceKind sourceKind, string? sourceName)
+	{
+		if (!string.IsNullOrWhiteSpace(description)) existing.Description = description;
+		existing.SourceKind = sourceKind;
+		existing.SourceName = sourceName ?? existing.SourceName;
+		existing.UpdatedUtc = DateTimeOffset.UtcNow;
+		SaveCatalog();
+	}
+
+	private static ModCollectionEntry CreateEntry(ulong publishedFileId, string title, string sourceName, string modType, IEnumerable<ulong>? workshopDependencyIds, string? notes)
+	{
+		return new ModCollectionEntry
+		{
+			PublishedFileId = publishedFileId,
+			Title = title.Trim(),
+			SourceName = sourceName.Trim(),
+			ModType = string.IsNullOrWhiteSpace(modType) ? "PlacableObject" : modType.Trim(),
+			WorkshopDependencyIds = workshopDependencyIds?.Distinct().ToList() ?? new List<ulong>(),
+			Notes = notes,
+		};
+	}
+
+	private ModCollectionDefinition? GetCollectionForSync(Guid collectionId, IProgress<string>? log)
+	{
 		lock (_gate)
 		{
-			collection = _catalog.Collections.FirstOrDefault(x => x.Id == collectionId);
+			var collection = _catalog.Collections.FirstOrDefault(x => x.Id == collectionId);
+			if (collection is not null) return collection;
 		}
 
-		if (collection is null)
-		{
-			log?.Report("Collection not found.");
-			return false;
-		}
+		log?.Report("Collection not found.");
+		return null;
+	}
 
-		if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
-		{
-			log?.Report("Game root not configured.");
-			return false;
-		}
+	private static bool IsGameRootConfigured(string gameRoot, IProgress<string>? log)
+	{
+		if (!string.IsNullOrWhiteSpace(gameRoot) && Directory.Exists(gameRoot)) return true;
 
+		log?.Report("Game root not configured.");
+		return false;
+	}
+
+	private static async Task<CollectionSyncResult> ProcessCollectionQueueAsync(CollectionSyncContext context)
+	{
 		var seen = new HashSet<ulong>();
-		var queue = new Queue<ModCollectionEntry>(collection.Items);
+		var queue = new Queue<ModCollectionEntry>(context.Collection.Items);
+		var sw = System.Diagnostics.Stopwatch.StartNew();
 		var anySucceeded = false;
 
-		var sw = System.Diagnostics.Stopwatch.StartNew();
 		while (queue.Count > 0)
 		{
-			ct.ThrowIfCancellationRequested();
-			var entry = queue.Dequeue();
-			if (!seen.Add(entry.PublishedFileId))
-			{
-				continue;
-			}
+			context.CancellationToken.ThrowIfCancellationRequested();
+			anySucceeded |= await ProcessCollectionEntryAsync(context, queue, seen).ConfigureAwait(false);
+		}
 
-			log?.Report($"Downloading {entry.Title} ({entry.PublishedFileId})…");
-			var download = await downloader.DownloadItemAsync(entry.PublishedFileId, null, log, ct).ConfigureAwait(false);
-			if (!download.Success || string.IsNullOrWhiteSpace(download.LocalDirectory))
-			{
-				log?.Report(download.ErrorMessage ?? $"Download failed for {entry.PublishedFileId}.");
-				continue;
-			}
+		sw.Stop();
+		return new CollectionSyncResult(anySucceeded, seen.Count, sw.ElapsedMilliseconds);
+	}
 
-			var synced = sync.SyncItem(entry.PublishedFileId, download.LocalDirectory, gameRoot);
-			if (synced.Success)
-			{
-				anySucceeded = true;
-				log?.Report($"Synced {entry.PublishedFileId} → {synced.DestinationPath}");
-			}
-			else
-			{
-				log?.Report(synced.ErrorMessage ?? $"Sync failed for {entry.PublishedFileId}.");
-			}
+	private static async Task<bool> ProcessCollectionEntryAsync(CollectionSyncContext context, Queue<ModCollectionEntry> queue, HashSet<ulong> seen)
+	{
+		var entry = queue.Dequeue();
+		if (!seen.Add(entry.PublishedFileId)) return false;
 
-			foreach (var dependencyId in entry.WorkshopDependencyIds)
+		context.Log?.Report($"Downloading {entry.Title} ({entry.PublishedFileId})…");
+		var download = await context.Downloader.DownloadItemAsync(entry.PublishedFileId, progress: null, context.Log, context.CancellationToken).ConfigureAwait(false);
+		if (!download.Success || string.IsNullOrWhiteSpace(download.LocalDirectory))
+		{
+			context.Log?.Report(download.ErrorMessage ?? $"Download failed for {entry.PublishedFileId}.");
+			return false;
+		}
+
+		var succeeded = SyncDownloadedEntry(context, entry, download.LocalDirectory);
+		EnqueueDependencies(queue, seen, entry);
+		return succeeded;
+	}
+
+	private static bool SyncDownloadedEntry(CollectionSyncContext context, ModCollectionEntry entry, string localDirectory)
+	{
+		var synced = context.Sync.SyncItem(entry.PublishedFileId, localDirectory, context.GameRoot);
+		if (synced.Success)
+		{
+			context.Log?.Report($"Synced {entry.PublishedFileId} → {synced.DestinationPath}");
+			return true;
+		}
+
+		context.Log?.Report(synced.ErrorMessage ?? $"Sync failed for {entry.PublishedFileId}.");
+		return false;
+	}
+
+	private static void EnqueueDependencies(Queue<ModCollectionEntry> queue, HashSet<ulong> seen, ModCollectionEntry entry)
+	{
+		foreach (var dependencyId in entry.WorkshopDependencyIds)
+		{
+			if (!seen.Contains(dependencyId))
 			{
-				if (!seen.Contains(dependencyId))
+				queue.Enqueue(new ModCollectionEntry
 				{
-					queue.Enqueue(new ModCollectionEntry
-					{
-						PublishedFileId = dependencyId,
-						Title = $"Dependency {dependencyId}",
-						SourceName = entry.SourceName,
-						ModType = "Userlib",
-					});
-				}
+					PublishedFileId = dependencyId,
+					Title = $"Dependency {dependencyId}",
+					SourceName = entry.SourceName,
+					ModType = "Userlib",
+				});
 			}
 		}
-		sw.Stop();
+	}
 
+	private void TrackSyncResult(Guid collectionId, ModCollectionDefinition collection, CollectionSyncResult result)
+	{
 		_ = _telemetry.TrackEventAsync("sync_collection", new SyncCollectionEvent
 		{
 			collectionId = collectionId,
 			collectionName = collection.Name,
-			success = anySucceeded,
-			itemCount = seen.Count,
-			durationMs = sw.ElapsedMilliseconds
+			success = result.AnySucceeded,
+			itemCount = result.SeenCount,
+			durationMs = result.ElapsedMilliseconds
 		}, new Dictionary<string, string>
 		{
-			{ "outcome", anySucceeded ? "success" : "failed" }
+			{ "outcome", result.AnySucceeded ? "success" : "failed" }
 		});
-
-		return anySucceeded;
 	}
 
 	private CollectionCatalog LoadCatalog()
@@ -247,4 +332,14 @@ public sealed class ModCollectionService
 	{
 		File.WriteAllText(_storagePath, JsonSerializer.Serialize(_catalog, AppJsonContext.Default.CollectionCatalog));
 	}
+
+	private sealed record CollectionSyncContext(
+		ModCollectionDefinition Collection,
+		WorkshopDownloadService Downloader,
+		ModsFolderSyncService Sync,
+		string GameRoot,
+		IProgress<string>? Log,
+		CancellationToken CancellationToken);
+
+	private readonly record struct CollectionSyncResult(bool AnySucceeded, int SeenCount, long ElapsedMilliseconds);
 }
