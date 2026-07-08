@@ -4,9 +4,9 @@ namespace GregModmanager.Services;
 
 public static class AppSettings
 {
-    public const string ModStoreEnabledKey = "ModStoreEnabled";
-    public const string GameRootPathKey = "GameRootPath";
-    public const string TelemetryEnabledKey = "TelemetryEnabled";
+    public static string ModStoreEnabledKey => "ModStoreEnabled";
+    public static string GameRootPathKey => "GameRootPath";
+    public static string TelemetryEnabledKey => "TelemetryEnabled";
 
     public static bool IsLocalBuild => 
         string.Equals(Environment.GetEnvironmentVariable("IS_LOCAL_BUILD"), "TRUE", StringComparison.OrdinalIgnoreCase);
