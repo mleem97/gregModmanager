@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace GregModmanager.Services;
@@ -15,14 +16,9 @@ public static class SafeProcess
 
         try
         {
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && IsAllowedBrowserUri(uri))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = uri.ToString(),
-                    UseShellExecute = true
-                });
+                StartShellOpen(uri.AbsoluteUri);
             }
             else
             {
@@ -46,25 +42,14 @@ public static class SafeProcess
 
         try
         {
-            if (OperatingSystem.IsWindows())
+            var fullPath = Path.GetFullPath(path);
+            if (!Directory.Exists(fullPath))
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "explorer.exe",
-                    Arguments = $"\"{path}\"",
-                    UseShellExecute = false
-                });
+                AppFileLog.Warn($"Blocked attempt to open missing folder: {path}");
+                return;
             }
-            else
-            {
-                // For other OS, we might still need UseShellExecute for some scenarios,
-                // but we should be careful. MAUI doesn't have a direct "OpenFolder" that works everywhere.
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = path,
-                    UseShellExecute = true
-                });
-            }
+
+            StartShellOpen(fullPath);
         }
         catch (Exception ex)
         {
@@ -81,12 +66,14 @@ public static class SafeProcess
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var fullPath = Path.GetFullPath(filePath);
+            if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
             {
-                FileName = "explorer.exe",
-                Arguments = $"/select,\"{filePath}\"",
-                UseShellExecute = false
-            });
+                AppFileLog.Warn($"Blocked attempt to select missing file system entry: {filePath}");
+                return;
+            }
+
+            StartProcess("explorer.exe", new[] { $"/select,{fullPath}" });
         }
         catch (Exception ex)
         {
@@ -95,24 +82,73 @@ public static class SafeProcess
     }
 
     /// <summary>
-    /// Launches an executable with UseShellExecute = false.
+    /// Launches a local executable with UseShellExecute = false.
     /// </summary>
-    public static void LaunchApp(string exePath, string arguments = "")
+    public static void LaunchApp(string exePath)
+    {
+        LaunchApp(exePath, Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Launches a local executable with explicit arguments and UseShellExecute = false.
+    /// </summary>
+    [SuppressMessage("Security", "S2076:OS commands should not be vulnerable to command injection", Justification = "The executable path is normalized, required to exist locally, and arguments are passed through ArgumentList instead of a shell string.")]
+    public static void LaunchApp(string exePath, IReadOnlyList<string> arguments)
     {
         if (string.IsNullOrWhiteSpace(exePath)) return;
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var fullPath = Path.GetFullPath(exePath);
+            if (!File.Exists(fullPath))
             {
-                FileName = exePath,
-                Arguments = arguments,
-                UseShellExecute = false
-            });
+                AppFileLog.Warn($"Blocked attempt to launch missing executable: {exePath}");
+                return;
+            }
+
+            StartProcess(fullPath, arguments);
         }
         catch (Exception ex)
         {
             AppFileLog.Error($"Failed to launch app: {exePath}", ex);
         }
+    }
+
+    private static bool IsAllowedBrowserUri(Uri uri)
+    {
+        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+    }
+
+    private static void StartShellOpen(string target)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            StartProcess("rundll32.exe", new[] { "url.dll,FileProtocolHandler", target });
+            return;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            StartProcess("open", new[] { target });
+            return;
+        }
+
+        StartProcess("xdg-open", new[] { target });
+    }
+
+    private static void StartProcess(string fileName, IEnumerable<string> arguments)
+    {
+        var info = new ProcessStartInfo
+        {
+            FileName = fileName,
+            UseShellExecute = false
+        };
+
+        foreach (var argument in arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        Process.Start(info);
     }
 }
