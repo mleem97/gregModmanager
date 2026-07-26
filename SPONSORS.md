@@ -2,10 +2,6 @@
 
 Thank you for supporting the GregFramework ecosystem.
 
-## Top Sponsor (VIP)
-
-- **💎 The Ecosystem Architect ($50/month):** [@tobiasreichel](https://github.com/tobiasreichel)
-
 ## Sponsorship Tiers
 
 ### ☕ $1 / month – The Coffee Supporter
