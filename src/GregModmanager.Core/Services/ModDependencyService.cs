@@ -12,11 +12,13 @@ namespace GregModmanager.Services;
 public sealed class ModDependencyService
 {
 	private readonly SteamWorkshopService _steam;
+	private readonly MelonSourceDiscoveryService _sources;
 	private string? _cachedGameRoot;
 
-	public ModDependencyService(SteamWorkshopService steam)
+	public ModDependencyService(SteamWorkshopService steam, MelonSourceDiscoveryService sources)
 	{
 		_steam = steam;
+		_sources = sources;
 	}
 
 	/// <summary>Resolved game root via <see cref="SteamApps.AppInstallDir"/> or common default.</summary>
@@ -78,6 +80,16 @@ public sealed class ModDependencyService
 		CheckgregCoreModFramework(results);
 		CheckgregPluginsDir(results);
 		CheckModCfg(results);
+		var sources = _sources.Discover(root);
+		results.Add(new DependencyCheckResult
+		{
+			Label = "MelonLoader-Quellen",
+			Status = sources.Count > 0 ? DependencyStatus.Ok : DependencyStatus.Warning,
+			Detail = sources.Count > 0
+				? $"{sources.Count} Quellverzeichnisse erkannt (Spiel, StreamingAssets, Workshop, greg)."
+				: "Keine externen MelonLoader-Quellen erkannt.",
+			Path = sources.FirstOrDefault()?.Path,
+		});
 
 		return results;
 	}

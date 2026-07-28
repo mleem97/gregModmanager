@@ -15,6 +15,10 @@ public static class AppSettings
     public static string MelonLoaderReleasesUrl => 
         Environment.GetEnvironmentVariable("MELONLOADER_RELEASES_URL") 
         ?? (IsLocalBuild ? "http://localhost:5000/releases" : "https://github.com/LavaGang/MelonLoader/releases");
+
+    public static string MelonLoaderLatestReleaseApiUrl =>
+        Environment.GetEnvironmentVariable("MELONLOADER_LATEST_API_URL")
+        ?? "https://api.github.com/repos/LavaGang/MelonLoader/releases/latest";
     
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarLint", "S1075", Justification = "Hardcoded fallback URIs are required for core ecosystem stability.")]
     public static string DesktopLoginUrlFormat => 

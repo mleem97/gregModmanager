@@ -163,6 +163,8 @@
 
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="Open Game Folder" Click="OnOpenGameFolder" />
+            <Button x:Name="MelonInstallBtn" Content="Install / Update MelonLoader" Classes="btn-primary" Click="OnMelonLoaderInstall" />
+            <Button x:Name="SteamModfixInstallBtn" Content="Install / Update SteamModfix" Click="OnSteamModfixInstall" />
             <Button Content="MelonLoader Download" Click="OnMelonLoaderDownload" />
           </StackPanel>
         </StackPanel>

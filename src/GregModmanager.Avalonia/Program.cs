@@ -149,6 +149,9 @@ internal static class Program
         SteamApiNativeLoader.SetGameRoot(AppSettings.GetGameRootPath());
         services.AddSingleton<WorkspaceService>();
         services.AddSingleton<ModDependencyService>();
+        services.AddSingleton<MelonLoaderInstallerService>();
+        services.AddSingleton<MelonSourceDiscoveryService>();
+        services.AddSingleton<SteamModfixInstallerService>();
         services.AddSingleton<gregPluginChannelRegistry>(sp =>
         {
             var registry = new gregPluginChannelRegistry();

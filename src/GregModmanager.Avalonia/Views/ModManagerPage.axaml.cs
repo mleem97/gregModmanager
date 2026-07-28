@@ -22,6 +22,8 @@ public partial class ModManagerPage : UserControl
     private readonly gregPluginChannelRegistry _channels;
     private readonly AppLogService _log;
     private readonly WorkshopSyncOrchestrator _syncOrchestrator;
+    private readonly MelonLoaderInstallerService _melonLoader;
+    private readonly SteamModfixInstallerService _steamModfix;
 
     private readonly ObservableCollection<DependencyCheckResult> _checks = new();
     private readonly ObservableCollection<PluginPackageInfo> _plugins = new();
@@ -49,7 +51,9 @@ public partial class ModManagerPage : UserControl
         ModDependencyService deps,
         gregPluginChannelRegistry channels,
         AppLogService log,
-        WorkshopSyncOrchestrator syncOrchestrator)
+        WorkshopSyncOrchestrator syncOrchestrator,
+        MelonLoaderInstallerService melonLoader,
+        SteamModfixInstallerService steamModfix)
     {
         InitializeComponent();
         _steam = steam;
@@ -57,6 +61,8 @@ public partial class ModManagerPage : UserControl
         _channels = channels;
         _log = log;
         _syncOrchestrator = syncOrchestrator;
+        _melonLoader = melonLoader;
+        _steamModfix = steamModfix;
 
         ChecksList.ItemsSource = _checks;
         PluginsList.ItemsSource = _plugins;
@@ -390,6 +396,55 @@ public partial class ModManagerPage : UserControl
     private static void OnMelonLoaderDownload(object? sender, RoutedEventArgs e)
     {
         _ = SafeProcess.OpenUrlAsync(AppSettings.MelonLoaderReleasesUrl);
+    }
+
+    private async void OnMelonLoaderInstall(object? sender, RoutedEventArgs e)
+    {
+        var root = _deps.GameRoot;
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        {
+            await dialog.ShowMessageAsync("MelonLoader", "Der Data-Center-Spielordner wurde nicht gefunden.");
+            return;
+        }
+
+        MelonInstallBtn.IsEnabled = false;
+        try
+        {
+            var progress = new Progress<string>(message => MelonStatusLabel.Text = message);
+            var result = await _melonLoader.EnsureCurrentAsync(root, progress);
+            _deps.InvalidateCache();
+            RefreshChecks();
+            await dialog.ShowMessageAsync(result.Success ? "MelonLoader" : "MelonLoader-Fehler", result.Message);
+        }
+        finally
+        {
+            MelonInstallBtn.IsEnabled = true;
+        }
+    }
+
+    private async void OnSteamModfixInstall(object? sender, RoutedEventArgs e)
+    {
+        var root = _deps.GameRoot;
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        {
+            await dialog.ShowMessageAsync("SteamModfix", "Der Data-Center-Spielordner wurde nicht gefunden.");
+            return;
+        }
+
+        SteamModfixInstallBtn.IsEnabled = false;
+        try
+        {
+            var result = await _steamModfix.EnsureCurrentAsync(root);
+            _deps.InvalidateCache();
+            RefreshChecks();
+            await dialog.ShowMessageAsync(result.Success ? "SteamModfix" : "SteamModfix-Fehler", result.Message);
+        }
+        finally
+        {
+            SteamModfixInstallBtn.IsEnabled = true;
+        }
     }
 
     private void OnOpenGameFolder(object? sender, RoutedEventArgs e)
