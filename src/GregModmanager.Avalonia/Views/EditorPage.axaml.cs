@@ -651,7 +651,30 @@ public partial class EditorPage : UserControl
 
         if (files.Count == 0) return;
         var path = files[0].TryGetLocalPath();
-        if (path is null) return;
+        if (path is null)
+        {
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), "Die ausgewählte Datei ist kein lokaler Pfad und kann nicht als Workshop-Vorschau verwendet werden.");
+            return;
+        }
+
+        try
+        {
+            var size = new FileInfo(path).Length;
+            if (size > SteamConstants.MaxPreviewImageBytes)
+            {
+                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await dialog.ShowMessageAsync(S.Get(ErrorKey),
+                    $"Das Vorschaubild ist {WorkspaceService.FormatBytes(size)} groß. Steam erlaubt höchstens {WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)}.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), $"Das Vorschaubild konnte nicht gelesen werden: {ex.Message}");
+            return;
+        }
 
         var pickedSize = new FileInfo(path).Length;
         if (pickedSize > SteamConstants.MaxPreviewImageBytes)
@@ -671,7 +694,16 @@ public partial class EditorPage : UserControl
 
         var fileName = $"screenshot_{_metadata.AdditionalPreviews.Count + 1}_{DateTime.Now:HHmmss}{ext}";
         var dest = Path.Combine(screenshotsDir, fileName);
-        File.Copy(path, dest, true);
+        try
+        {
+            File.Copy(path, dest, true);
+        }
+        catch (Exception ex)
+        {
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), $"Das Vorschaubild konnte nicht ins Projekt kopiert werden: {ex.Message}");
+            return;
+        }
 
         var relPath = Path.Combine("screenshots", fileName);
         _metadata.AdditionalPreviews.Add(relPath);

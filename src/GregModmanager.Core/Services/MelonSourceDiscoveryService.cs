@@ -130,9 +130,10 @@ public sealed class MelonSourceDiscoveryService
 	private static IEnumerable<string> FindSteamLibraries(string gameRoot)
 	{
 		var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-		var gameSteamApps = Directory.Exists(Path.Combine(gameRoot, "..", "..", "steamapps"))
-			? Path.GetFullPath(Path.Combine(gameRoot, "..", "..")) : null;
-		if (gameSteamApps is not null) candidates.Add(gameSteamApps);
+		// A normal Steam game path is <library>/steamapps/common/<game>.
+		// The library root is therefore three levels above the game directory.
+		var gameLibrary = Path.GetFullPath(Path.Combine(gameRoot, "..", "..", ".."));
+		if (Directory.Exists(Path.Combine(gameLibrary, "steamapps"))) candidates.Add(gameLibrary);
 		var env = Environment.GetEnvironmentVariable("STEAM_LIBRARY_PATHS");
 		if (!string.IsNullOrWhiteSpace(env)) foreach (var path in env.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) candidates.Add(path);
 		foreach (var file in new[]

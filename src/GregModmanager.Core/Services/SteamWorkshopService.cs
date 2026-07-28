@@ -274,6 +274,14 @@ public sealed class SteamWorkshopService
 
 		if (!result.Success)
 		{
+			// Steam may create the item before its content update fails. Preserve the ID
+			// so retrying updates the existing item instead of creating a duplicate.
+			if (result.FileId.Value != 0)
+			{
+				metadata.PublishedFileId = result.FileId.Value;
+				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
+				log?.Report($"Workshop item {metadata.PublishedFileId} was created but the update failed; retry will reuse it.");
+			}
 			return PublishOutcome.Fail($"Steam publish failed: {result.Result}");
 		}
 
@@ -379,7 +387,7 @@ public sealed class SteamWorkshopService
 		ct.ThrowIfCancellationRequested();
 
 		var query = Query.Items
-			.WhereUserSubscribed()
+			.WhereUserSubscribed(SteamClient.SteamId)
 			.SortByUpdateDate()
 			.WithLongDescription(true);
 
@@ -396,7 +404,7 @@ public sealed class SteamWorkshopService
 		ct.ThrowIfCancellationRequested();
 
 		var query = Query.Items
-			.WhereUserFavorited()
+			.WhereUserFavorited(SteamClient.SteamId)
 			.SortByUpdateDate()
 			.WithLongDescription(true);
 
@@ -413,7 +421,7 @@ public sealed class SteamWorkshopService
 		ct.ThrowIfCancellationRequested();
 
 		var query = Query.Items
-			.WhereUserPublished()
+			.WhereUserPublished(SteamClient.SteamId)
 			.SortByUpdateDate()
 			.WithLongDescription(true);
 
@@ -432,7 +440,7 @@ public sealed class SteamWorkshopService
 		cancellationToken.ThrowIfCancellationRequested();
 
 		var pageResult = await Query.Items
-			.WhereUserPublished()
+			.WhereUserPublished(SteamClient.SteamId)
 			.SortByUpdateDate()
 			.GetPageAsync(1)
 			.ConfigureAwait(false);
