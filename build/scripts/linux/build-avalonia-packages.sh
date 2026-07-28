@@ -20,6 +20,16 @@ mkdir -p "$PUBLISH_DIR" "$PKG_DIR"
 dotnet publish "$PROJECT_PATH" -c Release -r "$RID" --self-contained true -o "$PUBLISH_DIR"
 python3 "$REPO_ROOT/build/scripts/linux/patch-steamworks-symbols.py" "$PUBLISH_DIR/GregModmanager"
 
+# Keep Linux native Steamworks assets beside the single-file executable. The
+# project reference can otherwise leave these files out of the final publish
+# directory, while copying Windows-only assets into a Linux package.
+rm -f "$PUBLISH_DIR/steam_api64.dll"
+for steam_library in libsteam_api64.so libsteam_api.so; do
+  if [ -f "$REPO_ROOT/src/GregModmanager.Core/$steam_library" ]; then
+    cp "$REPO_ROOT/src/GregModmanager.Core/$steam_library" "$PUBLISH_DIR/$steam_library"
+  fi
+done
+
 tar -C "$PUBLISH_DIR" -czf "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.tar.gz" .
 
 NFP_CONFIG="$OUTPUT_ROOT/nfpm.yaml"

@@ -13,6 +13,8 @@
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>full</TrimMode>
     <PublishSingleFile>true</PublishSingleFile>
+    <!-- Extract native runtime libraries next to the app when launching the single-file binary. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SelfContained>true</SelfContained>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
@@ -51,6 +53,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Steamworks native libraries must remain external to the single-file bundle. -->
+    <Content Include="..\GregModmanager.Core\libsteam_api64.so" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('..\GregModmanager.Core\libsteam_api64.so')">
+      <Link>libsteam_api64.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
+    <Content Include="..\GregModmanager.Core\libsteam_api.so" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('..\GregModmanager.Core\libsteam_api.so')">
+      <Link>libsteam_api.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="Assets\SubDirectoryFixer\README.txt">
       <TargetPath>SubDirectoryFixer\README.txt</TargetPath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
