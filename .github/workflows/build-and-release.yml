@@ -46,23 +46,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: resolve
-        shell: pwsh
+        shell: bash
         run: |
-          [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
-          $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
-          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.5.0' }
-          $numeric = $ver -replace '-.*$',''
-          if ($numeric -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-            if ($numeric -match '^\d+\.\d+\.\d+$') { $numeric += '.0' }
-            else { $numeric = '1.5.0.0' }
-          }
-          $isRelease = if ($env:GITHUB_REF_NAME -match '^v\d') { 'true' } else { 'false' }
-          $isPre = if ($ver -match '-' -or $env:GITHUB_REF_NAME -match '-') { 'true' } else { 'false' }
-          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "numeric_version=$numeric" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "is_release=$isRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "is_pre=$isPre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          Write-Host "Version=$ver Numeric=$numeric IsRelease=$isRelease IsPre=$isPre"
+          ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+          [ -n "$ver" ] || ver='1.5.0'
+          numeric="${ver%%-*}"
+          if [[ "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            numeric="$numeric.0"
+          elif [[ ! "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            numeric='1.5.0.0'
+          fi
+          is_release=false
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9] ]] && is_release=true
+          is_pre=false
+          [[ "$ver" == *-* || "$GITHUB_REF_NAME" == *-* ]] && is_pre=true
+          {
+            echo "version=$ver"
+            echo "numeric_version=$numeric"
+            echo "is_release=$is_release"
+            echo "is_pre=$is_pre"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version=$ver Numeric=$numeric IsRelease=$is_release IsPre=$is_pre"
 
   test:
     name: Test
