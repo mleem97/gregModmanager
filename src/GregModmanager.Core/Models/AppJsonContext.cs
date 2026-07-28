@@ -29,6 +29,8 @@ namespace GregModmanager.Models;
 [JsonSerializable(typeof(SyncCollectionEvent))]
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(AuthResponse))]
+[JsonSerializable(typeof(TokenExchangeRequest))]
+[JsonSerializable(typeof(TokenExchangeResponse))]
 [JsonSerializable(typeof(UserInfo))]
 [JsonSerializable(typeof(DebugLogPayload))]
 [JsonSerializable(typeof(string))]
