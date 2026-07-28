@@ -10,6 +10,10 @@ public sealed class WorkshopMetadata
 	[JsonPropertyName("title")]
 	public string Title { get; set; } = "";
 
+	/// <summary>Local semantic version shown in the Steam change note for updates.</summary>
+	[JsonPropertyName("version")]
+	public string Version { get; set; } = "1.0.0";
+
 	[JsonPropertyName("description")]
 	public string Description { get; set; } = "";
 

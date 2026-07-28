@@ -136,6 +136,7 @@ public partial class EditorPage : UserControl
     private void BindEditorFromMetadata()
     {
         TitleEntry.Text = _metadata.Title;
+        VersionEntry.Text = string.IsNullOrWhiteSpace(_metadata.Version) ? "1.0.0" : _metadata.Version;
         DescriptionEditor.Text = _metadata.Description;
         VisibilityPicker.SelectedItem = _metadata.Visibility is VisibilityPublic or VisibilityFriendsOnly or VisibilityPrivate
             ? _metadata.Visibility
@@ -760,6 +761,8 @@ public partial class EditorPage : UserControl
     private void ApplyMetadataFromUi()
     {
         _metadata.Title = TitleEntry.Text ?? "";
+        _metadata.Version = (VersionEntry.Text ?? "1.0.0").Trim();
+        if (string.IsNullOrWhiteSpace(_metadata.Version)) _metadata.Version = "1.0.0";
         _metadata.Description = DescriptionEditor.Text ?? "";
         _metadata.Visibility = VisibilityPicker.SelectedItem as string ?? VisibilityPublic;
         _metadata.Tags = ParseTags(TagsEntry.Text);
@@ -822,7 +825,10 @@ public partial class EditorPage : UserControl
 
             var content = Path.Combine(_projectRoot, "content");
             SyncStatusLabel.Text = S.Get("Editor_Uploading");
-            var changeLog = ChangeLogEditor.Text;
+            var changeLogText = (ChangeLogEditor.Text ?? "").Trim();
+            var changeLog = string.IsNullOrWhiteSpace(changeLogText)
+                ? $"v{_metadata.Version}"
+                : $"v{_metadata.Version}: {changeLogText}";
 
             var originalDesc = _metadata.Description;
             _metadata.Description = BuildUploadDescription(_metadata);

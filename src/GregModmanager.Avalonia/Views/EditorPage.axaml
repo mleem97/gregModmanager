@@ -134,6 +134,9 @@
         <Border Classes="panel">
           <StackPanel Spacing="8">
             <TextBlock x:Name="PublishedIdLabel" Classes="subtext" />
+            <TextBlock Text="VERSION" Classes="micro-label" />
+            <TextBox x:Name="VersionEntry" Classes="input-terminal" TextChanged="OnChangeLogTextChanged" Watermark="1.0.0" />
+            <TextBlock Text="This version is included in Steam's Workshop change history." Classes="subtext" TextWrapping="Wrap" />
             <TextBlock Text="CHANGELOG" Classes="micro-label" />
             <TextBox x:Name="ChangeLogEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="120" TextChanged="OnChangeLogTextChanged" />
             <TextBlock x:Name="ChangeLogHintLabel" Classes="subtext" />

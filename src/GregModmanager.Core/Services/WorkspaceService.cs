@@ -189,6 +189,18 @@ public sealed class WorkspaceService
 		return list.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
 	}
 
+	/// <summary>Finds the local project that owns an existing Steam Workshop item.</summary>
+	public WorkshopProject? FindProjectByPublishedFileId(ulong publishedFileId)
+	{
+		if (publishedFileId == 0) return null;
+
+		return ScanProjects().FirstOrDefault(project =>
+		{
+			var metadata = LoadMetadata(project.RootPath);
+			return metadata.PublishedFileId == publishedFileId;
+		});
+	}
+
 	private static readonly string[] PreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
 
 	public WorkshopMetadata LoadMetadata(string projectRoot)

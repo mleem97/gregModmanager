@@ -201,4 +201,41 @@ public partial class MyUploadsPage : UserControl
             _steam.OpenItemInBrowser(vm.PublishedFileId);
         }
     }
+
+    private async void OnEditClicked(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: WorkshopItemDetailVm vm }) return;
+
+        try
+        {
+            var localProject = _workspace.FindProjectByPublishedFileId(vm.PublishedFileId);
+            if (localProject is not null)
+            {
+                var editor = App.Services.GetRequiredService<EditorPage>();
+                editor.LoadProject(localProject.RootPath);
+                if (this.VisualRoot is MainWindow mw) mw.NavigateTo(editor);
+                return;
+            }
+
+            var log = new Progress<string>(s => _log.Append(s));
+            var progress = new Progress<float>(p => _log.Append($"Edit import {p:P0}"));
+            var outcome = await _steam.ImportPublishedToWorkspaceAsync(
+                vm.PublishedFileId, null, _workspace, log, progress, CancellationToken.None);
+            if (!outcome.Success)
+            {
+                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await dialog.ShowMessageAsync(S.Get("Uploads_ImportFailed"), outcome.Message);
+                return;
+            }
+
+            var importedEditor = App.Services.GetRequiredService<EditorPage>();
+            importedEditor.LoadProject(outcome.ProjectRoot!);
+            if (this.VisualRoot is MainWindow importedWindow) importedWindow.NavigateTo(importedEditor);
+        }
+        catch (Exception ex)
+        {
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+        }
+    }
 }

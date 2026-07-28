@@ -284,7 +284,7 @@ public sealed class SteamWorkshopService
 		return PublishOutcome.Ok(metadata.PublishedFileId);
 	}
 
-	/// <summary>After a successful publish, re-download the item from Steam and replace local <c>content/</c> so the folder is in sync with Steam's version (like a git pull after push). Also syncs the preview image and additional gallery screenshots.</summary>
+	/// <summary>Completes local post-publish bookkeeping without replacing the editable local project from Steam.</summary>
 	public async Task<bool> SyncAfterPublishAsync(
 		ulong publishedFileId,
 		string projectRoot,
@@ -298,37 +298,16 @@ public sealed class SteamWorkshopService
 			return false;
 		}
 
-		log?.Report("Syncing with Steam after publish...");
-
-		var item = await Item.GetAsync((PublishedFileId)publishedFileId).ConfigureAwait(false);
-		if (!item.HasValue)
+		ct.ThrowIfCancellationRequested();
+		if (publishedFileId == 0 || string.IsNullOrWhiteSpace(projectRoot) || !Directory.Exists(projectRoot))
 		{
-			log?.Report("Sync: could not load item from Steam.");
+			log?.Report("Post-publish bookkeeping skipped: project or Workshop ID is invalid.");
 			return false;
 		}
 
-		var ugc = item.Value;
-		await ugc.DownloadAsync(null, 60, ct).ConfigureAwait(false);
-
-		var steamDir = ugc.Directory;
-		if (string.IsNullOrEmpty(steamDir) || !Directory.Exists(steamDir))
-		{
-			log?.Report("Sync: Steam did not provide a local folder.");
-			return false;
-		}
-
-		var contentDir = Path.Combine(projectRoot, "content");
-
-		if (Directory.Exists(contentDir))
-		{
-			Directory.Delete(contentDir, recursive: true);
-		}
-
-		Directory.CreateDirectory(contentDir);
-		WorkspaceService.CopyDirectoryRecursive(steamDir, contentDir);
-		log?.Report("Sync complete: local content/ now matches Steam.");
-
-		await SyncPreviewImagesAsync(publishedFileId, ugc.PreviewImageUrl, projectRoot, metadata, log, ct).ConfigureAwait(false);
+		// The local project is the editable source of truth. Steam's downloaded UGC
+		// cache must never overwrite content/ after a successful upload.
+		log?.Report("Publish complete: local project content preserved for further editing.");
 		WorkspaceService.SaveMetadata(projectRoot, metadata);
 
 		return true;

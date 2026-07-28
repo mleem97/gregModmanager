@@ -29,6 +29,7 @@
                   <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                  <Button Content="Edit" Classes="btn-primary" Click="OnEditClicked" />
                   <Button Content="Download" Classes="btn-primary" Click="OnDownloadClicked" />
                   <Button Content="View on Steam" Click="OnViewOnSteam" />
                 </StackPanel>
