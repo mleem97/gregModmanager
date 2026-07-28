@@ -57,7 +57,7 @@ jobs:
             else { $numeric = '1.5.0.0' }
           }
           $isRelease = if ($env:GITHUB_REF_NAME -match '^v\d') { 'true' } else { 'false' }
-          $isPre = if ($ver -match '-' -or ($env:GITHUB_REF_NAME -ne 'main' -and $env:GITHUB_REF_NAME -ne 'master' -and -not ($env:GITHUB_REF_NAME -match '^v\d'))) { 'true' } else { 'false' }
+          $isPre = if ($ver -match '-' -or $env:GITHUB_REF_NAME -match '-') { 'true' } else { 'false' }
           "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "numeric_version=$numeric" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "is_release=$isRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -182,14 +182,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup
-          path: build/installer/Output/gregModmanager-*-Windows.exe
+          path: |
+            build/installer/Output/gregModmanager-*-Windows.exe
+            build/installer/Output/gregModmanager-*-Windows.exe.*
           if-no-files-found: error
 
       - name: Upload Portable
         uses: actions/upload-artifact@v4
         with:
           name: windows-portable
-          path: build/installer/Output/gregModmanager-*-Windows.zip
+          path: |
+            build/installer/Output/gregModmanager-*-Windows.zip
+            build/installer/Output/gregModmanager-*-Windows.zip.*
           if-no-files-found: error
 
       - name: Attest Windows Build
@@ -405,6 +409,7 @@ jobs:
         uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
           tag_name: ${{ github.ref_name }}
+          prerelease: ${{ needs.version.outputs.is_pre == 'true' }}
           files: ./dist/**
           fail_on_unmatched_files: false
           generate_release_notes: true

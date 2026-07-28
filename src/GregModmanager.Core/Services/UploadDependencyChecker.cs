@@ -182,8 +182,8 @@ public static class UploadDependencyChecker
 			results.Add(new UploadCheckResult
 			{
 				Label = "Preview image",
-				Severity = UploadCheckSeverity.Warning,
-				Detail = "No preview image path set. Steam shows a placeholder without one.",
+				Severity = UploadCheckSeverity.Error,
+				Detail = "A preview image is required for every Workshop upload and update.",
 			});
 			return;
 		}
@@ -194,20 +194,20 @@ public static class UploadDependencyChecker
 			results.Add(new UploadCheckResult
 			{
 				Label = "Preview image",
-				Severity = UploadCheckSeverity.Warning,
-				Detail = $"File not found: {metadata.PreviewImageRelativePath}. Add a preview image (PNG/JPG recommended).",
+				Severity = UploadCheckSeverity.Error,
+				Detail = $"File not found: {metadata.PreviewImageRelativePath}. Select a preview image before uploading.",
 			});
 		}
 		else
 		{
 			var size = new FileInfo(previewPath).Length;
-			if (size > 1_048_576)
+			if (size > SteamConstants.MaxPreviewImageBytes)
 			{
 				results.Add(new UploadCheckResult
 				{
 					Label = "Preview image",
-					Severity = UploadCheckSeverity.Warning,
-					Detail = $"Preview image is {WorkspaceService.FormatBytes(size)} — Steam recommends under 1 MB.",
+					Severity = UploadCheckSeverity.Error,
+					Detail = $"Preview image is {WorkspaceService.FormatBytes(size)}. Steam allows at most {WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)}.",
 				});
 			}
 			else

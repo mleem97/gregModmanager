@@ -8,4 +8,7 @@ public static class SteamConstants
 	public static int MaxTitleLength => 128;
 
 	public static int MaxDescriptionLength => 8000;
+
+	/// <summary>Steam Workshop's maximum main preview image size: 1 MiB.</summary>
+	public static long MaxPreviewImageBytes => 1_048_576;
 }

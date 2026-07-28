@@ -207,6 +207,16 @@ public sealed class SteamWorkshopService
 		var previewPath = string.IsNullOrWhiteSpace(metadata.PreviewImageRelativePath)
 			? null
 			: Path.Combine(projectRoot, metadata.PreviewImageRelativePath);
+		if (previewPath is null || !File.Exists(previewPath))
+		{
+			return PublishOutcome.Fail("A preview image is required for every Workshop upload and update.");
+		}
+
+		var previewSize = new FileInfo(previewPath).Length;
+		if (previewSize > SteamConstants.MaxPreviewImageBytes)
+		{
+			return PublishOutcome.Fail($"Preview image exceeds Steam's {WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)} limit.");
+		}
 
 		Steamworks.Ugc.Editor editor = metadata.PublishedFileId == 0
 			? Steamworks.Ugc.Editor.NewCommunityFile
@@ -229,10 +239,7 @@ public sealed class SteamWorkshopService
 			.WithDescription(description)
 			.WithContent(contentFolder);
 
-		if (!string.IsNullOrEmpty(previewPath) && File.Exists(previewPath))
-		{
-			editor = editor.WithPreviewFile(previewPath);
-		}
+		editor = editor.WithPreviewFile(previewPath);
 
 		editor = metadata.Tags
 			.Where(t => !string.IsNullOrWhiteSpace(t))

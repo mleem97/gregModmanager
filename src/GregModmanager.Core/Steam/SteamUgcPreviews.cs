@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
+using GregModmanager.Services;
 
 [assembly: InternalsVisibleTo("GregModmanager")]
 
@@ -193,9 +194,9 @@ internal static class SteamUgcPreviews
 				continue;
 			}
 
-			if (new FileInfo(path).Length > 1_048_576)
+			if (new FileInfo(path).Length > SteamConstants.MaxPreviewImageBytes)
 			{
-				log?.Report($"Screenshot too large (>1 MB), skipping: {Path.GetFileName(path)}");
+				log?.Report($"Screenshot too large (>{WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)}), skipping: {Path.GetFileName(path)}");
 				continue;
 			}
 

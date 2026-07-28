@@ -653,6 +653,16 @@ public partial class EditorPage : UserControl
         var path = files[0].TryGetLocalPath();
         if (path is null) return;
 
+        var pickedSize = new FileInfo(path).Length;
+        if (pickedSize > SteamConstants.MaxPreviewImageBytes)
+        {
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowMessageAsync(
+                S.Get(ErrorKey),
+                $"The preview image is {WorkspaceService.FormatBytes(pickedSize)}. Steam allows at most {WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)}.");
+            return;
+        }
+
         var ext = Path.GetExtension(path)?.ToLowerInvariant() ?? ".png";
         if (ext is not (".png" or ".jpg" or ".jpeg" or ".gif" or ".webp")) ext = ".png";
 
