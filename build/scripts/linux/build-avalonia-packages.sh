@@ -35,8 +35,6 @@ description: gregModmanager desktop client built with Avalonia UI.
 vendor: gregFramework
 homepage: https://github.com/mleem97/gregModmanager
 license: Proprietary
-depends:
-  - libicu
 contents:
   - src: ${PUBLISH_DIR}/
     dst: /opt/gregmodmanager/
