@@ -82,7 +82,7 @@ public sealed class SubscriptionPoller : IDisposable
 		ct.ThrowIfCancellationRequested();
 
 		var result = await Query.Items
-			.WhereUserSubscribed()
+			.WhereUserSubscribed(SteamClient.SteamId)
 			.GetPageAsync(1)
 			.ConfigureAwait(false);
 
