@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:GregModmanager.Models"
              x:Class="GregModmanager.Avalonia.Views.MyUploadsPage">
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18">
     <StackPanel Spacing="4">
@@ -21,7 +22,7 @@
       <ScrollViewer>
         <ListBox x:Name="UploadsList" SelectionMode="Multiple" SelectionChanged="OnUploadsSelectionChanged">
           <ListBox.ItemTemplate>
-            <DataTemplate>
+            <DataTemplate x:DataType="models:WorkshopItemDetailVm">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
                   <TextBlock Text="{Binding Title}" FontWeight="Bold" />

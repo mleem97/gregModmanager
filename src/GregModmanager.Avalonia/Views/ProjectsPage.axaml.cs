@@ -81,7 +81,7 @@ public partial class ProjectsPage : UserControl
         {
             var editor = App.Services.GetRequiredService<EditorPage>();
             editor.LoadProject(vm.RootPath);
-            if (this.GetVisualRoot() is MainWindow mw) mw.NavigateTo(editor);
+            if (this.VisualRoot is MainWindow mw) mw.NavigateTo(editor);
         }
     }
 }

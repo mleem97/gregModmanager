@@ -193,6 +193,7 @@ public sealed class WorkspaceService
 
 	public WorkshopMetadata LoadMetadata(string projectRoot)
 	{
+		projectRoot = Path.GetFullPath(projectRoot);
 		var path = Path.Combine(projectRoot, "metadata.json");
 		if (!File.Exists(path))
 		{
@@ -514,6 +515,8 @@ public sealed class WorkspaceService
 				meta.NativeConfigProfile = "decoration";
 				meta.ModType = "PlacableObject";
 				break;
+			default:
+				throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown workshop template kind.");
 		}
 
 		return meta;
@@ -810,6 +813,7 @@ foreach (var file in Directory.EnumerateFiles(sourceDir, "*", new EnumerationOpt
 
 	public static void SaveMetadata(string projectRoot, WorkshopMetadata metadata)
 	{
+		projectRoot = Path.GetFullPath(projectRoot);
 		var title = metadata.Title ?? string.Empty;
 		var description = metadata.Description ?? string.Empty;
 		if (title.Length > SteamConstants.MaxTitleLength)

@@ -215,7 +215,7 @@ public sealed class SteamWorkshopService
 		// Embed mod-type marker so subscribers know where to install this item.
 		try
 		{
-			var markerPath = Path.Combine(contentFolder, "greg-modmanager.meta.json");
+			var markerPath = Path.Combine(Path.GetFullPath(contentFolder), "greg-modmanager.meta.json");
 			var markerJson = System.Text.Json.JsonSerializer.Serialize(new ModStoreMarker { modType = metadata.ModType }, AppJsonContext.Default.ModStoreMarker);
 			File.WriteAllText(markerPath, markerJson);
 		}

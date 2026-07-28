@@ -7,6 +7,7 @@ public sealed class RalphSyncService
 {
 	public void WriteStatus(string projectRoot, string command, bool ok, string message)
 	{
+		projectRoot = Path.GetFullPath(projectRoot);
 		var dir = Path.Combine(projectRoot, ".ralph", "tasks");
 		Directory.CreateDirectory(dir);
 		var path = Path.Combine(dir, "status.json");

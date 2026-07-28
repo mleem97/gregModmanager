@@ -106,7 +106,10 @@ public static class SteamApiNativeLoader
 			if (NativeLibrary.TryLoad(DllFileName, out _module))
 				return true;
 		}
-		catch { }
+		catch
+		{
+			// Ignore load failures; fallback strategies are attempted next.
+		}
 
 		// Fallback: try alternative library name (e.g. libsteam_api.so if libsteam_api64.so not found)
 		if (!string.IsNullOrEmpty(DllFileNameFallback) && DllFileNameFallback != DllFileName)

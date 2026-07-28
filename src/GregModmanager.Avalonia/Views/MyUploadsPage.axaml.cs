@@ -133,7 +133,7 @@ public partial class MyUploadsPage : UserControl
                 {
                     var editor = App.Services.GetRequiredService<EditorPage>();
                     editor.LoadProject(lastPath);
-                    if (this.GetVisualRoot() is MainWindow mw) mw.NavigateTo(editor);
+                    if (this.VisualRoot is MainWindow mw) mw.NavigateTo(editor);
                 }
                 catch (Exception navEx)
                 {
@@ -180,7 +180,7 @@ public partial class MyUploadsPage : UserControl
             {
                 var editor = App.Services.GetRequiredService<EditorPage>();
                 editor.LoadProject(outcome.ProjectRoot!);
-                if (this.GetVisualRoot() is MainWindow mw) mw.NavigateTo(editor);
+                if (this.VisualRoot is MainWindow mw) mw.NavigateTo(editor);
             }
             catch (Exception navEx)
             {

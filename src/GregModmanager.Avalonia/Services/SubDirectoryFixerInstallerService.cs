@@ -38,7 +38,7 @@ public static class SubDirectoryFixerInstallerService
                     $"SubDirectoryFixer payload missing at '{payloadPath}'."));
             }
 
-            var pluginsDir = Path.Combine(gameRoot, "Plugins");
+            var pluginsDir = Path.Combine(Path.GetFullPath(gameRoot), "Plugins");
             Directory.CreateDirectory(pluginsDir);
 
             var targetPath = Path.Combine(pluginsDir, TargetFileName);

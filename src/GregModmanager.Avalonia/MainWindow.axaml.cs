@@ -34,6 +34,7 @@ public partial class MainWindow : Window
             BtnModStore.IsVisible = true;
 
         _session.StateChanged += () => Dispatcher.UIThread.Post(UpdateStatusIndicators);
+        _session.ProtocolInvoked += uri => Dispatcher.UIThread.Post(async () => await HandleProtocolUriAsync(uri));
         Loaded += OnLoaded;
     }
 
@@ -65,20 +66,7 @@ public partial class MainWindow : Window
             {
                 if (arg.StartsWith("greg://", StringComparison.OrdinalIgnoreCase))
                 {
-                    try
-                    {
-                        if (arg.Contains("/auth/callback"))
-                            await _session.HandleProtocolCallbackAsync(arg);
-                        else if (arg.Contains("/install/intent"))
-                        {
-                            var installClient = _services.GetRequiredService<GregModmanager.Services.Install.IInstallIntentClient>();
-                            await installClient.HandleIntentAsync(arg);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AppFileLog.Error($"Protocol handler failed for: {arg}", ex);
-                    }
+                    await HandleProtocolUriAsync(arg);
                 }
             }
 
@@ -104,6 +92,36 @@ public partial class MainWindow : Window
         {
             AppFileLog.MarkCrash("MainWindow.OnLoaded", ex);
             AppFileLog.Error("MainWindow.OnLoaded failed", ex);
+        }
+    }
+
+    private async Task HandleProtocolUriAsync(string arg)
+    {
+        try
+        {
+            if (arg.Contains("/auth/callback"))
+                await _session.HandleProtocolCallbackAsync(arg);
+            else if (arg.Contains("/install/intent"))
+            {
+                var installClient = _services.GetRequiredService<GregModmanager.Services.Install.IInstallIntentClient>();
+                await installClient.HandleIntentAsync(arg);
+            }
+            else if (arg.Contains("/install?modId=") || arg.Contains("?modId="))
+            {
+                var uri = new Uri(arg);
+                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                var modId = query["modId"];
+                if (!string.IsNullOrEmpty(modId))
+                {
+                    var dialog = _services.GetRequiredService<IDialogService>();
+                    await dialog.ShowMessageAsync("Mod Manager", $"Installing Mod ID: {modId}...");
+                    NavigateTo<ModManagerPage>();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error($"Protocol handler failed for: {arg}", ex);
         }
     }
 

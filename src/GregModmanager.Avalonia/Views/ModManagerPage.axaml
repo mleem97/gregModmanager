@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:GregModmanager.Models"
              x:Class="GregModmanager.Avalonia.Views.ModManagerPage">
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="18">
     <StackPanel Grid.Row="0" Spacing="4">
@@ -35,7 +36,7 @@
         <ScrollViewer Grid.Row="1">
           <ItemsControl x:Name="StoreList">
             <ItemsControl.ItemTemplate>
-              <DataTemplate>
+              <DataTemplate x:DataType="models:WorkshopItemDetailVm">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
@@ -67,7 +68,7 @@
         <ScrollViewer>
           <ItemsControl x:Name="InstalledList">
             <ItemsControl.ItemTemplate>
-              <DataTemplate>
+              <DataTemplate x:DataType="models:WorkshopItemDetailVm">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
@@ -96,7 +97,7 @@
         <ScrollViewer>
           <ItemsControl x:Name="FavoritesList">
             <ItemsControl.ItemTemplate>
-              <DataTemplate>
+              <DataTemplate x:DataType="models:WorkshopItemDetailVm">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
@@ -127,7 +128,7 @@
           <TextBlock x:Name="MelonStatusLabel" Classes="subtext" />
           <ItemsControl x:Name="ChecksList">
             <ItemsControl.ItemTemplate>
-              <DataTemplate>
+              <DataTemplate x:DataType="models:DependencyCheckResult">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
@@ -149,7 +150,7 @@
           <TextBlock x:Name="ChannelInfoLabel" Classes="subtext" />
           <ItemsControl x:Name="PluginsList">
             <ItemsControl.ItemTemplate>
-              <DataTemplate>
+              <DataTemplate x:DataType="models:PluginPackageInfo">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding PluginId}" FontWeight="Bold" />

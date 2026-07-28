@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:GregModmanager.Models"
              x:Class="GregModmanager.Avalonia.Views.EditorPage">
   <Grid RowDefinitions="Auto,Auto,*" Margin="18">
     <StackPanel Grid.Row="0" Spacing="4">
@@ -145,7 +146,7 @@
             <TextBlock Text="UPLOAD CHECKS" Classes="micro-label" />
             <ItemsControl x:Name="CheckResultsList">
               <ItemsControl.ItemTemplate>
-                <DataTemplate>
+                <DataTemplate x:DataType="models:UploadCheckResult">
                   <StackPanel Margin="0,0,0,6">
                     <TextBlock Text="{Binding Label}" FontWeight="Bold" />
                     <TextBlock Text="{Binding Detail}" FontSize="11" />

@@ -138,6 +138,7 @@ public partial class ModManagerPage : UserControl
             case TabInstalledKey: _ = LoadInstalledAsync(); break;
             case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
             case TabHealthKey: RefreshChecks(); RefreshPluginList(); break;
+            default: break;
         }
     }
 
@@ -160,6 +161,7 @@ public partial class ModManagerPage : UserControl
             case TabInstalledKey: _ = LoadInstalledAsync(); break;
             case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
             case TabHealthKey: RefreshChecks(); RefreshPluginList(); break;
+            default: break;
         }
     }
 
@@ -243,7 +245,7 @@ public partial class ModManagerPage : UserControl
         if (sender is not Button { DataContext: WorkshopItemDetailVm vm }) return;
         var detail = App.Services.GetRequiredService<ItemDetailPage>();
         detail.LoadItem(vm.PublishedFileId);
-        if (this.GetVisualRoot() is MainWindow mw) mw.NavigateTo(detail);
+        if (this.VisualRoot is MainWindow mw) mw.NavigateTo(detail);
     }
 
     private static WorkshopSortMode GetSelectedSort(ComboBox picker)

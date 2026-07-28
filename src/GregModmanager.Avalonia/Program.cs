@@ -95,6 +95,8 @@ internal static class Program
                 Environment.Exit(0);
             }
 
+            GregModmanager.Core.Services.ProtocolRegistryService.RegisterProtocol();
+
             if (HeadlessRunner.TryHandle(Environment.GetCommandLineArgs(), out var exitCode))
             {
                 DebugNdjsonSessionLog.Write("H3", LogCategory, "headless_exit", new GregModmanager.Models.DebugLogPayload { ExitCode = exitCode });

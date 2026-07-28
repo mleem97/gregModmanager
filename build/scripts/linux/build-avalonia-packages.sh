@@ -18,6 +18,7 @@ PKG_DIR="$OUTPUT_ROOT/packages"
 mkdir -p "$PUBLISH_DIR" "$PKG_DIR"
 
 dotnet publish "$PROJECT_PATH" -c Release -r "$RID" --self-contained true -o "$PUBLISH_DIR"
+python3 "$REPO_ROOT/build/scripts/linux/patch-steamworks-symbols.py" "$PUBLISH_DIR/GregModmanager"
 
 tar -C "$PUBLISH_DIR" -czf "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.tar.gz" .
 
