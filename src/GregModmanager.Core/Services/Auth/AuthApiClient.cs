@@ -23,7 +23,7 @@ public class AuthApiClient : IAuthApiClient
         {
             var baseUrl = AppSettings.IsLocalBuild
                 ? "http://localhost:5001/auth"
-                : "https://datacentermods.com/auth";
+                : AppSettings.AuthApiBaseUrl;
 
             var payload = new TokenExchangeRequest
             {
@@ -75,7 +75,7 @@ public class AuthApiClient : IAuthApiClient
         {
             var baseUrl = AppSettings.IsLocalBuild
                 ? "http://localhost:5001/auth"
-                : "https://datacentermods.com/auth";
+                : AppSettings.AuthApiBaseUrl;
 
             var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/logout");
             request.Headers.Add("Authorization", $"Bearer {accessToken}");

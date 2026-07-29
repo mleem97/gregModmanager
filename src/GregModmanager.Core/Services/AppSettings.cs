@@ -17,6 +17,20 @@ public static class AppSettings
     public static bool IsLocalBuild => 
         string.Equals(Environment.GetEnvironmentVariable("IS_LOCAL_BUILD"), "TRUE", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Uses the local HTTPS webapp at datacentermods.home and its API subdomain.</summary>
+    public static bool IsLocalTestBuild =>
+        string.Equals(Environment.GetEnvironmentVariable("IS_LOCAL_TEST_BUILD"), "TRUE", StringComparison.OrdinalIgnoreCase);
+
+    public static string ModStoreWebBaseUrl =>
+        Environment.GetEnvironmentVariable("MODSTORE_WEB_URL")
+        ?? (IsLocalTestBuild ? "https://datacentermods.home" : "https://datacentermods.com");
+
+    public static string ModStoreApiBaseUrl =>
+        Environment.GetEnvironmentVariable("MODSTORE_API_URL")
+        ?? (IsLocalTestBuild ? "https://api.datacentermods.home" : "https://datacentermods.com");
+
+    public static string AuthApiBaseUrl => $"{ModStoreApiBaseUrl.TrimEnd('/')}/auth";
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarLint", "S1075", Justification = "Hardcoded fallback URIs are required for core ecosystem stability.")]
     public static string MelonLoaderReleasesUrl => 
         Environment.GetEnvironmentVariable("MELONLOADER_RELEASES_URL") 
@@ -31,7 +45,7 @@ public static class AppSettings
         Environment.GetEnvironmentVariable("AUTH_LOGIN_URL_FORMAT")
         ?? (IsLocalBuild 
             ? "http://localhost:5001/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce" 
-            : "https://datacentermods.com/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce");
+            : $"{ModStoreWebBaseUrl}/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={{0}}&requestId={{1}}&state=desktop_flow&nonce=desktop_nonce");
     
     public static string AuthCallbackRedirectUri => 
         Environment.GetEnvironmentVariable("AUTH_CALLBACK_REDIRECT_URI")

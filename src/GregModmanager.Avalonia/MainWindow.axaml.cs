@@ -214,9 +214,17 @@ public partial class MainWindow : Window
         else
         {
             GregApiStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
-            GregApiStatusText.Text = AppSettings.IsLocalBuild ? "gregAPI Local" : "gregAPI Offline";
+            GregApiStatusText.Text = AppSettings.IsLocalBuild
+                ? "gregAPI Localhost"
+                : AppSettings.IsLocalTestBuild
+                    ? "gregAPI Local Test"
+                    : "gregAPI Offline";
             AuthStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
-            AuthStatusText.Text = AppSettings.IsLocalBuild ? "Login To Localhost" : "Login To Datacentermods.com";
+            AuthStatusText.Text = AppSettings.IsLocalBuild
+                ? "Login To Localhost"
+                : AppSettings.IsLocalTestBuild
+                    ? "Login To datacentermods.home"
+                    : "Login To Datacentermods.com";
         }
     }
 
