@@ -20,9 +20,14 @@
     <Border Grid.Row="2" Classes="panel">
       <ScrollViewer>
         <ItemsControl x:Name="ProjectList">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="views:ProjectItemVm">
-              <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8" PointerPressed="OnProjectTapped">
+              <Border Width="320" Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,10,10" PointerPressed="OnProjectTapped">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Bold" />

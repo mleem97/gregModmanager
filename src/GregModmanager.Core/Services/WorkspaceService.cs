@@ -9,6 +9,9 @@ namespace GregModmanager.Services;
 public sealed class WorkspaceService
 {
 	public const string CustomWorkspacePathKey = "CustomWorkspacePath";
+	public static bool HasUserConfiguredWorkspace =>
+		!string.IsNullOrWhiteSpace(S.Preferences.GetString(CustomWorkspacePathKey, "")) &&
+		Directory.Exists(S.Preferences.GetString(CustomWorkspacePathKey, ""));
 
 	private static readonly JsonSerializerOptions JsonOptions = AppJsonContext.SharedOptions;
 

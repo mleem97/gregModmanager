@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using GregModmanager.Localization;
@@ -30,12 +31,29 @@ public partial class SettingsPage : UserControl
         LanguagePicker.SelectedIndex = idx >= 0 ? idx : 0;
 
         ModStoreSwitch.IsChecked = AppSettings.IsModStoreEnabled();
+        AppModeLabel.Text = S.Get("Settings_AppMode");
+        ModStoreSwitch.Content = S.Get("Settings_ModStoreStatus");
+        AppModePicker.ItemsSource = new[]
+        {
+            S.Get("AppMode_Full"),
+            S.Get("AppMode_ModManagerOnly"),
+            S.Get("AppMode_DecideLater")
+        };
+        AppModePicker.SelectedIndex = AppSettings.GetAppMode() switch
+        {
+            AppSettings.AppModeModManagerOnly => 1,
+            AppSettings.AppModeDecideLater => 2,
+            _ => 0
+        };
         GameRootEntry.Text = AppSettings.GetGameRootPath();
         UpdateGameRootLabel();
         CustomPathEntry.Text = S.Preferences.GetString(WorkspaceService.CustomWorkspacePathKey, "");
         CurrentPathLabel.Text = S.Format(CurrentPathKey, _workspace.WorkspaceRoot);
         
         TelemetrySwitch.IsChecked = AppSettings.IsTelemetryEnabled();
+        OpenLogsButton.Content = S.Get("Settings_OpenLogs");
+        CopyLogsButton.Content = S.Get("Settings_CopyLogs");
+        SaveLogsButton.Content = S.Get("Settings_SaveLogs");
     }
 
     private static void OnTelemetryToggled(object? sender, RoutedEventArgs e)
@@ -156,6 +174,21 @@ public partial class SettingsPage : UserControl
         }
     }
 
+    private void OnAppModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (AppModePicker.SelectedIndex < 0) return;
+
+        var mode = AppModePicker.SelectedIndex switch
+        {
+            1 => AppSettings.AppModeModManagerOnly,
+            2 => AppSettings.AppModeDecideLater,
+            _ => AppSettings.AppModeFull
+        };
+        AppSettings.SetAppMode(mode);
+        ModStoreSwitch.IsChecked = AppSettings.IsModStoreEnabled();
+        ModeHint.Text = S.Get("Settings_AppModeRestart");
+    }
+
     private static async void OnOpenLogs(object? sender, RoutedEventArgs e)
     {
         try
@@ -173,6 +206,58 @@ public partial class SettingsPage : UserControl
             AppFileLog.Error("Failed to open logs", ex);
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
             await dialog.ShowMessageAsync(S.Get("Error"), S.Format("Settings_OpenLogsFailed", ex.Message));
+        }
+    }
+
+    private async void OnCopyLogs(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel((Control)sender!);
+            var clipboard = topLevel?.Clipboard;
+            if (clipboard is null)
+                throw new InvalidOperationException(S.Get("Error_ClipboardUnavailable"));
+
+            var content = File.Exists(AppFileLog.LogPath)
+                ? await File.ReadAllTextAsync(AppFileLog.LogPath)
+                : string.Empty;
+            await clipboard.SetTextAsync(content);
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Failed to copy logs", ex);
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowErrorAsync(S.Get("Error"), S.Get("Settings_CopyLogsFailed"), ex);
+        }
+    }
+
+    private async void OnSaveLogs(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel((Control)sender!);
+            if (topLevel is null) return;
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = S.Get("Settings_SaveLogs"),
+                SuggestedFileName = Path.GetFileName(AppFileLog.LogPath),
+                DefaultExtension = ".log",
+                ShowOverwritePrompt = true
+            });
+            var path = file?.TryGetLocalPath();
+            if (string.IsNullOrWhiteSpace(path)) return;
+
+            var content = File.Exists(AppFileLog.LogPath)
+                ? await File.ReadAllTextAsync(AppFileLog.LogPath)
+                : string.Empty;
+            await File.WriteAllTextAsync(path, content);
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Failed to save logs", ex);
+            var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+            await dialog.ShowErrorAsync(S.Get("Error"), S.Get("Settings_SaveLogsFailed"), ex);
         }
     }
 

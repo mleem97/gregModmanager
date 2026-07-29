@@ -1,10 +1,14 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using GregModmanager.Avalonia.Services;
 using GregModmanager.Avalonia.Views;
+using GregModmanager.Localization;
 using GregModmanager.Models.Auth;
 using GregModmanager.Services;
 using GregModmanager.Services.Auth;
@@ -17,18 +21,21 @@ public partial class MainWindow : Window
     private readonly IServiceProvider _services;
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
+    private readonly WorkspaceService _workspace;
     private Control? _currentPage;
     private System.Timers.Timer? _statusTimer;
 
     public MainWindow(
         IServiceProvider services,
         SteamWorkshopService steam,
-        ISessionManager session)
+        ISessionManager session,
+        WorkspaceService workspace)
     {
         InitializeComponent();
         _services = services;
         _steam = steam;
         _session = session;
+        _workspace = workspace;
 
         if (AppSettings.IsModStoreEnabled())
             BtnModStore.IsVisible = true;
@@ -60,6 +67,33 @@ public partial class MainWindow : Window
             }
 
             await _session.InitializeAsync();
+
+            if (!WorkspaceService.HasUserConfiguredWorkspace)
+            {
+                if (!await SelectWorkspaceOnFirstStartAsync())
+                {
+                    AppFileLog.Warn("Workspace selection was cancelled on first start; shutting down.");
+                    if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                        desktop.Shutdown();
+                    return;
+                }
+            }
+
+            if (!AppSettings.HasAppModeChoice())
+            {
+                var dialog = _services.GetRequiredService<IDialogService>();
+                var mode = await dialog.ShowChoiceAsync(
+                    S.Get("AppMode_SelectTitle"),
+                    S.Get("AppMode_SelectMessage"),
+                    new[]
+                    {
+                        (AppSettings.AppModeFull, S.Get("AppMode_Full")),
+                        (AppSettings.AppModeModManagerOnly, S.Get("AppMode_ModManagerOnly")),
+                        (AppSettings.AppModeDecideLater, S.Get("AppMode_DecideLater"))
+                });
+                AppSettings.SetAppMode(mode ?? AppSettings.AppModeDecideLater);
+            }
+            BtnModStore.IsVisible = AppSettings.IsModStoreEnabled();
 
             var args = Environment.GetCommandLineArgs();
             foreach (var arg in args)
@@ -93,6 +127,23 @@ public partial class MainWindow : Window
             AppFileLog.MarkCrash("MainWindow.OnLoaded", ex);
             AppFileLog.Error("MainWindow.OnLoaded failed", ex);
         }
+    }
+
+    private async Task<bool> SelectWorkspaceOnFirstStartAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = S.Get("Workspace_SelectTitle"),
+            AllowMultiple = false
+        });
+        var path = folders.FirstOrDefault()?.TryGetLocalPath();
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        S.Preferences.SetString(WorkspaceService.CustomWorkspacePathKey, Path.GetFullPath(path));
+        _workspace.InvalidateCache();
+        AppFileLog.Info($"Workspace selected on first start: {path}");
+        return true;
     }
 
     private async Task HandleProtocolUriAsync(string arg)
@@ -208,8 +259,27 @@ public partial class MainWindow : Window
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        if (e.ClickCount >= 2)
+        {
+            ToggleMaximize();
+            e.Handled = true;
+            return;
+        }
+
+        if (WindowState != WindowState.Maximized)
             BeginMoveDrag(e);
+    }
+
+    private void OnMaximizeClicked(object? sender, RoutedEventArgs e) => ToggleMaximize();
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
     }
 
     private void OnMinimizeClicked(object? sender, RoutedEventArgs e)

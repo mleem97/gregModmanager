@@ -28,6 +28,21 @@
   <data name="Search" xml:space="preserve"><value>Suchen</value></data>
   <data name="Refresh" xml:space="preserve"><value>Aktualisieren</value></data>
   <data name="Open" xml:space="preserve"><value>Öffnen</value></data>
+  <data name="Error_Copy" xml:space="preserve"><value>Fehler kopieren</value></data>
+  <data name="Error_Copied" xml:space="preserve"><value>In die Zwischenablage kopiert.</value></data>
+  <data name="Error_CopyFailed" xml:space="preserve"><value>Konnte nicht in die Zwischenablage kopieren.</value></data>
+  <data name="Error_ClipboardUnavailable" xml:space="preserve"><value>Die System-Zwischenablage ist nicht verfügbar.</value></data>
+  <data name="Error_AppVersion" xml:space="preserve"><value>App-Version</value></data>
+  <data name="Error_OperatingSystem" xml:space="preserve"><value>Betriebssystem</value></data>
+  <data name="Error_Language" xml:space="preserve"><value>Sprache</value></data>
+  <data name="Error_LogPath" xml:space="preserve"><value>Logpfad</value></data>
+  <data name="Error_TechnicalDetails" xml:space="preserve"><value>Technische Details</value></data>
+  <data name="Workspace_SelectTitle" xml:space="preserve"><value>Workspace-Ordner auswählen</value></data>
+  <data name="AppMode_SelectTitle" xml:space="preserve"><value>Wie soll gregModmanager ausgeführt werden?</value></data>
+  <data name="AppMode_SelectMessage" xml:space="preserve"><value>Der Modstore ist standardmäßig aktiv. Sie können die vollständige App verwenden, den Modstore für „Nur Modmanager“ deaktivieren oder später entscheiden.</value></data>
+  <data name="AppMode_Full" xml:space="preserve"><value>Vollständige App (Modstore aktiv)</value></data>
+  <data name="AppMode_ModManagerOnly" xml:space="preserve"><value>Nur als Modmanager verwenden</value></data>
+  <data name="AppMode_DecideLater" xml:space="preserve"><value>Ich entscheide später</value></data>
 
   <!-- ProjectsPage -->
   <data name="Projects_Headline" xml:space="preserve"><value>Lokale Projekte</value></data>
@@ -305,6 +320,19 @@
   <data name="Settings_Logs" xml:space="preserve"><value>Protokolle</value></data>
   <data name="Settings_OpenLogs" xml:space="preserve"><value>Protokollordner öffnen</value></data>
   <data name="Settings_OpenLogsFailed" xml:space="preserve"><value>Protokollordner konnte nicht geöffnet werden: {0}</value></data>
+  <data name="Settings_CopyLogs" xml:space="preserve"><value>Log kopieren</value></data>
+  <data name="Settings_SaveLogs" xml:space="preserve"><value>Log speichern</value></data>
+  <data name="Settings_CopyLogsFailed" xml:space="preserve"><value>Das Log konnte nicht kopiert werden.</value></data>
+  <data name="Settings_SaveLogsFailed" xml:space="preserve"><value>Das Log konnte nicht gespeichert werden.</value></data>
+  <data name="Editor_ProjectOpenFailed" xml:space="preserve"><value>Das Projekt konnte nicht geöffnet werden.</value></data>
+  <data name="Editor_SaveFailed" xml:space="preserve"><value>Das Projekt konnte nicht gespeichert werden.</value></data>
+  <data name="Editor_PublishException" xml:space="preserve"><value>Der Upload ist unerwartet fehlgeschlagen.</value></data>
+  <data name="NewProject_CreateFailed" xml:space="preserve"><value>Das Projekt konnte nicht erstellt werden.</value></data>
+  <data name="Uploads_ActionFailed" xml:space="preserve"><value>Die Upload-Aktion ist fehlgeschlagen.</value></data>
+  <data name="Uploads_NavigationFailed" xml:space="preserve"><value>Das importierte Projekt konnte nicht geöffnet werden.</value></data>
+  <data name="Settings_AppMode" xml:space="preserve"><value>App-Modus</value></data>
+  <data name="Settings_AppModeRestart" xml:space="preserve"><value>Die App muss neu gestartet werden, damit sich die Modstore-Anzeige aktualisiert.</value></data>
+  <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Der Modstore-Status wird über den App-Modus gesteuert.</value></data>
   <data name="Settings_CreateReproBundle" xml:space="preserve"><value>Repro-Bundle erstellen</value></data>
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro-Bundle erstellt: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Repro-Bundle konnte nicht erstellt werden: {0}</value></data>

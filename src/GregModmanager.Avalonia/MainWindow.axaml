@@ -35,6 +35,11 @@
           <Button Width="34"
                   Height="28"
                   Classes="window-btn"
+                  Content="□"
+                  Click="OnMaximizeClicked" />
+          <Button Width="34"
+                  Height="28"
+                  Classes="window-btn"
                   Content="—"
                   Click="OnMinimizeClicked" />
           <Button Width="34"
@@ -83,6 +88,10 @@
       </Grid>
     </Border>
 
-    <ContentControl Grid.Row="1" Grid.Column="1" x:Name="MainContent" Margin="0" />
+    <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Surface}" Padding="4">
+      <ContentControl x:Name="MainContent"
+                      HorizontalContentAlignment="Stretch"
+                      VerticalContentAlignment="Stretch" />
+    </Border>
   </Grid>
 </Window>

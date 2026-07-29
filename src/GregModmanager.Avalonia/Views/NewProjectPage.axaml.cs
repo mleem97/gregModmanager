@@ -38,7 +38,7 @@ public partial class NewProjectPage : UserControl
         {
             _log.Append($"Create template failed: {ex.Message}");
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("NewProject_CouldNotCreate"), ex.Message);
+            await dialog.ShowErrorAsync(S.Get("NewProject_CouldNotCreate"), S.Get("NewProject_CreateFailed"), ex);
         }
     }
 }

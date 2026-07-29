@@ -1,10 +1,16 @@
 using GregModmanager.Localization;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 namespace GregModmanager.Services;
 
 public static class AppSettings
 {
     public static string ModStoreEnabledKey => "ModStoreEnabled";
+    public static string AppModeKey => "AppMode";
+    public const string AppModeFull = "full";
+    public const string AppModeModManagerOnly = "modmanager-only";
+    public const string AppModeDecideLater = "decide-later";
     public static string GameRootPathKey => "GameRootPath";
     public static string TelemetryEnabledKey => "TelemetryEnabled";
 
@@ -43,12 +49,107 @@ public static class AppSettings
 
     public static string GetGameRootPath()
     {
-        return S.Preferences.GetString(GameRootPathKey, "");
+        var configured = S.Preferences.GetString(GameRootPathKey, "").Trim();
+        if (!string.IsNullOrWhiteSpace(configured) && Directory.Exists(configured))
+            return Path.GetFullPath(configured);
+
+        var detected = TryDetectGameRoot();
+        return detected ?? string.Empty;
+    }
+
+    /// <summary>Finds the installed Data Center directory without depending on the current working directory.</summary>
+    public static string? TryDetectGameRoot()
+    {
+        var env = Environment.GetEnvironmentVariable("DATA_CENTER_GAME_DIR")?.Trim();
+        if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
+            return Path.GetFullPath(env);
+
+        var steamRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string? path)
+        {
+            if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
+                steamRoots.Add(Path.GetFullPath(path));
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "/Steam");
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) + "/Steam");
+            Add(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "/Steam");
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            Add(Path.Combine(home, "Library/Application Support/Steam"));
+        }
+        else
+        {
+            Add(Path.Combine(home, ".steam/steam"));
+            Add(Path.Combine(home, ".steam/root"));
+            Add(Path.Combine(home, ".local/share/Steam"));
+            Add(Path.Combine(home, ".var/app/com.valvesoftware.Steam/.local/share/Steam"));
+        }
+
+        var libraries = steamRoots.ToList();
+        foreach (var root in libraries)
+        {
+            var vdf = Path.Combine(root, "steamapps", "libraryfolders.vdf");
+            if (!File.Exists(vdf)) continue;
+
+            try
+            {
+                foreach (Match match in Regex.Matches(File.ReadAllText(vdf), "\\\"path\\\"\\s+\\\"([^\\\"]+)\\\"", RegexOptions.IgnoreCase))
+                    Add(match.Groups[1].Value.Replace("\\\\", "\\"));
+            }
+            catch
+            {
+                // A malformed or inaccessible library must not prevent other candidates from being checked.
+            }
+        }
+
+        foreach (var steamRoot in steamRoots)
+        {
+            var common = Path.Combine(steamRoot, "steamapps", "common");
+            foreach (var folderName in new[] { "Data Center", "DataCenter" })
+            {
+                var candidate = Path.Combine(common, folderName);
+                if (Directory.Exists(candidate))
+                    return Path.GetFullPath(candidate);
+            }
+        }
+
+        return null;
     }
 
     public static bool IsModStoreEnabled()
     {
-        return S.Preferences.GetBool(ModStoreEnabledKey, false);
+        return !string.Equals(GetAppMode(), AppModeModManagerOnly, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string GetAppMode()
+    {
+        var mode = S.Preferences.GetString(AppModeKey, "").Trim();
+        if (string.Equals(mode, AppModeModManagerOnly, StringComparison.OrdinalIgnoreCase))
+            return AppModeModManagerOnly;
+        if (string.Equals(mode, AppModeDecideLater, StringComparison.OrdinalIgnoreCase))
+            return AppModeDecideLater;
+        if (string.Equals(mode, AppModeFull, StringComparison.OrdinalIgnoreCase))
+            return AppModeFull;
+
+        // Existing installations without the mode setting keep the Modstore enabled by default.
+        return AppModeFull;
+    }
+
+    public static bool HasAppModeChoice()
+        => !string.IsNullOrWhiteSpace(S.Preferences.GetString(AppModeKey, ""));
+
+    public static void SetAppMode(string mode)
+    {
+        if (mode is not AppModeFull and not AppModeModManagerOnly and not AppModeDecideLater)
+            throw new ArgumentOutOfRangeException(nameof(mode));
+
+        S.Preferences.SetString(AppModeKey, mode);
+        S.Preferences.SetBool(ModStoreEnabledKey, mode != AppModeModManagerOnly);
     }
 
     public static bool IsTelemetryEnabled()

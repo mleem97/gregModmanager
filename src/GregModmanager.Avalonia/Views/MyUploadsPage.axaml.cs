@@ -76,7 +76,7 @@ public partial class MyUploadsPage : UserControl
         catch (Exception ex)
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_ActionFailed"), ex);
         }
     }
 
@@ -138,13 +138,13 @@ public partial class MyUploadsPage : UserControl
                 catch (Exception navEx)
                 {
                     AppFileLog.Error("MyUploadsPage navigation failed after bulk import", navEx);
-                    await dialogSvc.ShowMessageAsync(S.Get(ErrorKey), navEx.Message);
+                    await dialogSvc.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_NavigationFailed"), navEx);
                 }
             }
         }
         catch (Exception ex)
         {
-            await dialogSvc.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+            await dialogSvc.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_ActionFailed"), ex);
         }
     }
 
@@ -185,12 +185,12 @@ public partial class MyUploadsPage : UserControl
             catch (Exception navEx)
             {
                 AppFileLog.Error("MyUploadsPage navigation failed after single import", navEx);
-                await dialog.ShowMessageAsync(S.Get(ErrorKey), navEx.Message);
+                await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_NavigationFailed"), navEx);
             }
         }
         catch (Exception ex)
         {
-            await dialog.ShowMessageAsync(ErrorKey, ex.Message);
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_ActionFailed"), ex);
         }
     }
 
@@ -235,7 +235,7 @@ public partial class MyUploadsPage : UserControl
         catch (Exception ex)
         {
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Uploads_ActionFailed"), ex);
         }
     }
 }

@@ -58,9 +58,10 @@ public static class S
 	public static readonly (string Code, string DisplayName)[] SupportedLanguages =
 	[
 		("", "System default"),
-		("en", "English"),
-		("de", "Deutsch"),
-		("es", "Español"),
+        ("en", "English"),
+        ("de", "Deutsch"),
+        ("fr", "Français"),
+        ("es", "Español"),
 		("it", "Italiano"),
 		("ja", "日本語"),
 		("pl", "Polski"),

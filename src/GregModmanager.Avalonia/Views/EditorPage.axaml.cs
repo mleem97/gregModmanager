@@ -73,7 +73,7 @@ public partial class EditorPage : UserControl
         {
             _log.Append($"Failed to open project: {ex.Message}");
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get(ErrorKey), $"Could not open project. {ex.Message}");
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_ProjectOpenFailed"), ex);
         }
     }
 
@@ -876,7 +876,7 @@ public partial class EditorPage : UserControl
         }
         catch (Exception ex)
         {
-            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_SaveFailed"), ex);
         }
     }
 
@@ -966,7 +966,7 @@ public partial class EditorPage : UserControl
         {
             SyncStatusLabel.Text = "";
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get(ErrorKey), ex.Message);
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_PublishException"), ex);
         }
     }
 

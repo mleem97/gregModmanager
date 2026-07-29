@@ -28,6 +28,21 @@
   <data name="Search" xml:space="preserve"><value>Search</value></data>
   <data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Error_Copy" xml:space="preserve"><value>Copy error</value></data>
+  <data name="Error_Copied" xml:space="preserve"><value>Copied to clipboard.</value></data>
+  <data name="Error_CopyFailed" xml:space="preserve"><value>Could not copy to clipboard.</value></data>
+  <data name="Error_ClipboardUnavailable" xml:space="preserve"><value>The system clipboard is unavailable.</value></data>
+  <data name="Error_AppVersion" xml:space="preserve"><value>App version</value></data>
+  <data name="Error_OperatingSystem" xml:space="preserve"><value>Operating system</value></data>
+  <data name="Error_Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Error_LogPath" xml:space="preserve"><value>Log path</value></data>
+  <data name="Error_TechnicalDetails" xml:space="preserve"><value>Technical details</value></data>
+  <data name="Workspace_SelectTitle" xml:space="preserve"><value>Select your workspace folder</value></data>
+  <data name="AppMode_SelectTitle" xml:space="preserve"><value>Choose how gregModmanager should run</value></data>
+  <data name="AppMode_SelectMessage" xml:space="preserve"><value>The Modstore is enabled by default. You can use the full app, disable the Modstore for a mod-manager-only setup, or decide later.</value></data>
+  <data name="AppMode_Full" xml:space="preserve"><value>Full app (Modstore enabled)</value></data>
+  <data name="AppMode_ModManagerOnly" xml:space="preserve"><value>Use as Modmanager Only</value></data>
+  <data name="AppMode_DecideLater" xml:space="preserve"><value>I'll decide later</value></data>
 
   <!-- ProjectsPage -->
   <data name="Projects_Headline" xml:space="preserve"><value>Local projects</value></data>
@@ -310,6 +325,19 @@
   <data name="Settings_Logs" xml:space="preserve"><value>Logs</value></data>
   <data name="Settings_OpenLogs" xml:space="preserve"><value>Open logs folder</value></data>
   <data name="Settings_OpenLogsFailed" xml:space="preserve"><value>Could not open logs folder: {0}</value></data>
+  <data name="Settings_CopyLogs" xml:space="preserve"><value>Copy log</value></data>
+  <data name="Settings_SaveLogs" xml:space="preserve"><value>Save log</value></data>
+  <data name="Settings_CopyLogsFailed" xml:space="preserve"><value>Could not copy the log.</value></data>
+  <data name="Settings_SaveLogsFailed" xml:space="preserve"><value>Could not save the log.</value></data>
+  <data name="Editor_ProjectOpenFailed" xml:space="preserve"><value>Could not open the project.</value></data>
+  <data name="Editor_SaveFailed" xml:space="preserve"><value>Could not save the project.</value></data>
+  <data name="Editor_PublishException" xml:space="preserve"><value>The upload failed unexpectedly.</value></data>
+  <data name="NewProject_CreateFailed" xml:space="preserve"><value>The project could not be created.</value></data>
+  <data name="Uploads_ActionFailed" xml:space="preserve"><value>The upload action failed.</value></data>
+  <data name="Uploads_NavigationFailed" xml:space="preserve"><value>Could not open the imported project.</value></data>
+  <data name="Settings_AppMode" xml:space="preserve"><value>App mode</value></data>
+  <data name="Settings_AppModeRestart" xml:space="preserve"><value>Restart the app for the Modstore visibility to update.</value></data>
+  <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Modstore status is controlled by App mode.</value></data>
   <data name="Settings_CreateReproBundle" xml:space="preserve"><value>Create repro bundle</value></data>
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro bundle created: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Could not create repro bundle: {0}</value></data>

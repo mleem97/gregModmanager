@@ -39,7 +39,7 @@ public partial class ItemDetailPage : UserControl
         {
             AppFileLog.Error($"ItemDetailPage load failed for fileId={id}", ex);
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog.ShowMessageAsync(S.Get("Error"), ex.Message);
+            await dialog.ShowErrorAsync(S.Get("Error"), S.Get("Detail_CouldNotLoad"), ex);
         }
     }
 

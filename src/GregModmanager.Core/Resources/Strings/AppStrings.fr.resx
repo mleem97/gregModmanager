@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Error" xml:space="preserve"><value>Erreur</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Error_Copy" xml:space="preserve"><value>Copier l'erreur</value></data>
+  <data name="Error_Copied" xml:space="preserve"><value>Copié dans le presse-papiers.</value></data>
+  <data name="Error_CopyFailed" xml:space="preserve"><value>Impossible de copier dans le presse-papiers.</value></data>
+  <data name="Error_ClipboardUnavailable" xml:space="preserve"><value>Le presse-papiers du système n'est pas disponible.</value></data>
+  <data name="Error_AppVersion" xml:space="preserve"><value>Version de l'application</value></data>
+  <data name="Error_OperatingSystem" xml:space="preserve"><value>Système d'exploitation</value></data>
+  <data name="Error_Language" xml:space="preserve"><value>Langue</value></data>
+  <data name="Error_LogPath" xml:space="preserve"><value>Chemin du journal</value></data>
+  <data name="Error_TechnicalDetails" xml:space="preserve"><value>Détails techniques</value></data>
+  <data name="Workspace_SelectTitle" xml:space="preserve"><value>Sélectionner le dossier de travail</value></data>
+  <data name="AppMode_SelectTitle" xml:space="preserve"><value>Choisir le mode de gregModmanager</value></data>
+  <data name="AppMode_SelectMessage" xml:space="preserve"><value>Le Modstore est activé par défaut. Utilisez l'application complète, désactivez le Modstore pour le mode gestionnaire de mods uniquement, ou décidez plus tard.</value></data>
+  <data name="AppMode_Full" xml:space="preserve"><value>Application complète (Modstore activé)</value></data>
+  <data name="AppMode_ModManagerOnly" xml:space="preserve"><value>Utiliser uniquement comme gestionnaire de mods</value></data>
+  <data name="AppMode_DecideLater" xml:space="preserve"><value>Je déciderai plus tard</value></data>
+  <data name="Settings_OpenLogs" xml:space="preserve"><value>Ouvrir les journaux</value></data>
+  <data name="Settings_CopyLogs" xml:space="preserve"><value>Copier le journal</value></data>
+  <data name="Settings_SaveLogs" xml:space="preserve"><value>Enregistrer le journal</value></data>
+  <data name="Settings_CopyLogsFailed" xml:space="preserve"><value>Impossible de copier le journal.</value></data>
+  <data name="Settings_SaveLogsFailed" xml:space="preserve"><value>Impossible d'enregistrer le journal.</value></data>
+  <data name="Editor_ProjectOpenFailed" xml:space="preserve"><value>Impossible d'ouvrir le projet.</value></data>
+  <data name="Editor_SaveFailed" xml:space="preserve"><value>Impossible d'enregistrer le projet.</value></data>
+  <data name="Editor_PublishException" xml:space="preserve"><value>L'envoi a échoué de manière inattendue.</value></data>
+  <data name="NewProject_CreateFailed" xml:space="preserve"><value>Impossible de créer le projet.</value></data>
+  <data name="Uploads_ActionFailed" xml:space="preserve"><value>L'action d'envoi a échoué.</value></data>
+  <data name="Uploads_NavigationFailed" xml:space="preserve"><value>Impossible d'ouvrir le projet importé.</value></data>
+  <data name="Settings_AppMode" xml:space="preserve"><value>Mode de l'application</value></data>
+  <data name="Settings_AppModeRestart" xml:space="preserve"><value>Redémarrez l'application pour actualiser la visibilité du Modstore.</value></data>
+  <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Le statut du Modstore est contrôlé par le mode de l'application.</value></data>
+</root>

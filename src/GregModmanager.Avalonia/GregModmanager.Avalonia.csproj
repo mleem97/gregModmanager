@@ -19,7 +19,7 @@
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <SatelliteResourceLanguages>en;de;es;it;ja;pl;ru;zh</SatelliteResourceLanguages>
+    <SatelliteResourceLanguages>en;de;fr;es;it;ja;pl;ru;zh</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <!-- Default RuntimeIdentifier: win-x64 on Windows, linux-x64 on Linux -->
