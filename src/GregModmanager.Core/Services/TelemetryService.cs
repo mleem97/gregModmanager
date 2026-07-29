@@ -102,11 +102,21 @@ public sealed class TelemetryService
             foreach (var kvp in extraLabels) labels[kvp.Key] = kvp.Value;
         }
 
-        var message = payload switch
+        string message;
+        try
         {
-            SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
-            _ => JsonSerializer.Serialize((object)payload, AppJsonContext.Default.Object)
-        };
+            message = payload switch
+            {
+                SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
+                TelemetryStartupEvent startup => JsonSerializer.Serialize(startup, AppJsonContext.Default.TelemetryStartupEvent),
+                _ => JsonSerializer.Serialize(payload, payload.GetType(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+            };
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Warn($"Telemetry: Could not serialize event '{eventName}': {ex.Message}");
+            return;
+        }
 
         await PushToLokiAsync(eventName, message, labels);
     }
@@ -123,6 +133,11 @@ public sealed class TelemetryService
     private async Task<bool> PushToLokiAsync(string job, string line, Dictionary<string, string> labels)
     {
         if (!AppSettings.IsTelemetryEnabled()) return false;
+        if (!Uri.TryCreate(LokiUrl, UriKind.Absolute, out var lokiUri) ||
+            (lokiUri.Scheme != Uri.UriSchemeHttp && lokiUri.Scheme != Uri.UriSchemeHttps))
+        {
+            return false;
+        }
         try
         {
             // Loki labels
@@ -155,7 +170,7 @@ public sealed class TelemetryService
             };
 
             var json = JsonSerializer.Serialize(request, AppJsonContext.Default.LokiPushRequest);
-            var response = await _http.PostAsync(LokiUrl, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+            var response = await _http.PostAsync(lokiUri, new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();

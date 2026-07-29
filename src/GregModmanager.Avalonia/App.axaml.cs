@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using GregModmanager.Services;
+using GregModmanager.Models;
 
 namespace GregModmanager.Avalonia;
 
@@ -33,12 +34,12 @@ public partial class App : Application
         {
             var telemetry = Services.GetRequiredService<TelemetryService>();
             _ = telemetry.ReportCrashesAsync();
-            _ = telemetry.TrackEventAsync("startup", new
+            _ = telemetry.TrackEventAsync("startup", new TelemetryStartupEvent
             {
-                steamActive = GregModmanager.Steam.SteamApiNativeLoader.IsLoaded,
-                culture = System.Globalization.CultureInfo.CurrentCulture.Name,
-                osDescription = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
-                dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+                SteamActive = GregModmanager.Steam.SteamApiNativeLoader.IsLoaded,
+                Culture = System.Globalization.CultureInfo.CurrentCulture.Name,
+                OsDescription = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                DotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
             });
         }
         catch (Exception ex)

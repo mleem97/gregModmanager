@@ -33,6 +33,7 @@ namespace GregModmanager.Models;
 [JsonSerializable(typeof(TokenExchangeResponse))]
 [JsonSerializable(typeof(UserInfo))]
 [JsonSerializable(typeof(DebugLogPayload))]
+[JsonSerializable(typeof(TelemetryStartupEvent))]
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(bool))]
 [JsonSerializable(typeof(int))]

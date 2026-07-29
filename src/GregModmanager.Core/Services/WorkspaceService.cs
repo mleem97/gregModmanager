@@ -223,7 +223,13 @@ public sealed class WorkspaceService
 			meta = new WorkshopMetadata();
 		}
 		meta.Title ??= string.Empty;
+		meta.Version ??= "1.0.0";
 		meta.Description ??= string.Empty;
+		meta.Visibility ??= "Public";
+		meta.PreviewImageRelativePath ??= "preview.png";
+		meta.Tags ??= new List<string>();
+		meta.NativeConfigProfile ??= "decoration";
+		meta.AdditionalPreviews ??= new List<string>();
 		meta.WorkshopDependencyIds ??= new List<ulong>();
 
 		AutoDetectPreviewImage(projectRoot, meta);
