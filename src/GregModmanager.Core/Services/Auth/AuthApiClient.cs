@@ -51,6 +51,7 @@ public class AuthApiClient : IAuthApiClient
                             SubjectId = tokenResponse.User?.SubjectId ?? string.Empty,
                             Email = tokenResponse.User?.Email ?? string.Empty,
                             DisplayName = tokenResponse.User?.DisplayName ?? "User",
+                            AvatarUrl = tokenResponse.User?.AvatarUrl ?? string.Empty,
                             Roles = tokenResponse.User?.Roles ?? new[] { "user" },
                             Tenant = tokenResponse.User?.Tenant ?? string.Empty
                         }

@@ -54,16 +54,42 @@
     <Border Grid.Row="1" Grid.Column="0" Classes="sidebar">
       <Grid Margin="10,14,10,10" RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="NavPanel" Spacing="6">
-          <TextBlock Classes="micro-label" Text="WORKSHOP" />
+          <TextBlock Classes="micro-label cyan" Text="MODMANAGER" />
           <Button x:Name="BtnProjects" Classes="nav-item active" Content="Projects" Click="OnNavProjects" />
           <Button x:Name="BtnNewProject" Classes="nav-item" Content="New Project" Click="OnNavNewProject" />
           <Button x:Name="BtnMyUploads" Classes="nav-item" Content="My Uploads" Click="OnNavMyUploads" />
+          <TextBlock Classes="micro-label cyan" Margin="0,12,0,0" Text="MODSTORE" />
           <Button x:Name="BtnModStore" Classes="nav-item" Content="Mod Store" Click="OnNavModStore" IsVisible="False" />
           <TextBlock Classes="micro-label" Margin="0,12,0,0" Text="SYSTEM" />
           <Button x:Name="BtnSettings" Classes="nav-item" Content="Settings" Click="OnNavSettings" />
         </StackPanel>
 
         <StackPanel Grid.Row="2" Spacing="8">
+          <Button x:Name="LoginButton" Classes="profile-card" Click="OnLoginClicked">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Border Width="36" Height="36" CornerRadius="18" Background="#17364A">
+                <TextBlock Text="→" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="LoginPromptLabel" FontWeight="Bold" />
+                <TextBlock x:Name="LoginPromptHint" Classes="subtext" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+
+          <Button x:Name="ProfileButton" Classes="profile-card" Click="OnProfileButtonClicked" IsVisible="False">
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+              <Border Width="38" Height="38" CornerRadius="19" Background="#17364A" Grid.RowSpan="2">
+                <Grid>
+                  <Image x:Name="ProfileImage" Stretch="UniformToFill" IsVisible="False" />
+                  <TextBlock x:Name="ProfileInitials" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+              <TextBlock x:Name="ProfileNameText" Grid.Column="1" Margin="10,0,0,0" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+              <TextBlock x:Name="ProfileRoleText" Grid.Column="1" Grid.Row="1" Margin="10,2,0,0" Classes="subtext" />
+            </Grid>
+          </Button>
+
           <Border Classes="status-chip">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Ellipse x:Name="SteamStatusLed" Width="8" Height="8" />
@@ -93,5 +119,19 @@
                       HorizontalContentAlignment="Stretch"
                       VerticalContentAlignment="Stretch" />
     </Border>
+
+    <Popup x:Name="ProfileMenu" IsLightDismissEnabled="True" Placement="Top">
+      <Border Classes="profile-menu">
+        <StackPanel Spacing="4">
+          <TextBlock x:Name="ProfileMenuHeader" Classes="micro-label cyan" />
+          <Button x:Name="ProfileMenuProfile" Classes="profile-menu-item" Click="OnShowProfileClicked" />
+          <Button x:Name="ProfileMenuMods" Classes="profile-menu-item" Click="OnMyModsClicked" />
+          <Button x:Name="ProfileMenuUpload" Classes="profile-menu-item" Click="OnUploadModClicked" />
+          <Button x:Name="ProfileMenuSettings" Classes="profile-menu-item" Click="OnProfileSettingsClicked" />
+          <Separator Margin="0,4" />
+          <Button x:Name="ProfileMenuLogout" Classes="profile-menu-item danger" Click="OnLogoutClicked" />
+        </StackPanel>
+      </Border>
+    </Popup>
   </Grid>
 </Window>

@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using GregModmanager.Avalonia.Services;
@@ -13,6 +15,7 @@ using GregModmanager.Models.Auth;
 using GregModmanager.Services;
 using GregModmanager.Services.Auth;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http;
 
 namespace GregModmanager.Avalonia;
 
@@ -22,6 +25,8 @@ public partial class MainWindow : Window
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
     private readonly WorkspaceService _workspace;
+    private static readonly HttpClient AvatarHttp = new() { Timeout = TimeSpan.FromSeconds(8) };
+    private string _avatarUrl = string.Empty;
     private Control? _currentPage;
     private System.Timers.Timer? _statusTimer;
 
@@ -36,6 +41,15 @@ public partial class MainWindow : Window
         _steam = steam;
         _session = session;
         _workspace = workspace;
+        ProfileMenu.PlacementTarget = ProfileButton;
+        LoginPromptLabel.Text = S.Get("Profile_Login");
+        LoginPromptHint.Text = S.Get("Profile_LoginHint");
+        ProfileMenuHeader.Text = S.Get("Profile_Menu");
+        ProfileMenuProfile.Content = S.Get("Profile_Show");
+        ProfileMenuMods.Content = S.Get("Profile_MyMods");
+        ProfileMenuUpload.Content = S.Get("Profile_UploadMod");
+        ProfileMenuSettings.Content = S.Get("Profile_Settings");
+        ProfileMenuLogout.Content = S.Get("Profile_Logout");
 
         if (AppSettings.IsModStoreEnabled())
             BtnModStore.IsVisible = true;
@@ -178,6 +192,7 @@ public partial class MainWindow : Window
 
     private void UpdateStatusIndicators()
     {
+        UpdateProfileUi();
         if (_steam.TryGetSteamReady(out var userName))
         {
             SteamStatusLed.Fill = new SolidColorBrush(Color.Parse("#61F4D8"));
@@ -203,6 +218,171 @@ public partial class MainWindow : Window
             AuthStatusLed.Fill = new SolidColorBrush(Color.Parse("#D7383B"));
             AuthStatusText.Text = AppSettings.IsLocalBuild ? "Login To Localhost" : "Login To Datacentermods.com";
         }
+    }
+
+    private void UpdateProfileUi()
+    {
+        var session = _session.CurrentSession;
+        var authenticated = _session.State == SessionState.Authenticated && session is not null;
+        ProfileButton.IsVisible = authenticated;
+        LoginButton.IsVisible = !authenticated;
+        if (!authenticated || session is null)
+        {
+            ProfileMenu.IsOpen = false;
+            _avatarUrl = string.Empty;
+            ProfileImage.Source = null;
+            ProfileImage.IsVisible = false;
+            ProfileInitials.IsVisible = true;
+            return;
+        }
+
+        var user = session.User;
+        var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? "User" : user.DisplayName.Trim();
+        var role = HighestActiveRole(user.Roles);
+        ProfileNameText.Text = displayName;
+        ProfileRoleText.Text = $"{S.Get("Profile_Role")}: {role}";
+        ProfileInitials.Text = GetInitials(displayName);
+
+        var avatarUrl = user.AvatarUrl?.Trim() ?? string.Empty;
+        if (!string.Equals(avatarUrl, _avatarUrl, StringComparison.Ordinal))
+        {
+            _avatarUrl = avatarUrl;
+            _ = LoadAvatarAsync(avatarUrl);
+        }
+    }
+
+    private async Task LoadAvatarAsync(string avatarUrl)
+    {
+        if (!Uri.TryCreate(avatarUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("https" or "http"))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ProfileImage.Source = null;
+                ProfileImage.IsVisible = false;
+                ProfileInitials.IsVisible = true;
+            });
+            return;
+        }
+
+        try
+        {
+            var bytes = await AvatarHttp.GetByteArrayAsync(uri);
+            await using var stream = new MemoryStream(bytes);
+            var bitmap = new Bitmap(stream);
+            Dispatcher.UIThread.Post(() =>
+            {
+                ProfileImage.Source = bitmap;
+                ProfileImage.IsVisible = true;
+                ProfileInitials.IsVisible = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Warn($"Could not load profile avatar: {ex.Message}");
+            Dispatcher.UIThread.Post(() =>
+            {
+                ProfileImage.Source = null;
+                ProfileImage.IsVisible = false;
+                ProfileInitials.IsVisible = true;
+            });
+        }
+    }
+
+    private static string GetInitials(string displayName)
+    {
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0) return "?";
+        return parts.Length == 1
+            ? parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant()
+            : string.Concat(parts[0][0], parts[^1][0]).ToUpperInvariant();
+    }
+
+    private static string HighestActiveRole(IEnumerable<string>? roles)
+    {
+        var ranked = new Dictionary<string, (int Rank, string Label)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["owner"] = (100, "Owner"),
+            ["admin"] = (90, "Admin"),
+            ["administrator"] = (90, "Admin"),
+            ["developer"] = (80, "Developer"),
+            ["moderator"] = (70, "Moderator"),
+            ["uploader"] = (60, "Uploader"),
+            ["creator"] = (50, "Creator"),
+            ["user"] = (10, "User")
+        };
+
+        var selected = (Rank: 0, Label: "User");
+        foreach (var raw in roles ?? Array.Empty<string>())
+        {
+            var normalized = raw?.Trim().ToLowerInvariant() ?? string.Empty;
+            if (normalized.StartsWith("role_", StringComparison.Ordinal))
+                normalized = normalized[5..];
+
+            var candidate = ranked.TryGetValue(normalized, out var known)
+                ? known
+                : (20, string.IsNullOrWhiteSpace(raw) ? "User" : raw.Trim());
+            if (candidate.Item1 > selected.Rank)
+                selected = (candidate.Item1, candidate.Item2);
+        }
+        return selected.Label;
+    }
+
+    private async void OnLoginClicked(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _session.StartBrowserLoginAsync();
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Profile login failed", ex);
+            var dialog = _services.GetRequiredService<IDialogService>();
+            await dialog.ShowErrorAsync(S.Get("Error"), S.Get("Profile_LoginFailed"), ex);
+        }
+    }
+
+    private void OnProfileButtonClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = !ProfileMenu.IsOpen;
+    }
+
+    private async void OnShowProfileClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = false;
+        var user = _session.CurrentSession?.User;
+        if (user is null) return;
+        var dialog = _services.GetRequiredService<IDialogService>();
+        await dialog.ShowMessageAsync(
+            S.Get("Profile_Show"),
+            $"{S.Get("Profile_Name")}: {user.DisplayName}\n" +
+            $"{S.Get("Profile_Role")}: {HighestActiveRole(user.Roles)}\n" +
+            $"{S.Get("Profile_Email")}: {user.Email}");
+    }
+
+    private void OnMyModsClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = false;
+        OnNavMyUploads(sender, e);
+    }
+
+    private void OnUploadModClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = false;
+        OnNavNewProject(sender, e);
+    }
+
+    private void OnProfileSettingsClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = false;
+        OnNavSettings(sender, e);
+    }
+
+    private async void OnLogoutClicked(object? sender, RoutedEventArgs e)
+    {
+        ProfileMenu.IsOpen = false;
+        await _session.LogoutAsync();
+        UpdateProfileUi();
     }
 
     private void SetNavActive(Button active)

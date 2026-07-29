@@ -36,4 +36,16 @@
   <data name="Settings_AppMode" xml:space="preserve"><value>Mode de l'application</value></data>
   <data name="Settings_AppModeRestart" xml:space="preserve"><value>Redémarrez l'application pour actualiser la visibilité du Modstore.</value></data>
   <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Le statut du Modstore est contrôlé par le mode de l'application.</value></data>
+  <data name="Profile_Login" xml:space="preserve"><value>Se connecter</value></data>
+  <data name="Profile_LoginHint" xml:space="preserve"><value>Ouvrir la connexion</value></data>
+  <data name="Profile_Menu" xml:space="preserve"><value>COMPTE</value></data>
+  <data name="Profile_Show" xml:space="preserve"><value>Afficher le profil</value></data>
+  <data name="Profile_MyMods" xml:space="preserve"><value>Mes mods</value></data>
+  <data name="Profile_UploadMod" xml:space="preserve"><value>Envoyer un mod</value></data>
+  <data name="Profile_Settings" xml:space="preserve"><value>Paramètres de l'application</value></data>
+  <data name="Profile_Logout" xml:space="preserve"><value>Se déconnecter</value></data>
+  <data name="Profile_Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="Profile_Role" xml:space="preserve"><value>Rôle</value></data>
+  <data name="Profile_Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Profile_LoginFailed" xml:space="preserve"><value>Impossible de démarrer la connexion.</value></data>
 </root>

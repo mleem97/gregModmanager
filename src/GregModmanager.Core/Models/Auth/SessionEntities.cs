@@ -18,6 +18,7 @@ public class AccountIdentity
     public string SubjectId { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
+    public string AvatarUrl { get; set; } = string.Empty;
     public string[] Roles { get; set; } = Array.Empty<string>();
     public string Tenant { get; set; } = string.Empty;
 }
@@ -72,6 +73,9 @@ public class TokenExchangeUser
 
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("avatarUrl")]
+    public string AvatarUrl { get; set; } = string.Empty;
 
     [JsonPropertyName("roles")]
     public string[] Roles { get; set; } = Array.Empty<string>();

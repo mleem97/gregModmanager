@@ -333,6 +333,18 @@
   <data name="Settings_AppMode" xml:space="preserve"><value>App-Modus</value></data>
   <data name="Settings_AppModeRestart" xml:space="preserve"><value>Die App muss neu gestartet werden, damit sich die Modstore-Anzeige aktualisiert.</value></data>
   <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Der Modstore-Status wird über den App-Modus gesteuert.</value></data>
+  <data name="Profile_Login" xml:space="preserve"><value>Anmelden</value></data>
+  <data name="Profile_LoginHint" xml:space="preserve"><value>Kontenanmeldung öffnen</value></data>
+  <data name="Profile_Menu" xml:space="preserve"><value>KONTO</value></data>
+  <data name="Profile_Show" xml:space="preserve"><value>Profil anzeigen</value></data>
+  <data name="Profile_MyMods" xml:space="preserve"><value>Meine Mods</value></data>
+  <data name="Profile_UploadMod" xml:space="preserve"><value>Mod hochladen</value></data>
+  <data name="Profile_Settings" xml:space="preserve"><value>App-Einstellungen</value></data>
+  <data name="Profile_Logout" xml:space="preserve"><value>Abmelden</value></data>
+  <data name="Profile_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Profile_Role" xml:space="preserve"><value>Rolle</value></data>
+  <data name="Profile_Email" xml:space="preserve"><value>E-Mail</value></data>
+  <data name="Profile_LoginFailed" xml:space="preserve"><value>Die Anmeldung konnte nicht gestartet werden.</value></data>
   <data name="Settings_CreateReproBundle" xml:space="preserve"><value>Repro-Bundle erstellen</value></data>
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro-Bundle erstellt: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Repro-Bundle konnte nicht erstellt werden: {0}</value></data>

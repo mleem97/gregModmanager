@@ -338,6 +338,18 @@
   <data name="Settings_AppMode" xml:space="preserve"><value>App mode</value></data>
   <data name="Settings_AppModeRestart" xml:space="preserve"><value>Restart the app for the Modstore visibility to update.</value></data>
   <data name="Settings_ModStoreStatus" xml:space="preserve"><value>Modstore status is controlled by App mode.</value></data>
+  <data name="Profile_Login" xml:space="preserve"><value>Log in</value></data>
+  <data name="Profile_LoginHint" xml:space="preserve"><value>Open account login</value></data>
+  <data name="Profile_Menu" xml:space="preserve"><value>ACCOUNT</value></data>
+  <data name="Profile_Show" xml:space="preserve"><value>Show profile</value></data>
+  <data name="Profile_MyMods" xml:space="preserve"><value>My mods</value></data>
+  <data name="Profile_UploadMod" xml:space="preserve"><value>Upload mod</value></data>
+  <data name="Profile_Settings" xml:space="preserve"><value>App settings</value></data>
+  <data name="Profile_Logout" xml:space="preserve"><value>Log out</value></data>
+  <data name="Profile_Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Profile_Role" xml:space="preserve"><value>Role</value></data>
+  <data name="Profile_Email" xml:space="preserve"><value>Email</value></data>
+  <data name="Profile_LoginFailed" xml:space="preserve"><value>Login could not be started.</value></data>
   <data name="Settings_CreateReproBundle" xml:space="preserve"><value>Create repro bundle</value></data>
   <data name="Settings_ReproBundleCreated" xml:space="preserve"><value>Repro bundle created: {0}</value></data>
   <data name="Settings_ReproBundleCreateFailed" xml:space="preserve"><value>Could not create repro bundle: {0}</value></data>

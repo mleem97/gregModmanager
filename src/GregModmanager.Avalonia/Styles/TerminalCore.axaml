@@ -119,6 +119,44 @@
     <Setter Property="Padding" Value="8,6" />
   </Style>
 
+  <Style Selector="Button.profile-card">
+    <Setter Property="Background" Value="#0D2234" />
+    <Setter Property="BorderBrush" Value="#29485B" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Padding" Value="9" />
+  </Style>
+
+  <Style Selector="Button.profile-card:pointerover">
+    <Setter Property="Background" Value="#14334A" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Primary}" />
+  </Style>
+
+  <Style Selector="Border.profile-menu">
+    <Setter Property="Background" Value="#0D2234" />
+    <Setter Property="BorderBrush" Value="#3A667D" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10" />
+    <Setter Property="Width" Value="260" />
+  </Style>
+
+  <Style Selector="Button.profile-menu-item">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+  </Style>
+
+  <Style Selector="Button.profile-menu-item:pointerover">
+    <Setter Property="Background" Value="#17364A" />
+  </Style>
+
+  <Style Selector="Button.profile-menu-item.danger">
+    <Setter Property="Foreground" Value="{DynamicResource Error}" />
+  </Style>
+
   <Style Selector="TextBox.input-terminal">
     <Setter Property="Background" Value="#05172A" />
     <Setter Property="BorderBrush" Value="#355265" />
