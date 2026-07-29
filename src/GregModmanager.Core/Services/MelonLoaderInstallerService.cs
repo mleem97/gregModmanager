@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace GregModmanager.Services;
@@ -27,8 +28,17 @@ public sealed class MelonLoaderInstallerService
 
 	public MelonLoaderInstallState Detect(string gameRoot)
 	{
-		var path = Path.Combine(gameRoot, "MelonLoader", "net6", "MelonLoader.dll");
-		if (!File.Exists(path)) return new(false, null, null);
+		string? path;
+		try
+		{
+			path = Directory.EnumerateFiles(
+				Path.Combine(gameRoot, "MelonLoader"),
+				"MelonLoader.dll",
+				SearchOption.AllDirectories).FirstOrDefault();
+		}
+		catch (IOException) { return new(false, null, null); }
+		catch (UnauthorizedAccessException) { return new(false, null, null); }
+		if (path is null) return new(false, null, null);
 
 		try
 		{
@@ -47,9 +57,6 @@ public sealed class MelonLoaderInstallerService
 	{
 		if (string.IsNullOrWhiteSpace(gameRoot) || !Directory.Exists(gameRoot))
 			return new(false, false, "Der Spielordner wurde nicht gefunden.", null);
-
-		if (OperatingSystem.IsMacOS())
-			return new(false, false, "Für macOS ist in diesem Installer kein MelonLoader-Archiv hinterlegt.", null);
 
 		try
 		{
@@ -78,6 +85,7 @@ public sealed class MelonLoaderInstallerService
 
 					progress?.Report("Installiere MelonLoader in den Spielordner…");
 					CopyDirectory(sourceRoot, gameRoot);
+					EnsureUnixLaunchersExecutable(gameRoot);
 					var result = Detect(gameRoot);
 					return new(result.Installed, true,
 						result.Installed ? $"MelonLoader {release.Version} wurde installiert." : "MelonLoader wurde entpackt, aber die DLL fehlt.",
@@ -115,13 +123,30 @@ public sealed class MelonLoaderInstallerService
 		if (!Version.TryParse(tag.TrimStart('v', 'V'), out var version))
 			throw new InvalidDataException($"Ungültige MelonLoader-Version: {tag}");
 
-		var assetName = OperatingSystem.IsWindows() ? "MelonLoader.x64.zip" : "MelonLoader.Linux.x64.zip";
-		foreach (var asset in root.GetProperty("assets").EnumerateArray())
-		{
-			if (string.Equals(asset.GetProperty("name").GetString(), assetName, StringComparison.Ordinal))
-				return (version, asset.GetProperty("browser_download_url").GetString() ?? throw new InvalidDataException("Release-Asset ohne URL."));
-		}
-		throw new InvalidDataException($"Kein passendes MelonLoader-Asset ({assetName}) gefunden.");
+		var assets = root.GetProperty("assets").EnumerateArray()
+			.Select(asset => (
+				Name: asset.GetProperty("name").GetString() ?? string.Empty,
+				Url: asset.GetProperty("browser_download_url").GetString() ?? string.Empty))
+			.ToList();
+		var selected = GetPreferredAssetNames()
+			.Select(name => assets.FirstOrDefault(asset => string.Equals(asset.Name, name, StringComparison.OrdinalIgnoreCase)))
+			.FirstOrDefault(asset => !string.IsNullOrWhiteSpace(asset.Url));
+		if (string.IsNullOrWhiteSpace(selected.Url))
+			throw new InvalidDataException($"Kein kompatibles MelonLoader-Asset für {RuntimeInformation.RuntimeIdentifier} gefunden.");
+		return (version, selected.Url);
+	}
+
+	private static IEnumerable<string> GetPreferredAssetNames()
+	{
+		if (OperatingSystem.IsWindows())
+			return new[] { "MelonLoader.x64.zip", "MelonLoader.x86.zip" };
+		if (OperatingSystem.IsMacOS())
+			return RuntimeInformation.OSArchitecture == Architecture.Arm64
+				? new[] { "MelonLoader.MacOS.arm64.zip", "MelonLoader.MacOS.x64.zip", "MelonLoader.MacOS.zip" }
+				: new[] { "MelonLoader.MacOS.x64.zip", "MelonLoader.MacOS.arm64.zip", "MelonLoader.MacOS.zip" };
+		return RuntimeInformation.OSArchitecture == Architecture.Arm64
+			? new[] { "MelonLoader.Linux.arm64.zip", "MelonLoader.Linux.x64.zip" }
+			: new[] { "MelonLoader.Linux.x64.zip", "MelonLoader.Linux.x86_64.zip" };
 	}
 
 	private static void ExtractSafely(string archivePath, string destination)
@@ -152,6 +177,26 @@ public sealed class MelonLoaderInstallerService
 			var target = Path.Combine(destination, Path.GetRelativePath(source, file));
 			Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 			File.Copy(file, target, overwrite: true);
+		}
+	}
+
+	private static void EnsureUnixLaunchersExecutable(string gameRoot)
+	{
+		if (OperatingSystem.IsWindows()) return;
+		var melonRoot = Path.Combine(gameRoot, "MelonLoader");
+		if (!Directory.Exists(melonRoot)) return;
+		foreach (var file in Directory.EnumerateFiles(melonRoot, "*", SearchOption.AllDirectories))
+		{
+			if (!file.EndsWith(".sh", StringComparison.OrdinalIgnoreCase) &&
+				!string.Equals(Path.GetFileName(file), "MelonLoader", StringComparison.OrdinalIgnoreCase))
+				continue;
+			try
+			{
+				File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+					UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+			}
+			catch (IOException) { }
+			catch (PlatformNotSupportedException) { }
 		}
 	}
 

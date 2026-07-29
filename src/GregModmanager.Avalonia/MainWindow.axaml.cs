@@ -25,22 +25,26 @@ public partial class MainWindow : Window
     private readonly SteamWorkshopService _steam;
     private readonly ISessionManager _session;
     private readonly WorkspaceService _workspace;
+    private readonly RuntimeDependencyInstallerService _runtimeDependencies;
     private static readonly HttpClient AvatarHttp = new() { Timeout = TimeSpan.FromSeconds(8) };
     private string _avatarUrl = string.Empty;
     private Control? _currentPage;
     private System.Timers.Timer? _statusTimer;
+    private bool _runtimeSetupStarted;
 
     public MainWindow(
         IServiceProvider services,
         SteamWorkshopService steam,
         ISessionManager session,
-        WorkspaceService workspace)
+        WorkspaceService workspace,
+        RuntimeDependencyInstallerService runtimeDependencies)
     {
         InitializeComponent();
         _services = services;
         _steam = steam;
         _session = session;
         _workspace = workspace;
+        _runtimeDependencies = runtimeDependencies;
         ProfileMenu.PlacementTarget = ProfileButton;
         LoginPromptLabel.Text = S.Get("Profile_Login");
         LoginPromptHint.Text = S.Get("Profile_LoginHint");
@@ -135,11 +139,41 @@ public partial class MainWindow : Window
             _statusTimer = timer;
 
             NavigateTo<ProjectsPage>();
+            await EnsureRuntimeDependenciesAsync(gameRoot);
         }
         catch (Exception ex)
         {
             AppFileLog.MarkCrash("MainWindow.OnLoaded", ex);
             AppFileLog.Error("MainWindow.OnLoaded failed", ex);
+        }
+    }
+
+    private async Task EnsureRuntimeDependenciesAsync(string? gameRoot)
+    {
+        if (_runtimeSetupStarted) return;
+        _runtimeSetupStarted = true;
+        if (string.IsNullOrWhiteSpace(gameRoot))
+        {
+            AppFileLog.Warn("Automatic runtime setup skipped: game root was not detected.");
+            return;
+        }
+
+        try
+        {
+            var progress = new Progress<string>(message => AppFileLog.Info($"Runtime setup: {message}"));
+            var result = await _runtimeDependencies.EnsureCurrentAsync(gameRoot, progress);
+            AppFileLog.Info($"Automatic runtime setup finished: {result.Message}");
+            if (!result.Success)
+            {
+                var dialog = _services.GetRequiredService<IDialogService>();
+                await dialog.ShowMessageAsync("Runtime-Installation", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error("Automatic runtime setup failed", ex);
+            var dialog = _services.GetRequiredService<IDialogService>();
+            await dialog.ShowMessageAsync("Runtime-Installation", ex.Message);
         }
     }
 

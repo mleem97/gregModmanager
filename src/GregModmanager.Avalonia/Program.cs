@@ -152,6 +152,7 @@ internal static class Program
         services.AddSingleton<MelonLoaderInstallerService>();
         services.AddSingleton<MelonSourceDiscoveryService>();
         services.AddSingleton<SteamModfixInstallerService>();
+        services.AddSingleton<RuntimeDependencyInstallerService>();
         services.AddSingleton<gregPluginChannelRegistry>(sp =>
         {
             var registry = new gregPluginChannelRegistry();
