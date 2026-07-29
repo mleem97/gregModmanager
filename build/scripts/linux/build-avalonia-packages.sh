@@ -17,6 +17,8 @@ PUBLISH_DIR="$OUTPUT_ROOT/publish"
 PKG_DIR="$OUTPUT_ROOT/packages"
 mkdir -p "$PUBLISH_DIR" "$PKG_DIR"
 
+CLEANUP_SCRIPT="$REPO_ROOT/build/scripts/linux/gregmodmanager-cleanup.sh"
+
 dotnet publish "$PROJECT_PATH" -c Release -r "$RID" --self-contained true -o "$PUBLISH_DIR"
 python3 "$REPO_ROOT/build/scripts/linux/patch-steamworks-symbols.py" "$PUBLISH_DIR/GregModmanager"
 
@@ -45,6 +47,9 @@ description: gregModmanager desktop client built with Avalonia UI.
 vendor: gregFramework
 homepage: https://github.com/mleem97/gregModmanager
 license: Proprietary
+scripts:
+  preinstall: ${CLEANUP_SCRIPT}
+  postinstall: ${CLEANUP_SCRIPT}
 contents:
   - src: ${PUBLISH_DIR}/
     dst: /opt/gregmodmanager/

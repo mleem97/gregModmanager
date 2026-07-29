@@ -69,7 +69,7 @@ MimeType=x-scheme-handler/{ProtocolScheme};
 ";
             var desktopFilePath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".local/share/applications/gregModmanager.desktop");
+                ".local/share/applications/gregmodmanager.desktop");
 
             Directory.CreateDirectory(Path.GetDirectoryName(desktopFilePath)!);
             File.WriteAllText(desktopFilePath, desktopFileContent.Trim());

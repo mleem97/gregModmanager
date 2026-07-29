@@ -87,6 +87,11 @@ Outputs:
 - `.pkg.tar.zst`
 - `.tar.gz`
 
+Linux package installation automatically stops a running gregModmanager,
+removes known legacy installation paths and stale desktop launchers, and
+refreshes the desktop database. The canonical paths are `/opt/gregmodmanager`,
+`/usr/bin/gregmodmanager`, and `gregmodmanager.desktop`.
+
 ## Root Wrappers
 
 Root-level wrappers (`build.ps1`, `run.ps1`, `install-local.ps1`) forward into this folder for convenience.

@@ -57,6 +57,9 @@ homepage: https://github.com/mleem97/gregModManager
 license: Proprietary
 depends:
   - libicu74 | libicu72 | libicu71 | libicu70 | libicu66 | libicu63 | libicu60 | libicu55 | libicu52
+scripts:
+  preinstall: ${REPO_ROOT}/build/scripts/linux/gregmodmanager-cleanup.sh
+  postinstall: ${REPO_ROOT}/build/scripts/linux/gregmodmanager-cleanup.sh
 contents:
   - src: ${PUBLISH_DIR}/
     dst: /opt/gregmodmanager/
