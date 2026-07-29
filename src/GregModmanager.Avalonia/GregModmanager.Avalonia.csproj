@@ -8,6 +8,7 @@
     <AssemblyName>GregModmanager</AssemblyName>
     <RootNamespace>GregModmanager.Avalonia</RootNamespace>
     <Version>1.6.1</Version>
+    <InformationalVersion>1.6.1-pre.12</InformationalVersion>
 
     <!-- Size optimizations -->
     <PublishTrimmed>true</PublishTrimmed>
