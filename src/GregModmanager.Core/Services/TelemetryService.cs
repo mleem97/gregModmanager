@@ -109,7 +109,9 @@ public sealed class TelemetryService
             {
                 SyncCollectionEvent sync => JsonSerializer.Serialize(sync, AppJsonContext.Default.SyncCollectionEvent),
                 TelemetryStartupEvent startup => JsonSerializer.Serialize(startup, AppJsonContext.Default.TelemetryStartupEvent),
-                _ => JsonSerializer.Serialize(payload, payload.GetType(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                // Unknown telemetry payloads must not require reflection metadata in a trimmed build.
+                // Typed payloads above carry the structured data; unknown events remain diagnostic text.
+                _ => payload?.ToString() ?? "{}"
             };
         }
         catch (Exception ex)
