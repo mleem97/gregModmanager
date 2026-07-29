@@ -23,7 +23,11 @@ set -euo pipefail
 export IS_LOCAL_TEST_BUILD=TRUE
 export MODSTORE_WEB_URL=https://datacentermods.home
 export MODSTORE_API_URL=https://api.datacentermods.home
-exec "\$(dirname "\$(readlink -f "\$0")")/publish/GregModmanager" "\$@"
+SCRIPT_DIR="\$(dirname "\$(readlink -f "\$0")")"
+if [ -x "\$SCRIPT_DIR/publish/GregModmanager" ]; then
+  exec "\$SCRIPT_DIR/publish/GregModmanager" "\$@"
+fi
+exec /opt/gregmodmanager-local-test/GregModmanager "\$@"
 EOF
 chmod +x "$OUTPUT_ROOT/run-local-test.sh"
 
