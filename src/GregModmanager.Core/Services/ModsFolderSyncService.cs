@@ -1,4 +1,5 @@
 using GregModmanager.Models;
+using GregModmanager.Services.GameAdapters;
 
 namespace GregModmanager.Services;
 
@@ -8,6 +9,13 @@ namespace GregModmanager.Services;
 /// </summary>
 public sealed class ModsFolderSyncService
 {
+	private readonly GameAdapterRegistry _adapters;
+
+	public ModsFolderSyncService(GameAdapterRegistry adapters)
+	{
+		_adapters = adapters;
+	}
+
 	public event Action<SyncProgressArgs>? SyncProgress;
 
 	/// <summary>
@@ -80,15 +88,16 @@ public sealed class ModsFolderSyncService
 			_ => ModContentType.PlacableObject,
 		};
 
-	private static string ResolveDestinationPath(string gameRoot, ulong publishedFileId, ModContentType modType)
+	private string ResolveDestinationPath(string gameRoot, ulong publishedFileId, ModContentType modType)
 	{
 		var id = publishedFileId.ToString();
+		var paths = _adapters.Detect(gameRoot)?.Adapter.GetPaths(gameRoot);
 		return modType switch
 		{
-			ModContentType.MelonloaderPlugin => Path.Combine(gameRoot, "Plugins", id),
-			ModContentType.Userlib => Path.Combine(gameRoot, "Plugins", "Dependencies", id),
-			ModContentType.DataCenterMod => Path.Combine(gameRoot, "Mods", id),
-			_ => Path.Combine(gameRoot, "Data Center_Data", "StreamingAssets", "Mods", id),
+			ModContentType.MelonloaderPlugin => Path.Combine(paths?.Plugins ?? Path.Combine(gameRoot, "Plugins"), id),
+			ModContentType.Userlib => Path.Combine(paths?.UserLibraries ?? Path.Combine(gameRoot, "Plugins", "Dependencies"), id),
+			ModContentType.DataCenterMod => Path.Combine(paths?.Mods ?? Path.Combine(gameRoot, "Mods"), id),
+			_ => Path.Combine(paths?.Workshop ?? Path.Combine(gameRoot, "Data Center_Data", "StreamingAssets", "Mods"), id),
 		};
 	}
 
@@ -126,13 +135,14 @@ public sealed class ModsFolderSyncService
 	public bool RemoveItem(ulong publishedFileId, string gameRoot)
 	{
 		var id = publishedFileId.ToString();
+		var paths = _adapters.Detect(gameRoot)?.Adapter.GetPaths(gameRoot);
 		var candidates = new[]
 		{
-			Path.Combine(gameRoot, "Data Center_Data", "StreamingAssets", "Mods", id),
+			Path.Combine(paths?.Workshop ?? Path.Combine(gameRoot, "Data Center_Data", "StreamingAssets", "Mods"), id),
 			Path.Combine(gameRoot, "Mods", "Workshop", id),
-			Path.Combine(gameRoot, "Mods", id),
-			Path.Combine(gameRoot, "Plugins", id),
-			Path.Combine(gameRoot, "Plugins", "Dependencies", id),
+			Path.Combine(paths?.Mods ?? Path.Combine(gameRoot, "Mods"), id),
+			Path.Combine(paths?.Plugins ?? Path.Combine(gameRoot, "Plugins"), id),
+			Path.Combine(paths?.UserLibraries ?? Path.Combine(gameRoot, "Plugins", "Dependencies"), id),
 			Path.Combine(gameRoot, "Userlibs", id),
 		};
 

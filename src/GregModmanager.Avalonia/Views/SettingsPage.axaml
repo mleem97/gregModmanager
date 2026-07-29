@@ -1,7 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="GregModmanager.Avalonia.Views.SettingsPage">
-  <StackPanel Margin="18" Spacing="14" MaxWidth="700" HorizontalAlignment="Left">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="18" Spacing="14" MaxWidth="700" HorizontalAlignment="Left">
     <StackPanel Spacing="4">
       <StackPanel Orientation="Horizontal" Spacing="10">
         <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
@@ -74,5 +75,6 @@
       <Button Content="Create Repro Bundle" Click="OnCreateReproBundle" />
       <Button Content="Restart App" Classes="btn-primary" Click="OnRestartApp" />
     </StackPanel>
-  </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
 </UserControl>

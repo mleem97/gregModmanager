@@ -1,5 +1,6 @@
 using Steamworks;
 using GregModmanager.Models;
+using GregModmanager.Services.GameAdapters;
 using GregModmanager.Steam;
 
 namespace GregModmanager.Services;
@@ -13,12 +14,14 @@ public sealed class ModDependencyService
 {
 	private readonly SteamWorkshopService _steam;
 	private readonly MelonSourceDiscoveryService _sources;
+	private readonly GameAdapterRegistry _adapters;
 	private string? _cachedGameRoot;
 
-	public ModDependencyService(SteamWorkshopService steam, MelonSourceDiscoveryService sources)
+	public ModDependencyService(SteamWorkshopService steam, MelonSourceDiscoveryService sources, GameAdapterRegistry adapters)
 	{
 		_steam = steam;
 		_sources = sources;
+		_adapters = adapters;
 	}
 
 	/// <summary>Resolved game root via <see cref="SteamApps.AppInstallDir"/> or common default.</summary>
@@ -32,7 +35,7 @@ public sealed class ModDependencyService
 			}
 
 			_steam.EnsureInitialized(null);
-			_cachedGameRoot = ResolveGameRoot();
+			_cachedGameRoot = _adapters.Detect()?.Installation.RootPath ?? ResolveGameRoot();
 			return _cachedGameRoot;
 		}
 	}
@@ -42,10 +45,11 @@ public sealed class ModDependencyService
 		_cachedGameRoot = null;
 	}
 
+	private GamePathSet? GamePaths => string.IsNullOrEmpty(GameRoot) ? null : _adapters.Detect(GameRoot)?.Adapter.GetPaths(GameRoot);
 	public string MelonLoaderDir => Path.Combine(GameRoot ?? string.Empty, "MelonLoader");
 	public string MelonLoaderNet6Dir => Path.Combine(MelonLoaderDir, "net6");
 	public string Il2CppAssembliesDir => Path.Combine(MelonLoaderDir, "Il2CppAssemblies");
-	public string ModsDir => Path.Combine(GameRoot ?? string.Empty, "Mods");
+	public string ModsDir => GamePaths?.Mods ?? Path.Combine(GameRoot ?? string.Empty, "Mods");
 	public string gregPluginsDir => Path.Combine(GameRoot ?? string.Empty, "greg", "Plugins");
 	public string ModCfgDir => Path.Combine(GameRoot ?? string.Empty, "UserData", "ModCfg");
 

@@ -687,11 +687,18 @@ public sealed class SteamWorkshopService
 			return ImportOutcome.Fail("Folder name is invalid.");
 		}
 
-		var destRoot = Path.Combine(workspace.WorkspaceRoot, dirName);
-		if (Directory.Exists(destRoot))
+		// Import is intentionally idempotent. Editing or importing the same Workshop item
+		// again must reuse its existing local project instead of failing or creating duplicates.
+		var existingProject = workspace.FindProjectByPublishedFileId(publishedFileId);
+		if (existingProject is not null)
 		{
-			return ImportOutcome.Fail($"A folder already exists: {destRoot}");
+			log?.Report($"Existing project reused: {existingProject.RootPath}");
+			return ImportOutcome.Ok(existingProject.RootPath);
 		}
+
+		var destRoot = GetAvailableProjectRoot(workspace.WorkspaceRoot, dirName);
+		if (!string.Equals(Path.GetFileName(destRoot), dirName, StringComparison.Ordinal))
+			log?.Report($"Project folder already existed; importing into {destRoot}.");
 
 		Directory.CreateDirectory(destRoot);
 		var contentDir = Path.Combine(destRoot, "content");
@@ -969,6 +976,20 @@ public sealed class SteamWorkshopService
 		}
 
 		return string.IsNullOrEmpty(s) ? $"ws_{publishedFileId}" : $"{s}_{publishedFileId}";
+	}
+
+	private static string GetAvailableProjectRoot(string workspaceRoot, string baseName)
+	{
+		var candidate = Path.Combine(workspaceRoot, baseName);
+		if (!Directory.Exists(candidate) && !File.Exists(candidate)) return candidate;
+
+		for (var suffix = 2; suffix <= 10_000; suffix++)
+		{
+			candidate = Path.Combine(workspaceRoot, $"{baseName}_{suffix}");
+			if (!Directory.Exists(candidate) && !File.Exists(candidate)) return candidate;
+		}
+
+		throw new IOException($"Kein freier Projektordner für '{baseName}' gefunden.");
 	}
 
 	#endregion

@@ -22,6 +22,9 @@
       <Button x:Name="TabFavorites" Content="Favorites" Click="OnTabFavorites" />
       <Button x:Name="TabHealth" Content="Health" Click="OnTabHealth" />
       <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshCurrentTab" />
+      <Button x:Name="StoreViewListBtn" Content="List" Click="OnStoreListView" />
+      <Button x:Name="StoreViewGalleryBtn" Content="Gallery" Click="OnStoreGalleryView" />
+      <Button x:Name="MassInstallBtn" Content="Mass Install (0)" Classes="btn-primary" Click="OnMassInstall" IsEnabled="False" />
     </StackPanel>
 
     <!-- Store -->
@@ -33,21 +36,51 @@
           <ComboBox x:Name="SortPicker" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />
           <ComboBox x:Name="TagFilter" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />
         </StackPanel>
-        <ScrollViewer Grid.Row="1">
+        <ScrollViewer Grid.Row="1" IsVisible="True" x:Name="StoreListScroll">
           <ItemsControl x:Name="StoreList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:WorkshopItemDetailVm">
                 <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Spacing="2">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                      <CheckBox IsCheckedChanged="OnStoreSelectionChanged" VerticalAlignment="Center" />
+                      <Image Source="{Binding PreviewImageUrl}" Width="72" Height="48" Stretch="UniformToFill" />
+                      <StackPanel Spacing="2">
                       <TextBlock Text="{Binding Title}" FontWeight="Bold" />
                       <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                      <TextBlock Text="{Binding IsInstalled, StringFormat='Installed: {0}'}" Classes="subtext" />
+                      </StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
                       <Button Content="Subscribe" Classes="btn-primary" Click="OnQuickSubscribe" />
                       <Button Content="Details" Click="OnStoreItemTapped" />
                     </StackPanel>
                   </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <ScrollViewer Grid.Row="1" IsVisible="False" x:Name="StoreGalleryScroll">
+          <ItemsControl x:Name="StoreGalleryList">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="models:WorkshopItemDetailVm">
+                <Border Classes="panel" Width="220" Margin="0,0,10,10">
+                  <StackPanel Spacing="8">
+                    <Image Source="{Binding PreviewImageUrl}" Height="120" Stretch="UniformToFill" />
+                    <TextBlock Text="{Binding Title}" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding IsInstalled, StringFormat='Installed: {0}'}" Classes="subtext" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <CheckBox IsCheckedChanged="OnStoreSelectionChanged" />
+                      <Button Content="Subscribe" Classes="btn-primary" Click="OnQuickSubscribe" />
+                      <Button Content="Details" Click="OnStoreItemTapped" />
+                    </StackPanel>
+                  </StackPanel>
                 </Border>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

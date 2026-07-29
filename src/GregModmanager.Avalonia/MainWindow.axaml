@@ -8,7 +8,7 @@
         MinWidth="1024"
         MinHeight="640"
         Background="{DynamicResource Surface}"
-        SystemDecorations="None"
+        WindowDecorations="None"
         Title="gregModmanager">
   <Grid RowDefinitions="42,*" ColumnDefinitions="240,*">
     <Border Grid.Row="0"

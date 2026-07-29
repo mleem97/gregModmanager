@@ -30,6 +30,7 @@ public partial class ModManagerPage : UserControl
     private readonly ObservableCollection<WorkshopItemDetailVm> _storeItems = new();
     private readonly ObservableCollection<WorkshopItemDetailVm> _installedItems = new();
     private readonly ObservableCollection<WorkshopItemDetailVm> _favoritesItems = new();
+    private readonly HashSet<ulong> _selectedStoreItems = new();
 
     private const string TabStoreKey = "store";
     private const string TabInstalledKey = "installed";
@@ -69,6 +70,7 @@ public partial class ModManagerPage : UserControl
         StoreList.ItemsSource = _storeItems;
         InstalledList.ItemsSource = _installedItems;
         FavoritesList.ItemsSource = _favoritesItems;
+        StoreGalleryList.ItemsSource = _storeItems;
 
         SortPicker.ItemsSource = new[] { "Update Date", "Creation Date", "Vote Score", "Trending", "Subscriptions", "Title A-Z" };
         TagFilter.ItemsSource = new[] { "All", "Mod", "Map", "Tool", "Audio", "Texture" };
@@ -205,6 +207,8 @@ public partial class ModManagerPage : UserControl
 
         _storeItems.Clear();
         foreach (var item in result.Items) _storeItems.Add(item);
+        _selectedStoreItems.RemoveWhere(id => !_storeItems.Any(item => item.PublishedFileId == id));
+        UpdateMassInstallButton();
 
         _storeHasMore = result.HasMorePages;
         StorePrevBtn.IsEnabled = _storePage > 1;
@@ -244,6 +248,57 @@ public partial class ModManagerPage : UserControl
             _log.Append($"Subscribed to {vm.Title}");
             if (sender is Button btn) btn.Content = S.Get("Mod_Subscribed");
         }
+    }
+
+    private void OnStoreSelectionChanged(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not CheckBox { DataContext: WorkshopItemDetailVm vm } checkBox)
+            return;
+
+        if (checkBox.IsChecked == true)
+            _selectedStoreItems.Add(vm.PublishedFileId);
+        else
+            _selectedStoreItems.Remove(vm.PublishedFileId);
+        UpdateMassInstallButton();
+    }
+
+    private void UpdateMassInstallButton()
+    {
+        MassInstallBtn.Content = $"Mass Install ({_selectedStoreItems.Count})";
+        MassInstallBtn.IsEnabled = _selectedStoreItems.Count > 0;
+    }
+
+    private void OnStoreListView(object? sender, RoutedEventArgs e)
+    {
+        StoreListScroll.IsVisible = true;
+        StoreGalleryScroll.IsVisible = false;
+    }
+
+    private void OnStoreGalleryView(object? sender, RoutedEventArgs e)
+    {
+        StoreListScroll.IsVisible = false;
+        StoreGalleryScroll.IsVisible = true;
+    }
+
+    private async void OnMassInstall(object? sender, RoutedEventArgs e)
+    {
+        var selected = _storeItems.Where(item => _selectedStoreItems.Contains(item.PublishedFileId)).ToList();
+        if (selected.Count == 0) return;
+
+        MassInstallBtn.IsEnabled = false;
+        StoreStatusLabel.Text = $"Installing {selected.Count} item(s)…";
+        var installed = 0;
+        foreach (var item in selected)
+        {
+            if (item.IsInstalled) continue;
+            if (await _steam.SubscribeAsync(item.PublishedFileId))
+                installed++;
+        }
+
+        _selectedStoreItems.Clear();
+        UpdateMassInstallButton();
+        StoreStatusLabel.Text = $"Subscribed to {installed} of {selected.Count} selected item(s). Workshop sync will download them.";
+        await LoadStoreAsync();
     }
 
     private void OnStoreItemTapped(object? sender, RoutedEventArgs e)

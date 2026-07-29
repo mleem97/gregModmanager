@@ -34,6 +34,35 @@
     <Setter Property="Background" Value="{DynamicResource Surface}" />
   </Style>
 
+  <Style Selector="Window.dialog-window">
+    <Setter Property="Background" Value="{DynamicResource Surface}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+  </Style>
+
+  <Style Selector="Border.dialog-body">
+    <Setter Property="Background" Value="{DynamicResource Surface}" />
+  </Style>
+
+  <Style Selector="TextBlock.dialog-message">
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+    <Setter Property="LineHeight" Value="20" />
+  </Style>
+
+  <Style Selector="Button.dialog-secondary">
+    <Setter Property="Background" Value="#10283A" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurfaceVariant}" />
+    <Setter Property="BorderBrush" Value="#355265" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="14,9" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <Style Selector="Button.dialog-secondary:pointerover">
+    <Setter Property="Background" Value="#17364A" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Primary}" />
+  </Style>
+
   <Style Selector="Border.titlebar">
     <Setter Property="Background" Value="#0A1A2A" />
     <Setter Property="BorderBrush" Value="#153245" />

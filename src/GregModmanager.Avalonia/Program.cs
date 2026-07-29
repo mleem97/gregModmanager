@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using GregModmanager.Avalonia.Services;
 using GregModmanager.Localization;
 using GregModmanager.Services;
+using GregModmanager.Services.GameAdapters;
 using GregModmanager.Steam;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -146,6 +147,10 @@ internal static class Program
         services.AddSingleton<TelemetryService>();
         services.AddSingleton<ReproBundleService>();
         services.AddSingleton<SteamWorkshopService>();
+        services.AddSingleton<GameAdapterRegistry>(_ => new GameAdapterRegistry(new IGameAdapter[]
+        {
+            new DataCenterGameAdapter()
+        }));
         SteamApiNativeLoader.SetGameRoot(AppSettings.GetGameRootPath());
         services.AddSingleton<WorkspaceService>();
         services.AddSingleton<ModDependencyService>();

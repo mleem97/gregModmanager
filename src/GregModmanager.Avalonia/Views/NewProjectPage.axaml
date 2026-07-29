@@ -1,7 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="GregModmanager.Avalonia.Views.NewProjectPage">
-  <StackPanel Margin="18" Spacing="14" MaxWidth="600" HorizontalAlignment="Left">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="18" Spacing="14" MaxWidth="600" HorizontalAlignment="Left">
     <StackPanel Spacing="4">
       <StackPanel Orientation="Horizontal" Spacing="10">
         <Border Width="22" Height="1" Background="{DynamicResource Primary}" VerticalAlignment="Center" />
@@ -34,5 +35,6 @@
         <Button Content="CREATE TEMPLATE" Classes="btn-primary" HorizontalAlignment="Left" Click="OnCreateTemplate" />
       </StackPanel>
     </Border>
-  </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
 </UserControl>

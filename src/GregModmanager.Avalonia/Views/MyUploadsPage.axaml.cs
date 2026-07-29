@@ -202,6 +202,13 @@ public partial class MyUploadsPage : UserControl
         }
     }
 
+    private void OnAddUpdateClicked(object? sender, RoutedEventArgs e)
+    {
+        // Add Update uses the same editable project and PublishedFileId as Edit.
+        // The editor's Save & Upload action then calls Steam's update workflow.
+        OnEditClicked(sender, e);
+    }
+
     private async void OnEditClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: WorkshopItemDetailVm vm }) return;
