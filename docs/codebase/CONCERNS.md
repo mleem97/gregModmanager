@@ -1,12 +1,15 @@
 # Codebase Concerns
 
+> Owner: gregModmanager maintainers. Evidence: current source and build config.
+> Update after a risk is resolved, introduced, or changes severity.
+
 ## Top Risks
 
 | Severity | Concern | Evidence | Impact | Action |
 |---|---|---|---|---|
 | High | No general transaction/ownership store for deployment | `ModsFolderSyncService.cs` | mixed state or user-file deletion risk | implement P0 deployment/ownership |
-| High | Documentation previously advertised unavailable profiles, load-order, updater, and catalog features | `DataCenterGameAdapter.cs`, `MainWindow.axaml` | users may plan unsupported workflows | keep scope documentation aligned with UI and capability flags |
-| Medium | Adapter launch/profile capabilities are explicitly unsupported | `DataCenterGameAdapter.cs` | UI must not expose them | complete dependent roadmap tasks |
+| High | Steam Workshop Mod Store exists only outside Mod Manager-only mode and is not a generic web catalog | `MainWindow.axaml.cs`, `ModManagerPage.axaml.cs` | users may misunderstand available discovery workflows | document the mode-dependent Steam scope precisely |
+| Medium | Adapter profiles and launch remain explicitly unsupported; local/workshop installation plans are supported | `DataCenterGameAdapter.cs` | callers may assume unsupported game-control features | keep capability checks at call sites |
 | Medium | macOS has no release pipeline, signing, or notarization | build and CI configuration | cross-publish output is not distributable | add a real-Mac release design before claiming support |
 
 ## Technical Debt

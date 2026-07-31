@@ -1,0 +1,11 @@
+INFO Dep Upgrader 1.0.0 · Module deps · Root /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager
+WARN The Git working tree contains uncommitted changes.
+INFO [Dry run] A backup would be created.
+INFO Update NuGet packages: tests/GregModmanager.Tests/GregModmanager.Tests.csproj: dotnet package update --project /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/tests/GregModmanager.Tests/GregModmanager.Tests.csproj 
+INFO dotnet restore with NuGet audit: dotnet restore /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/tests/GregModmanager.Tests/GregModmanager.Tests.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate 
+INFO Update NuGet packages: src/GregModmanager.Melons/SubDirectoryFixer/SubDirectoryFixer.csproj: dotnet package update --project /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Melons/SubDirectoryFixer/SubDirectoryFixer.csproj 
+INFO dotnet restore with NuGet audit: dotnet restore /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Melons/SubDirectoryFixer/SubDirectoryFixer.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate 
+INFO Update NuGet packages: src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj: dotnet package update --project /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj 
+INFO dotnet restore with NuGet audit: dotnet restore /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate 
+INFO Update NuGet packages: src/GregModmanager.Core/GregModmanager.Core.csproj: dotnet package update --project /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Core/GregModmanager.Core.csproj 
+INFO dotnet restore with NuGet audit: dotnet restore /home/marvin/Dokumente/GregFramework/AppRepositories/gregApp.Modmanager/src/GregModmanager.Core/GregModmanager.Core.csproj -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate 

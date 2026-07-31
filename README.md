@@ -12,11 +12,11 @@ and provide account and settings screens for the Data Center integration.
 | Linux x64 | Supported | Portable ZIP/tarball, DEB, RPM, APK, and Arch package |
 | macOS x64 | Experimental cross-publish | Manual testing on a real Mac only; no signed or notarized release |
 
-The desktop UI currently exposes **Projects**, **New Project**, **My Uploads**,
-and **Settings**. Profile management, load-order editing, automatic conflict
-resolution, an in-app updater, and a public mod-store browser are not currently
-released features. The Data Center adapter explicitly reports that profiles are
-unsupported.
+The desktop UI exposes **Projects**, **New Project**, **My Uploads**, and
+**Settings**. In Full and Decide-later modes, it also exposes a Steam Workshop
+**Mod Store**. Profile management, manual load-order editing, automatic conflict
+resolution, and an in-app updater are not currently released features. The Data
+Center adapter explicitly reports that profiles are unsupported.
 
 ## Quick start
 
@@ -64,7 +64,7 @@ is built separately from the main solution and copied to the Avalonia assets by
 
 ## Technology
 
-- .NET 9 (`net9.0`) and Avalonia 12.1.0
+- .NET 9 (`net9.0`) and Avalonia 12.1.1
 - Cherry.Facepunch.Steamworks 2.5.0
 - Microsoft.Extensions.DependencyInjection 10.0.10
 - xUnit for automated tests

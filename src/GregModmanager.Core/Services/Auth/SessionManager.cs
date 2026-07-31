@@ -6,6 +6,11 @@ using GregModmanager.Services;
 using GregModmanager.Models.Auth;
 
 namespace GregModmanager.Services.Auth;
+/// <summary>
+/// Coordinates browser authentication and the <c>greg://</c> callback. The
+/// current refresh value is persisted in local preferences for session restore;
+/// callers must treat that file as credential-bearing data.
+/// </summary>
 public class SessionManager : ISessionManager
 {
     private readonly IAuthApiClient _apiClient;
@@ -22,6 +27,10 @@ public class SessionManager : ISessionManager
         _apiClient = apiClient;
     }
 
+    /// <summary>
+    /// Starts callback listening and attempts to restore a persisted session.
+    /// A failed restore removes the local refresh value and returns to anonymous state.
+    /// </summary>
     public Task InitializeAsync()
     {
         ProtocolSingleInstance.StartListening(uri =>
@@ -77,6 +86,7 @@ public class SessionManager : ISessionManager
         return Task.CompletedTask;
     }
 
+    /// <summary>Opens the configured browser login flow and records a request identifier for callback validation.</summary>
     public async Task StartBrowserLoginAsync()
     {
         State = SessionState.LoginPending;
@@ -104,6 +114,7 @@ public class SessionManager : ISessionManager
         }
     }
 
+    /// <summary>Validates and exchanges a <c>greg://</c> authentication callback.</summary>
     public async Task HandleProtocolCallbackAsync(string rawUri)
     {
         if (State != SessionState.LoginPending) return;
@@ -151,6 +162,7 @@ public class SessionManager : ISessionManager
         }
     }
 
+    /// <summary>Ends the remote session when possible and removes the persisted local refresh value.</summary>
     public async Task LogoutAsync()
     {
         if (CurrentSession != null)

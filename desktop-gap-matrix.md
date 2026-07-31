@@ -4,6 +4,9 @@
 > application snapshot from 2026-07-29. Its entries are prioritisation input,
 > not a release contract. The desktop source, current user guide, and tested API
 > contracts take precedence when they conflict.
+>
+> **Owner:** product and desktop maintainers. **Revalidation trigger:** before
+> reprioritising desktop parity or documenting any listed feature as released.
 
 Stand: 2026-07-29. Status basiert auf Quellcode, nicht allein auf Roadmap-Checkboxen.
 

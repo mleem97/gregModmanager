@@ -44,7 +44,14 @@ internal static class Program
         {
             var ex = e.ExceptionObject as Exception;
             AppFileLog.MarkCrash("AppDomain.UnhandledException", ex);
-            AppFileLog.Error($"UnhandledException (terminating={e.IsTerminating})", ex);
+			if (ex is null)
+			{
+				AppFileLog.Error($"UnhandledException (terminating={e.IsTerminating})");
+			}
+			else
+			{
+				AppFileLog.Error($"UnhandledException (terminating={e.IsTerminating})", ex);
+			}
             
             // Try to send the report immediately if we are terminating
             try { new TelemetryService().ReportCrashesAsync().GetAwaiter().GetResult(); } 

@@ -23,6 +23,16 @@ The script signs Windows PE payloads, the Setup EXE, and the MSI when those
 artifacts are built. Certificate subjects include a random build value so each
 build uses a distinct certificate.
 
+CI exposes the same per-build `auto`, `self-signed`, and `none` choices. It does
+not accept PFX/Thumbprint secrets, by design.
+
+## Create a reusable local test certificate
+
+`build/installer/create-selfsigned-codesign-cert.ps1` creates a manually managed
+local certificate with its own subject and lifetime. It is separate from the
+ephemeral certificate created by `build.ps1`; use it only for controlled test
+machines and keep its private key out of the repository.
+
 ## Build with an existing certificate
 
 Use **exactly one** of the following environment values and select `pfx` mode:

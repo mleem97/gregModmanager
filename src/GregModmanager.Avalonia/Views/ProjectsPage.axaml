@@ -13,7 +13,7 @@
     </StackPanel>
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
-      <TextBox x:Name="SearchBox" Watermark="Search projects..." Width="300" Classes="input-terminal" TextChanged="OnSearchTextChanged" />
+      <TextBox x:Name="SearchBox" PlaceholderText="Search projects..." Width="300" Classes="input-terminal" TextChanged="OnSearchTextChanged" />
       <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshProjects" />
     </StackPanel>
 

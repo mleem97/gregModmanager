@@ -1,7 +1,16 @@
 namespace GregModmanager.Services;
 
+/// <summary>
+/// Handles the supported non-interactive Steam Workshop publish command before
+/// Avalonia starts. A project must contain both <c>content/</c> and readable
+/// <c>metadata.json</c>; Steam authentication is still required.
+/// </summary>
 public static class HeadlessRunner
 {
+	/// <summary>
+	/// Recognizes help and publish arguments and returns their process exit code.
+	/// Returns <see langword="false"/> when the caller should continue with normal UI startup.
+	/// </summary>
 	public static bool TryHandle(IReadOnlyList<string> args, out int exitCode)
 	{
 		exitCode = 0;
@@ -66,6 +75,10 @@ public static class HeadlessRunner
 		return null;
 	}
 
+	/// <summary>
+	/// Publishes one local project and returns 0 on success, 1 for project or
+	/// Steam failures. When requested, writes automation status beside the project.
+	/// </summary>
 	private static async Task<int> RunPublishAsync(string projectRoot, bool autocommit)
 	{
 		var workspace = new WorkspaceService();

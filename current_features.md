@@ -4,6 +4,9 @@
 > checkout dated 2026-07-29. It does not describe released gregModmanager
 > desktop functionality. Use the desktop user guide and source tree to make
 > claims about this repository's application.
+>
+> **Owner:** web-app maintainers. **Revalidation trigger:** before using this
+> snapshot for a desktop feature, release, or product decision.
 
 Stand: 2026-07-29  
 Quelle: `/home/marvin/Dokumente/GregFramework/WebRepositories/gregWeb.Modstore/`

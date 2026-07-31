@@ -1,5 +1,8 @@
 # Testing Patterns
 
+> Owner: gregModmanager maintainers. Evidence: test project and CI workflow.
+> Update after test tooling, test scope, or validation command changes.
+
 ## Stack and Commands
 
 - xUnit 2.9.3, Microsoft.NET.Test.Sdk 18.8.1 and Coverlet collector 10.0.1.

@@ -139,7 +139,14 @@ public static class AppFileLog
 	{
 		try
 		{
-			Error($"Crash marker from {source}", ex);
+			if (ex is null)
+			{
+				Error($"Crash marker from {source}");
+			}
+			else
+			{
+				Error($"Crash marker from {source}", ex);
+			}
 			var payload = $"pid={Environment.ProcessId};utc={DateTime.UtcNow:O};source={source};message={ex?.Message}";
 			File.WriteAllText(SessionMarkerPath, payload);
 

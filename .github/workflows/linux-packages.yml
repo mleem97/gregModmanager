@@ -17,7 +17,7 @@ permissions:
   id-token: write
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '10.0.x'
   AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       is_pre: ${{ steps.resolve.outputs.is_pre }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: resolve
         shell: pwsh
         run: |
@@ -53,13 +53,13 @@ jobs:
       attestations: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -78,7 +78,7 @@ jobs:
           ./build/scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-packages-detailed
           path: artifacts/avalonia-linux/packages/gregModmanager-*
@@ -86,7 +86,7 @@ jobs:
 
       - name: Attest packages
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: artifacts/avalonia-linux/packages/gregModmanager-*
 

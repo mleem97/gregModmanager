@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '10.0.x'
   AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
   CORE_PROJECT: 'src/GregModmanager.Core/GregModmanager.Core.csproj'
   SOLUTION: 'GregModmanager.sln'
@@ -43,7 +43,7 @@ jobs:
       is_release: ${{ steps.resolve.outputs.is_release }}
       is_pre: ${{ steps.resolve.outputs.is_pre }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: resolve
         shell: bash
         run: |
@@ -73,11 +73,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -100,15 +100,15 @@ jobs:
       setup_name: ${{ steps.package.outputs.setup_name }}
       portable_name: ${{ steps.package.outputs.portable_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -160,7 +160,7 @@ jobs:
           Write-Host "Portable: $($portable.Name)"
 
       - name: Upload Setup
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-setup
           path: |
@@ -169,7 +169,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload MSI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-msi
           path: |
@@ -178,7 +178,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Portable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-portable
           path: |
@@ -188,7 +188,7 @@ jobs:
 
       - name: Attest Windows Build
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             build/installer/Output/gregModmanager-*-Windows.exe
@@ -208,13 +208,13 @@ jobs:
     outputs:
       tar_name: ${{ steps.package.outputs.tar_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -265,7 +265,7 @@ jobs:
           echo "zip_name=${zipName}" >> "$GITHUB_OUTPUT"
 
       - name: Upload tarball
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-portable
           path: |
@@ -275,7 +275,7 @@ jobs:
 
       - name: Attest Linux Build
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: artifacts/gregModmanager-*-Linux.tar.gz
 
@@ -288,13 +288,13 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -340,7 +340,7 @@ jobs:
           ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-packages
           path: artifacts/packages/gregModmanager-*
@@ -373,37 +373,37 @@ jobs:
       attestations: write
     steps:
       - name: Download Windows Setup
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-setup
           path: ./dist
 
       - name: Download Windows Portable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-portable
           path: ./dist
 
       - name: Download Windows MSI
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-msi
           path: ./dist
 
       - name: Download Linux Portable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-portable
           path: ./dist
 
       - name: Download Linux Packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-packages
           path: ./dist
 
       - name: Create Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           prerelease: ${{ needs.version.outputs.is_pre == 'true' }}
@@ -412,6 +412,6 @@ jobs:
           generate_release_notes: true
 
       - name: Attest Release
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: ./dist/**

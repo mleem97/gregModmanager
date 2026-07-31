@@ -9,7 +9,7 @@ a release.
 | Component | Current use | Licence/source |
 | --- | --- | --- |
 | .NET 9 | application runtime and SDK | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) |
-| Avalonia 12.1.0 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
+| Avalonia 12.1.1 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
 | Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
 | Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
 | xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |

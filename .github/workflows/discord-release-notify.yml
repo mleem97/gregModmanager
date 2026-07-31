@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Select Linux runner (max 10m wait)
         id: select
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -74,7 +74,7 @@ jobs:
     steps:
       - name: Resolve release metadata from workflow SHA
         id: resolve_release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const headSha = context.payload.workflow_run.head_sha;

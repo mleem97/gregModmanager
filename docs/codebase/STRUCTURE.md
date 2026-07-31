@@ -1,5 +1,8 @@
 # Codebase Structure
 
+> Owner: gregModmanager maintainers. Evidence: current repository tree and entry
+> points. Update after any project, entry-point, or directory-layout change.
+
 ## Top-Level Map
 
 | Path | Purpose | Evidence |

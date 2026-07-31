@@ -31,7 +31,7 @@
     <Border x:Name="StorePanel" Grid.Row="3" Classes="panel" IsVisible="True">
       <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-          <TextBox x:Name="SearchEntry" Watermark="Search..." Width="250" Classes="input-terminal" />
+          <TextBox x:Name="SearchEntry" PlaceholderText="Search..." Width="250" Classes="input-terminal" />
           <Button Content="Search" Classes="btn-primary" Click="OnSearchSubmit" />
           <ComboBox x:Name="SortPicker" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />
           <ComboBox x:Name="TagFilter" Classes="input-terminal" Width="150" SelectionChanged="OnFilterChanged" />

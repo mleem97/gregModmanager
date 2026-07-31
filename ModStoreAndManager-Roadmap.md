@@ -5,6 +5,9 @@
 > it appears in end-user documentation. External competitor observations are a
 > dated research snapshot and require fresh verification before a product or
 > purchasing decision.
+>
+> **Owner:** product maintainers. **Revalidation trigger:** before scheduling,
+> implementing, or communicating a roadmap item externally.
 
 > Stand: 29. Juli 2026. Ausgelegt für eine zunächst spielbezogene App mit späterer Multi-Game-Erweiterung.
 

@@ -1,5 +1,8 @@
 # Coding Conventions
 
+> Owner: gregModmanager maintainers. Evidence: current source and tooling.
+> Update after repository-wide conventions or quality gates change.
+
 ## Naming
 
 | Item | Rule | Example | Evidence |

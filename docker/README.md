@@ -46,10 +46,9 @@ the EXE and MSI.
 
 Docker has no supported macOS container runtime or macOS base images. The
 Linux SDK container can cross-publish `osx-x64` and `osx-arm64`, but it cannot
-execute or UI-test those binaries. Run macOS tests, signing, notarization, and
-installer packaging on a macOS runner (for example GitHub Actions
-`macos-latest`) after adding the macOS-specific project code required by
-`AGENTS.md`.
+execute or UI-test those binaries. Validate the current cross-published artifact
+on a real Mac. No macOS CI job, signed package, notarization, or release artifact
+exists yet; add and validate those independently before claiming macOS support.
 
 ## Manual macOS GUI test from Ubuntu
 

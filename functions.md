@@ -4,6 +4,9 @@
 > as of 2026-07-29. It is a planning reference for desktop parity, not
 > documentation of features available in gregModmanager or a public web API
 > contract.
+>
+> **Owner:** web-app maintainers. **Revalidation trigger:** before using an
+> inventory item as a desktop implementation requirement.
 
 Stand: 2026-07-29  
 Quelle: `/home/marvin/Dokumente/GregFramework/WebRepositories/gregWeb.Modstore/`

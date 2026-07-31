@@ -53,7 +53,7 @@ show_menu() {
     print_banner
 
     local items=(
-        "B:Build All (CI mirror)"
+        "B:Build for this host"
         "W:Build Windows Only"
         "L:Build Linux Only"
         "P:Build Linux Packages"
@@ -91,11 +91,35 @@ pause_any_key() {
 # Actions
 # ---------------------------------------------------------------------------
 
+is_windows_host() {
+    case "${OSTYPE:-}" in
+        msys*|cygwin*|win32*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+run_windows_release_build() {
+    if command -v pwsh >/dev/null 2>&1; then
+        pwsh -NoProfile -File "$REPO_ROOT/build/scripts/build.ps1" "$@"
+    elif command -v powershell.exe >/dev/null 2>&1; then
+        powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$REPO_ROOT/build/scripts/build.ps1" "$@"
+    else
+        echo -e "  ${C_ERROR}PowerShell is required for a Windows EXE/MSI build.${C_RESET}"
+        return 1
+    fi
+}
+
 invoke_build_all() {
     print_banner
     echo -e "  ${C_PRIMARY}[BUILD ALL]${C_RESET}"
     echo ""
-    if bash "$REPO_ROOT/scripts/build.ps1" 2>/dev/null || pwsh "$REPO_ROOT/scripts/build.ps1" 2>/dev/null; then
+    local build_ok=false
+    if is_windows_host; then
+        if run_windows_release_build; then build_ok=true; fi
+    else
+        if bash "$REPO_ROOT/build/scripts/linux/build-avalonia-packages.sh"; then build_ok=true; fi
+    fi
+    if [[ "$build_ok" == "true" ]]; then
         echo ""
         echo -e "  ${C_SECONDARY}Build completed successfully.${C_RESET}"
     else
@@ -109,8 +133,9 @@ invoke_build_windows() {
     print_banner
     echo -e "  ${C_PRIMARY}[BUILD WINDOWS]${C_RESET}"
     echo ""
-    if bash "$REPO_ROOT/scripts/build.ps1" -SkipLinux -SkipLinuxPackages 2>/dev/null || \
-       pwsh "$REPO_ROOT/scripts/build.ps1" -SkipLinux -SkipLinuxPackages 2>/dev/null; then
+    if ! is_windows_host; then
+        echo -e "  ${C_ERROR}Windows installers require a Windows host, Inno Setup, WiX, and PowerShell.${C_RESET}"
+    elif run_windows_release_build -SkipLinux -SkipLinuxPackages; then
         echo ""
         echo -e "  ${C_SECONDARY}Windows build completed.${C_RESET}"
     else
@@ -124,8 +149,7 @@ invoke_build_linux() {
     print_banner
     echo -e "  ${C_PRIMARY}[BUILD LINUX]${C_RESET}"
     echo ""
-    if bash "$REPO_ROOT/scripts/build.ps1" -SkipWindows -SkipLinuxPackages 2>/dev/null || \
-       pwsh "$REPO_ROOT/scripts/build.ps1" -SkipWindows -SkipLinuxPackages 2>/dev/null; then
+    if bash "$REPO_ROOT/build/scripts/linux/build-avalonia-packages.sh"; then
         echo ""
         echo -e "  ${C_SECONDARY}Linux build completed.${C_RESET}"
     else
@@ -139,8 +163,7 @@ invoke_build_linux_packages() {
     print_banner
     echo -e "  ${C_PRIMARY}[BUILD LINUX PACKAGES]${C_RESET}"
     echo ""
-    if bash "$REPO_ROOT/scripts/build.ps1" -SkipWindows 2>/dev/null || \
-       pwsh "$REPO_ROOT/scripts/build.ps1" -SkipWindows 2>/dev/null; then
+    if bash "$REPO_ROOT/build/scripts/linux/build-avalonia-packages.sh"; then
         echo ""
         echo -e "  ${C_SECONDARY}Linux packages built.${C_RESET}"
     else
@@ -202,7 +225,7 @@ invoke_install_local() {
     echo -e "  ${C_PRIMARY}[INSTALL LOCAL]${C_RESET}"
     echo ""
     echo -e "  ${C_WARN}Install-Local is Windows-only (PowerShell).${C_RESET}"
-    echo -e "  ${C_DEFAULT}Run: .\\scripts\\install-local.ps1  from PowerShell.${C_RESET}"
+    echo -e "  ${C_DEFAULT}Run: .\\build\\scripts\\install-local.ps1 from the repository root in PowerShell.${C_RESET}"
     pause_any_key
 }
 

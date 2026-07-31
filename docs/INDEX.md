@@ -11,7 +11,7 @@
 | build Windows, Linux, or packages | [Build-script reference](../build/scripts/README.md) |
 | test in a Linux Docker container or prepare a real-Mac test | [Docker guide](../docker/README.md) |
 | sign a Windows release | [Code-signing guide](../build/installer/CODE_SIGNING.md) |
-| inspect design decisions and limitations | [Codebase reference](codebase/ARCHITECTURE.md) |
+| inspect design decisions, configuration, and limitations | [Codebase reference](codebase/README.md) |
 
 ## Source of truth
 

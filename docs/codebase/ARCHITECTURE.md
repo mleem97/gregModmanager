@@ -1,5 +1,8 @@
 # Architecture
 
+> Owner: gregModmanager maintainers. Evidence: current source. Update after a
+> dependency-injection, protocol, service-boundary, or startup-flow change.
+
 ## Architectural Style
 
 Layered cross-platform desktop client with dependency-injected services and event-driven Workshop/session updates. `Program.BuildServices` composes Core services; Avalonia pages consume them; Steam callbacks and pollers publish status events.
@@ -9,10 +12,17 @@ Primary constraints are Steam initialization order, platform-specific native lib
 ## System Flow
 
 ```text
-Program/App -> MainWindow -> injected Core service -> Steam/files/Web API -> page/log/dialog
+Program/App -> MainWindow -> injected Core service -> Steam/files/configured HTTPS service -> page/log/dialog
 ```
 
-Startup preloads Steam and builds DI. `MainWindow` initializes the session and workspace. Pages invoke Workshop/auth/workspace services. Services call native Steamworks, HTTPS or local filesystem APIs. Results return as records/events and are rendered in Avalonia.
+Startup preloads Steam and builds dependency injection. `MainWindow` initializes
+the session and workspace. Pages invoke Workshop, authentication, and workspace
+services. Services call native Steamworks, configured HTTPS endpoints, or the
+local filesystem. Results return as records/events and are rendered in Avalonia.
+
+Desktop sign-in returns through `greg://v1/auth/callback`. The protocol handler
+forwards the callback to `SessionManager`; the session manager exchanges it with
+the configured authentication endpoint.
 
 ## Responsibilities
 

@@ -92,7 +92,7 @@
             <TextBlock Text="WORKSHOP DEPENDENCIES" Classes="micro-label" />
             <StackPanel x:Name="WorkshopDepStack" Spacing="4" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBox x:Name="WorkshopDepIdEntry" Classes="input-terminal" Watermark="Workshop ID" Width="200" />
+              <TextBox x:Name="WorkshopDepIdEntry" Classes="input-terminal" PlaceholderText="Workshop ID" Width="200" />
               <Button Content="Add by ID" Classes="btn-primary" Click="OnWorkshopDepAddById" />
             </StackPanel>
           </StackPanel>
@@ -135,7 +135,7 @@
           <StackPanel Spacing="8">
             <TextBlock x:Name="PublishedIdLabel" Classes="subtext" />
             <TextBlock Text="VERSION" Classes="micro-label" />
-            <TextBox x:Name="VersionEntry" Classes="input-terminal" TextChanged="OnChangeLogTextChanged" Watermark="1.0.0" />
+            <TextBox x:Name="VersionEntry" Classes="input-terminal" TextChanged="OnChangeLogTextChanged" PlaceholderText="1.0.0" />
             <TextBlock Text="This version is included in Steam's Workshop change history." Classes="subtext" TextWrapping="Wrap" />
             <TextBlock Text="CHANGELOG" Classes="micro-label" />
             <TextBox x:Name="ChangeLogEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="120" TextChanged="OnChangeLogTextChanged" />

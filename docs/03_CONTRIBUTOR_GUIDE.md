@@ -1,9 +1,13 @@
 # Contributor guide
 
+**Owner:** gregModmanager maintainers. **Evidence:** solution/project files,
+build scripts, and CI workflows. **Review trigger:** update after a dependency,
+toolchain, command, release artifact, or repository-layout change.
+
 ## Local setup
 
-Install the SDK selected by [global.json](../global.json), then restore, build,
-and test from the repository root:
+Install the .NET 10 SDK selected by [global.json](../global.json), then restore,
+build, and test from the repository root. The application itself targets .NET 9.
 
 ```bash
 dotnet restore GregModmanager.sln
@@ -60,7 +64,17 @@ bash build/scripts/linux/build-avalonia-packages.sh
 ```
 
 macOS is not a release target. Cross-publish can prepare an x64 artifact, but
-GUI validation must occur on a real Mac. The Docker guide explains this boundary.
+GUI validation must occur on a real Mac. Existing macOS RID and path-detection
+code do not replace native Steam-asset validation, signing, notarization, or a
+macOS CI release job. The Docker guide explains this boundary.
+
+## Continuous integration and release trigger
+
+The main workflow runs on pull requests and `main` pushes to build and publish
+workflow artifacts. A GitHub Release is created only for a tag whose name starts
+with `v`. Linux package CI has a separate workflow for package-related changes.
+Treat artifacts from an untagged run as validation output, not as a promoted
+release.
 
 ## Signing Windows artifacts
 

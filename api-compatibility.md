@@ -5,6 +5,9 @@
 > specification and not proof that the named web routes are deployed. Confirm
 > request/response contracts against the owning web repository before changing
 > desktop code or documenting a feature as released.
+>
+> **Owner:** desktop and web maintainers. **Revalidation trigger:** any desktop
+> authentication/API change or a new web-service revision.
 
 Stand: `v1.6.1-pre.13`
 

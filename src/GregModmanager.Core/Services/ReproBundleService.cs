@@ -5,15 +5,22 @@ using System.Text;
 
 namespace GregModmanager.Services;
 
+/// <summary>
+/// Creates a support ZIP from local diagnostics. The archive can contain logs,
+/// dumps, paths, machine/user names, and recent Windows application events;
+/// callers must ask users to inspect it before sharing.
+/// </summary>
 public sealed class ReproBundleService
 {
 	private const string AppFolderName = "gregModmanager";
 
+	/// <summary>Creates a timestamped archive in the current user's local application-data directory.</summary>
 	public Task<string> CreateBundleAsync()
 	{
 		return CreateBundleAsync(CancellationToken.None);
 	}
 
+	/// <summary>Creates the archive and observes cancellation after local collection completes.</summary>
 	public Task<string> CreateBundleAsync(CancellationToken cancellationToken)
 	{
 		var now = DateTime.Now;

@@ -21,6 +21,11 @@ command before publishing it, keep secret values out of examples, and update
 the affected document when a command, artifact name, supported platform, or
 user-visible behaviour changes.
 
+**Owner:** gregModmanager maintainers. **Evidence:** current source, project
+files, build scripts, and CI workflow. **Review trigger:** update the affected
+page whenever navigation, a persisted data format, an environment variable, a
+build artifact, a supported platform, or an external integration changes.
+
 The JSON files in `examples/manifests/` are retained as historical samples; they
 are not a validated input contract for the current desktop client. See their
 [status note](examples/manifests/README.md) before using them.
@@ -31,4 +36,4 @@ are not a validated input contract for the current desktop client. See their
 - [Docker build and test containers](../docker/README.md)
 - [Code signing](../build/installer/CODE_SIGNING.md)
 - [Dependency inventory](../EXTERNAL_DEPENDENCIES.md)
-- [Codebase reference](codebase/STRUCTURE.md)
+- [Codebase reference](codebase/README.md)

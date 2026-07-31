@@ -4,7 +4,7 @@
 
 - Application: gregModmanager.
 - Purpose: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI framework: Avalonia UI 12.1.0.
+- UI framework: Avalonia UI 12.1.1.
 - Desktop target: .NET 9.
 - Runtime-facing helper compatibility: .NET 6 unless explicitly requested and validated.
 - Primary solution: `GregModmanager.sln`.

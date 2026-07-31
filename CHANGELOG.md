@@ -14,10 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   available for compatible Windows Docker hosts.
 - SSH-based workflow to build, test, and prepare a manual GUI test on a real
   macOS host from a Linux development machine.
+- Source-backed user, creator, contributor, build, and codebase documentation
+  now identifies its scope, evidence, maintainer ownership, and review triggers.
+- Headless Workshop publishing, the mode-dependent Steam Workshop Mod Store,
+  local session storage, telemetry defaults, and reproduction-bundle privacy
+  boundaries are documented.
 
 ### Fixed
 
 - **CI Build Error**: Replaced MAUI `Preferences.Default` and Avalonia `SettingsPage` references in Core services with platform-agnostic `S.Preferences` and `AppSettings` APIs, restoring Windows/Linux build compatibility.
+- **Build consistency**: aligned GitHub Actions with the SDK pinned in
+  `global.json`, updated non-MelonLoader package/action dependencies, and
+  replaced the stale root Linux build pipeline with a compatibility wrapper.
+- **Build usability**: corrected the interactive Bash builder's release-script
+  paths and host-specific commands.
 
 ## [1.6.1] - 2026-06-29
 

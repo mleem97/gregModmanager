@@ -4,6 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace GregModmanager.Services;
 
+/// <summary>
+/// Resolves non-secret runtime configuration from local preferences and
+/// environment overrides. Endpoint overrides affect trust boundaries and must
+/// only target controlled services.
+/// </summary>
 public static class AppSettings
 {
     public static string ModStoreEnabledKey => "ModStoreEnabled";
@@ -166,6 +171,10 @@ public static class AppSettings
         S.Preferences.SetBool(ModStoreEnabledKey, mode != AppModeModManagerOnly);
     }
 
+    /// <summary>
+    /// Returns the user's telemetry choice. New installations default to enabled
+    /// until Settings writes an explicit preference.
+    /// </summary>
     public static bool IsTelemetryEnabled()
     {
         return S.Preferences.GetBool(TelemetryEnabledKey, true);

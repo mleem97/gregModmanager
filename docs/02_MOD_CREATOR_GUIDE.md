@@ -1,5 +1,9 @@
 # Mod and plugin creator guide
 
+**Owner:** gregModmanager maintainers. **Evidence:** `WorkshopMetadata`,
+`WorkspaceService`, and `HeadlessRunner` in this repository. **Review trigger:**
+update after a metadata, upload, Steam, or headless-command change.
+
 ## What this client supports today
 
 gregModmanager contains project and upload workflows backed by Steam Workshop
@@ -13,16 +17,33 @@ invented universal package format.
 
 ## Workshop project metadata
 
-The desktop client persists Workshop project metadata through the
+The desktop client persists Workshop project metadata in `metadata.json` through the
 `WorkshopMetadata` model in
 `src/GregModmanager.Core/Models/WorkshopMetadata.cs`. Its fields and serialization
 are the source of truth for data created by this client. In particular, it uses
 fields such as `publishedFileId`, `workshop_dependency`, and `modType`; that
-contract does not match the older `metadata.json` examples in this repository.
+contract does not match the historical *sample schema* in this repository, even
+though both use the `metadata.json` filename.
 
 Before automating metadata generation, inspect the model and an application-
 created project on the version you target. Do not submit an example JSON file as
 though it were a validated manifest.
+
+## Publish a prepared project from the command line
+
+The executable has a headless Steam Workshop publish command. The project path
+must contain both `content/` and application-readable `metadata.json`; Steam
+must be available and logged in.
+
+```text
+GregModmanager.exe --mode publish --path "D:\path\to\project"
+```
+
+`--upload` is an alias for `--mode publish`. Add `--autocommit` only when an
+automation workflow expects `.ralph/tasks/status.json` in the project. Exit code
+`0` means Steam reported success; exit code `1` reports a project or publish
+failure; exit code `2` means `--path` was omitted. Test against a disposable
+Workshop item before automating a production upload.
 
 ## Build a MelonLoader integration
 

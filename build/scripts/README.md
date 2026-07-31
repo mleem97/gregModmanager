@@ -16,6 +16,12 @@ otherwise. The SDK version is pinned in `global.json`.
 host, invoke the Linux shell script directly instead of expecting PowerShell to
 create packages.
 
+Windows ZIP/Setup/MSI and the Linux ZIP are written to
+`build/installer/Output/`. The Linux tarball is written to `artifacts/`; Linux
+distro packages are written to `artifacts/avalonia-linux/packages/`. On Windows,
+`-SkipWindows` still performs a Linux cross-publish; it does not run a native
+Linux GUI test.
+
 ## Release build
 
 ```powershell
@@ -48,6 +54,11 @@ and generate a new certificate. Use `pfx` for `CODE_SIGN_PFX` or
 `CODE_SIGN_THUMBPRINT`. `-SignOnly` runs on Windows and signs exactly one
 existing Setup EXE. See [the detailed signing guide](../installer/CODE_SIGNING.md).
 
+CI accepts only `auto`, `self-signed`, and `none`; it does not import a PFX from
+repository secrets. Local `build.ps1` can create detached `.sig`/`.sig.cer`
+files when OpenSSL is available. Do not assume those detached signatures are
+present in CI-produced Linux artifacts.
+
 ## Development helpers
 
 | Script | Purpose |
@@ -56,5 +67,7 @@ existing Setup EXE. See [the detailed signing guide](../installer/CODE_SIGNING.m
 | `build/scripts/install-local.ps1` | local non-installer deployment |
 | `build/scripts/start.ps1` | start an existing local desktop build |
 | `build/builder.ps1`, `build/builder.sh` | interactive build menus |
+| `build.sh` | compatibility wrapper for the Linux packaging script |
 
-These scripts have no root-level wrapper counterparts.
+There are no root-level PowerShell wrappers. `build.sh` is intentionally limited
+to the Linux package pipeline and must not be used to make Windows installers.
