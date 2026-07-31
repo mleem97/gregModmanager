@@ -6,12 +6,18 @@ This directory contains build, run, install, packaging, and development helper s
 
 ### `build.ps1`
 
-Builds and packages the application (Windows installer path).
+Builds and packages the application. A full Windows build creates a signed
+portable ZIP, an Inno Setup EXE, and a WiX MSI. Full Linux builds create a
+portable archive plus DEB/RPM/APK/Arch packages through the Linux packaging
+adapter.
 
 ```powershell
 .\build.ps1
 .\build.ps1 -SkipPublish
 .\build.ps1 -Sign
+.\build.ps1 -SigningMode self-signed
+.\build.ps1 -SigningMode pfx
+.\build.ps1 -SigningMode none
 ```
 
 ### `run.ps1`
@@ -84,6 +90,7 @@ Outputs:
 
 - `.deb`
 - `.rpm`
+- `.apk`
 - `.pkg.tar.zst`
 - `.tar.gz`
 

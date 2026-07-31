@@ -2,6 +2,14 @@
 
 This file is the short entry point for agent-oriented repository instructions. Read the referenced companion files before changing code, builds, documentation, or pull requests.
 
+## Important Note
+
+- All Linux/Unix relevant changes that cannot be mixed with the other OS need to go in "./src/GregModmanager.Unix"
+- All Windows relevant changes that cannot be mixed with the other OS need to go in "./src/GregModmanager.Windows"
+- All MacOs Related changes that cannot be mixed with the other os need to go in "./src/GregModmanager.MacOs"
+- There will be/is a Companion Plugin for Melonloader to integrate the Modmanager into the game. (Maybe with overlays? Plan with atomic tasks) - Located here: "./src/GregModmanager.Melons/gregPlugin.ModmanagerCompanion"
+- Always use Orchestration of several Agents if possible to 
+
 ## Companion files
 
 - `SOUL.md` — repository personality, collaboration defaults, and communication style.
@@ -12,8 +20,8 @@ This file is the short entry point for agent-oriented repository instructions. R
 ## Project context
 
 - Application: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI: Avalonia UI 11.2.
-- Target framework: .NET 9 for the desktop app; runtime-facing helper projects stay compatible with .NET 6 unless explicitly requested and validated.
+- UI: Latest Avalonia if possible.
+- Target framework: Latest Stable .net for the desktop app; runtime-facing helper projects stay compatible with .NET 6 unless explicitly requested and validated, but only for Melonloader Integrations.
 - Solution: `GregModmanager.sln`.
 - Executable project: `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`.
 - Shared library: `src/GregModmanager.Core/GregModmanager.Core.csproj`.

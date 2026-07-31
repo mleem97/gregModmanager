@@ -1,0 +1,16 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="gregModmanager"
+           Manufacturer="GregFramework"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="{7A2F9E1B-4C3D-5E6F-7890-ABCDEF123401}">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of gregModmanager is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="gregModmanager">
+      </Directory>
+    </StandardDirectory>
+
+    <Files Include="$(var.PublishDir)\**" Directory="INSTALLFOLDER" />
+  </Package>
+</Wix>

@@ -78,6 +78,7 @@ build_nfpm() {
 
 build_nfpm deb "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.deb"
 build_nfpm rpm "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.rpm"
+build_nfpm apk "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.apk"
 build_nfpm archlinux "$PKG_DIR/gregModmanager-${VERSION}${PRE_SUFFIX}-Linux.pkg.tar.zst"
 
 echo "Artifacts ready in: $OUTPUT_ROOT"

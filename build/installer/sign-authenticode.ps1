@@ -13,7 +13,8 @@ param(
     [string]$Thumbprint = '',
     [string]$PfxPath = '',
     [Security.SecureString]$PfxPassword = $null,
-    [string]$TimestampUrl = 'http://timestamp.digicert.com'
+    [string]$TimestampUrl = 'http://timestamp.digicert.com',
+    [switch]$NoTimestamp
 )
 
 Set-StrictMode -Version Latest
@@ -44,6 +45,8 @@ if ($usePfx -and $null -eq $PfxPassword) {
 }
 
 function Get-SignToolPath {
+    $fromPath = Get-Command 'signtool.exe' -ErrorAction SilentlyContinue
+    if ($fromPath) { return $fromPath.Source }
     $candidates = @(
         "${env:ProgramFiles(x86)}\Windows Kits\10\bin",
         "$env:ProgramFiles\Windows Kits\10\bin"
@@ -69,13 +72,10 @@ oder lege signtool.exe auf dem PATH ab.
 "@
 }
 
-$args = @(
-    'sign',
-    '/fd', 'SHA256',
-    '/tr', $TimestampUrl,
-    '/td', 'SHA256',
-    '/v'
-)
+$args = @('sign', '/fd', 'SHA256', '/v')
+if (-not $NoTimestamp) {
+    $args += @('/tr', $TimestampUrl, '/td', 'SHA256')
+}
 if ($useThumb) {
     $args += @('/sha1', $Thumbprint)
 } else {

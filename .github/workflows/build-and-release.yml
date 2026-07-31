@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       signing:
-        description: 'Signing mode: auto = PFX when secret exists, else self-signed'
+        description: 'Signing mode: auto/self-signed creates a fresh self-signed certificate for this build'
         type: choice
         options:
           - auto
@@ -118,6 +118,10 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
 
+      - name: Install WiX CLI
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.*
+
       - name: Determine signing mode
         id: signing
         shell: pwsh
@@ -126,8 +130,7 @@ jobs:
           SIGNING_INPUT: ${{ inputs.signing || 'auto' }}
         run: |
           $mode = $env:SIGNING_INPUT
-          $hasPfx = -not [string]::IsNullOrWhiteSpace($env:PFX_BASE64)
-          if ($mode -eq 'auto') { $mode = if ($hasPfx) { 'pfx' } else { 'self-signed' } }
+          if ($mode -eq 'auto') { $mode = 'self-signed' }
           if ($mode -eq 'none') { $mode = '' }
           "signing_mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Signing mode: $mode"
@@ -145,15 +148,6 @@ jobs:
           "CODE_SIGN_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "CODE_SIGN_PFX_PASSWORD=$($env:PFX_PWD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Create self-signed certificate
-        if: steps.signing.outputs.signing_mode == 'self-signed'
-        shell: pwsh
-        run: |
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=GregTools CI" `
-            -KeyUsage DigitalSignature -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 `
-            -NotAfter (Get-Date).AddDays(7) -CertStoreLocation Cert:\CurrentUser\My -FriendlyName "GregTools CI"
-          "CODE_SIGN_THUMBPRINT=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
       - name: Build & Package
         id: package
         shell: pwsh
@@ -166,17 +160,15 @@ jobs:
           TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
           TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
         run: |
-          $sign = if ($env:CODE_SIGN_PFX -or $env:CODE_SIGN_THUMBPRINT) { $true } else { $false }
-          if ($sign) {
-            .\build\scripts\build.ps1 -Sign -SkipTest -SkipLinux
-          } else {
-            .\build\scripts\build.ps1 -SkipTest -SkipLinux
-          }
+          $signingMode = if ('${{ steps.signing.outputs.signing_mode }}') { '${{ steps.signing.outputs.signing_mode }}' } else { 'none' }
+          .\build\scripts\build.ps1 -SkipTest -SkipLinux -SigningMode $signingMode
           $preSuffix = if ($env:IS_PRE -eq 'true') { '-pre' } else { '' }
           $setup = Get-ChildItem -Path ("build\installer\Output\gregModmanager-*{0}-Windows.exe" -f $preSuffix) | Select-Object -First 1
           $portable = Get-ChildItem -Path ("build\installer\Output\gregModmanager-*{0}-Windows.zip" -f $preSuffix) | Select-Object -First 1
+          $msi = Get-ChildItem -Path ("build\installer\Output\gregModmanager-*{0}-Windows.msi" -f $preSuffix) | Select-Object -First 1
           if (-not $setup) { throw "Setup EXE not found" }
           if (-not $portable) { throw "Portable ZIP not found" }
+          if (-not $msi) { throw "MSI not found" }
           "setup_name=$($setup.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "portable_name=$($portable.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Setup: $($setup.Name)"
@@ -189,6 +181,15 @@ jobs:
           path: |
             build/installer/Output/gregModmanager-*-Windows.exe
             build/installer/Output/gregModmanager-*-Windows.exe.*
+          if-no-files-found: error
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: |
+            build/installer/Output/gregModmanager-*-Windows.msi
+            build/installer/Output/gregModmanager-*-Windows.msi.*
           if-no-files-found: error
 
       - name: Upload Portable
@@ -206,6 +207,7 @@ jobs:
         with:
           subject-path: |
             build/installer/Output/gregModmanager-*-Windows.exe
+            build/installer/Output/gregModmanager-*-Windows.msi
             build/installer/Output/gregModmanager-*-Windows.zip
 
   build-linux:
@@ -395,6 +397,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-portable
+          path: ./dist
+
+      - name: Download Windows MSI
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-msi
           path: ./dist
 
       - name: Download Linux Portable

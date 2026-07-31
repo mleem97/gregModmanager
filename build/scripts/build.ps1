@@ -1,9 +1,9 @@
 # Lokaler Build - spiegelt den GitHub-Workflow build-and-release.yml wider.
-# Unterstuetzt Windows (Setup + Portable), Linux (tar.gz) und Linux-Packages (via WSL).
+# Unterstuetzt Windows (EXE-Setup + MSI + Portable), Linux (tar.gz) und Linux-Packages (via WSL).
 #
 # Voraussetzungen:
 #   - .NET 9 SDK
-#   - Inno Setup 6 (nur fuer Windows-Setup)
+#   - Inno Setup 6 und WiX CLI 5 (fuer vollstaendige Windows-Installer)
 #   - WSL mit bash + dotnet + nfpm (optional fuer Linux-Packages)
 #
 # Ausfuehren:
@@ -21,6 +21,8 @@ param(
     [switch]$SkipLinuxPackages,
     [switch]$SkipPublish,
     [switch]$Sign,
+    [ValidateSet('auto', 'self-signed', 'pfx', 'none')]
+    [string]$SigningMode = 'auto',
     [switch]$SignOnly,
     [string]$SetupPath = '',
     [string]$WslDistro = ''
@@ -44,6 +46,7 @@ if (Test-Path -LiteralPath $envFile) {
 
 $isWindowsHost = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
 $script:AutoSignThumbprint = $null
+$script:EphemeralSigning = $false
 
 # ---------------------------------------------------------------------------
 # Hilfsfunktionen
@@ -134,7 +137,7 @@ function Assert-AuthenticodeSignaturePresent {
 function New-EphemeralCodeSignThumbprint {
     if (-not $isWindowsHost) { throw "Ephemeral code signing is only supported on Windows." }
     if (-not [string]::IsNullOrWhiteSpace($script:AutoSignThumbprint)) { return $script:AutoSignThumbprint }
-    $subject = "CN=GregTools Local Build " + (Get-Date -Format 'yyyyMMdd-HHmmss')
+    $subject = "CN=GregTools Build " + [System.Guid]::NewGuid().ToString('N')
     $notAfter = (Get-Date).AddDays(7)
     Write-Host "[build] Erzeuge temporaeres Self-Signed-Code-Signing-Zertifikat: $subject"
     $cert = New-SelfSignedCertificate `
@@ -148,6 +151,7 @@ function New-EphemeralCodeSignThumbprint {
         -CertStoreLocation Cert:\CurrentUser\My `
         -FriendlyName "GregTools ephemeral build signing"
     $script:AutoSignThumbprint = $cert.Thumbprint
+    $script:EphemeralSigning = $true
     Write-Host "[build] Temporaerer Signing-Thumbprint: $($script:AutoSignThumbprint)"
     return $script:AutoSignThumbprint
 }
@@ -169,7 +173,12 @@ function Invoke-BuildSign {
     if (-not [string]::IsNullOrWhiteSpace($thumb)) {
         $t = $thumb.Trim()
         if ($t -match '<|>') { throw "CODE_SIGN_THUMBPRINT ist noch ein Platzhalter." }
-        & $signScript -Path $TargetPath -Thumbprint $t
+        if ($script:EphemeralSigning -and $t -eq $script:AutoSignThumbprint) {
+            & $signScript -Path $TargetPath -Thumbprint $t -NoTimestamp
+        }
+        else {
+            & $signScript -Path $TargetPath -Thumbprint $t
+        }
     }
     else {
         & $signScript -Path $TargetPath -PfxPath $pfx.Trim()
@@ -187,12 +196,8 @@ function Invoke-SignWindowsPayloadBinaries {
             Write-Host "[build] Bereits signiert: $($file.FullName)"
             continue
         }
-        try {
-            Invoke-BuildSign -TargetPath $file.FullName
-        }
-        catch {
-            Write-Warning "[build] Signieren fehlgeschlagen fuer $($file.Name): $($_.Exception.Message)"
-        }
+        Invoke-BuildSign -TargetPath $file.FullName
+        Assert-AuthenticodeSignaturePresent -TargetPath $file.FullName
     }
 }
 
@@ -299,11 +304,23 @@ else {
     Write-Host '[build] Tests uebersprungen (-SkipTest).'
 }
 
-$wantSign = $Sign
-# Always use self-signed certificate if no explicit signing is configured
-if (-not $wantSign -and -not $env:CODE_SIGN_THUMBPRINT -and -not $env:CODE_SIGN_PFX) {
-    $wantSign = $true
-    Write-Host '[build] Using self-signed certificate for code signing (no CODE_SIGN_THUMBPRINT or CODE_SIGN_PFX set).'
+$wantSign = $false
+if ($Sign -and $SigningMode -eq 'none') { throw '-Sign cannot be combined with -SigningMode none.' }
+switch ($SigningMode) {
+    'none' { $wantSign = $false }
+    'pfx' {
+        if ([string]::IsNullOrWhiteSpace($env:CODE_SIGN_PFX) -and [string]::IsNullOrWhiteSpace($env:CODE_SIGN_THUMBPRINT)) {
+            throw 'SigningMode pfx requires CODE_SIGN_PFX or CODE_SIGN_THUMBPRINT.'
+        }
+        $wantSign = $true
+    }
+    'self-signed' { $wantSign = $true }
+    'auto' { $wantSign = $true }
+}
+if ($Sign) { $wantSign = $true }
+if ($wantSign -and $SigningMode -in @('auto', 'self-signed')) {
+    Remove-Item Env:CODE_SIGN_THUMBPRINT -ErrorAction SilentlyContinue
+    Remove-Item Env:CODE_SIGN_PFX -ErrorAction SilentlyContinue
 }
 $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
 $iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
@@ -358,7 +375,7 @@ if ($isWindowsHost -and -not $SkipWindows) {
     )
     $iscc = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $iscc) {
-        Write-Warning '[build] Inno Setup 6 nicht gefunden - Setup-EXE wird nicht erstellt.'
+        throw 'Inno Setup 6 not found. A complete Windows release requires the EXE installer.'
     }
     else {
         if (-not (Test-Path -LiteralPath $iss)) { throw "Inno-Skript fehlt: $iss" }
@@ -386,6 +403,22 @@ if ($isWindowsHost -and -not $SkipWindows) {
         New-Sha256File -TargetPath $setupPath
         if ($wantSign) { New-DetachedArtifactSignature -TargetPath $setupPath }
     }
+
+    $wix = Get-Command wix -ErrorAction SilentlyContinue
+    if (-not $wix) { throw 'WiX CLI not found. A complete Windows release requires the MSI installer.' }
+    $wxs = Join-Path $repoRoot 'build\installer\wix\Package.wxs'
+    if (-not (Test-Path -LiteralPath $wxs)) { throw "WiX source missing: $wxs" }
+    $msiPath = Join-Path $installerOutDir ("gregModmanager-{0}{1}-Windows.msi" -f $ver, $verInfo.PreSuffix)
+    if (Test-Path -LiteralPath $msiPath) { Remove-Item -LiteralPath $msiPath -Force }
+    Write-Host "[build] WiX MSI: $msiPath"
+    & $wix.Source build -arch x64 $wxs "-dPublishDir=$winPublishDir" "-dProductVersion=$numericVer" "-dProductDisplayVersion=$ver" -o $msiPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $msiPath)) { throw 'WiX MSI build failed.' }
+    if ($wantSign) {
+        Invoke-BuildSign -TargetPath $msiPath
+        Assert-AuthenticodeSignaturePresent -TargetPath $msiPath
+    }
+    New-Sha256File -TargetPath $msiPath
+    if ($wantSign) { New-DetachedArtifactSignature -TargetPath $msiPath }
 }
 elseif ($SkipWindows) {
     Write-Host '[build] Windows-Build uebersprungen (-SkipWindows).'
@@ -456,7 +489,7 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
             Write-Warning "[build] Linux-Package-Skript nicht gefunden: $linuxPkgScript"
         }
         else {
-            Write-Host '[build] Baue Linux-Packages (DEB/RPM/Arch) via WSL ...'
+            Write-Host '[build] Baue Linux-Packages (DEB/RPM/APK/Arch) via WSL ...'
             $pkgOut = Join-Path $artifactsDir 'avalonia-linux'
             try {
                 $preFlag = if ($verInfo.IsPre) { $true } else { $false }
@@ -471,9 +504,7 @@ if (-not $SkipLinuxPackages -and -not $SkipLinux) {
                 }
                 Write-Host "[build] Linux-Packages fertig: $pkgOut\packages"
             }
-            catch {
-                Write-Warning "[build] Linux-Packages fehlgeschlagen: $($_.Exception.Message)"
-            }
+            catch { throw "[build] Linux-Packages fehlgeschlagen: $($_.Exception.Message)" }
         }
     }
 }

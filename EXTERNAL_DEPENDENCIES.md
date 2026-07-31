@@ -75,6 +75,7 @@ The following fonts are embedded as `AvaloniaResource` or `EmbeddedResource` and
 | :--- | :--- | :--- |
 | **PowerShell 5.1+** | Build orchestration (`build/scripts/build.ps1`) | MIT |
 | **Inno Setup 6** | Windows installer creation (`build/installer/gregModmanager.iss`) | Inno Setup License |
+| **WiX Toolset CLI 5** | Windows MSI creation (`build/installer/wix/Package.wxs`) | Microsoft Reciprocal License |
 | **nfpm** | Linux package building (DEB/RPM/Arch) | [Apache-2.0](https://github.com/goreleaser/nfpm/blob/main/LICENSE) |
 | **tar** | Linux tarball creation | GPL (typically provided by the host OS) |
 | **WSL** (optional) | Linux package builds from Windows hosts | Microsoft Terms |
@@ -94,7 +95,8 @@ Version resolution uses `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csp
 ### Windows
 
 - **Portable ZIP** (`win64-v{version}-portable.zip`) — Self-contained `win-x64` publish output. Best compression (`Compress-Archive -CompressionLevel Optimal`).
-- **Setup EXE** (`gregModmanager-{version}-Setup.exe`) — Inno Setup installer with auto-uninstall of previous versions.
+- **Setup EXE** (`gregModmanager-{version}-Windows.exe`) — Inno Setup installer with auto-uninstall of previous versions.
+- **MSI** (`gregModmanager-{version}-Windows.msi`) — WiX installer for managed deployments.
 
 ### Linux
 
@@ -103,6 +105,7 @@ Version resolution uses `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csp
 
   - `.deb` (Debian/Ubuntu)
   - `.rpm` (Fedora/openSUSE)
+  - `.apk` (Alpine Linux)
   - `.pkg.tar.zst` (Arch Linux)
 
 ### Container (optional)
