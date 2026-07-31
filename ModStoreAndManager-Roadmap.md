@@ -1,4 +1,10 @@
-# Funktionsliste für Mod-Manager und Modding-Plattform
+# Mod-manager and modding-platform roadmap
+
+> **Status:** Product-planning research, not an implementation or release
+> commitment. A checked item must still be verified in source and tests before
+> it appears in end-user documentation. External competitor observations are a
+> dated research snapshot and require fresh verification before a product or
+> purchasing decision.
 
 > Stand: 29. Juli 2026. Ausgelegt für eine zunächst spielbezogene App mit späterer Multi-Game-Erweiterung.
 

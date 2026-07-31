@@ -1,4 +1,9 @@
-# gregWeb.Modstore – aktuelle fertige Features
+# gregWeb.Modstore – historical feature inventory
+
+> **Scope:** This is an evidence snapshot of a separate `gregWeb.Modstore`
+> checkout dated 2026-07-29. It does not describe released gregModmanager
+> desktop functionality. Use the desktop user guide and source tree to make
+> claims about this repository's application.
 
 Stand: 2026-07-29  
 Quelle: `/home/marvin/Dokumente/GregFramework/WebRepositories/gregWeb.Modstore/`

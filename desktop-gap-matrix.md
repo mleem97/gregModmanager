@@ -1,4 +1,9 @@
-# Desktop/Webapp-Gap-Matrix
+# Desktop/Webapp gap matrix — planning snapshot
+
+> **Scope:** This matrix compares this desktop repository with a separate web
+> application snapshot from 2026-07-29. Its entries are prioritisation input,
+> not a release contract. The desktop source, current user guide, and tested API
+> contracts take precedence when they conflict.
 
 Stand: 2026-07-29. Status basiert auf Quellcode, nicht allein auf Roadmap-Checkboxen.
 

@@ -1,4 +1,9 @@
-# gregWeb.Modstore – Funktionsinventar
+# gregWeb.Modstore – historical function inventory
+
+> **Scope:** This document inventories a separate `gregWeb.Modstore` checkout
+> as of 2026-07-29. It is a planning reference for desktop parity, not
+> documentation of features available in gregModmanager or a public web API
+> contract.
 
 Stand: 2026-07-29  
 Quelle: `/home/marvin/Dokumente/GregFramework/WebRepositories/gregWeb.Modstore/`

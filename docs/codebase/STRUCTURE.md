@@ -8,13 +8,14 @@
 | `src/GregModmanager.Avalonia/` | Desktop entry point, window and pages | `Program.cs`, `MainWindow.axaml.cs` |
 | `tests/GregModmanager.Tests/` | xUnit tests | test project |
 | `build/` | Packaging scripts | repository tree |
-| `docs/` | User/developer documentation | repository tree |
+| `src/GregModmanager.Melons/` | MelonLoader-specific integrations | repository tree |
+| `docs/` | Canonical repository documentation | repository tree |
 
 ## Entry Points
 
 - Main runtime: `src/GregModmanager.Avalonia/Program.cs`.
 - Headless path: `src/GregModmanager.Core/Services/HeadlessRunner.cs`.
-- Native plugin project: `src/SubDirectoryFixer/`.
+- Native plugin project: `src/GregModmanager.Melons/SubDirectoryFixer/`.
 - Avalonia selects desktop lifetime; `--headless` is handled before UI startup.
 
 ## Module Boundaries

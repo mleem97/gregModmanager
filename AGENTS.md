@@ -8,7 +8,7 @@ This file is the short entry point for agent-oriented repository instructions. R
 - All Windows relevant changes that cannot be mixed with the other OS need to go in "./src/GregModmanager.Windows"
 - All MacOs Related changes that cannot be mixed with the other os need to go in "./src/GregModmanager.MacOs"
 - There will be/is a Companion Plugin for Melonloader to integrate the Modmanager into the game. (Maybe with overlays? Plan with atomic tasks) - Located here: "./src/GregModmanager.Melons/gregPlugin.ModmanagerCompanion"
-- Always use Orchestration of several Agents if possible to 
+- Always use Orchestration of several Agents if possible to
 
 ## Companion files
 

@@ -14,7 +14,6 @@ on:
         options:
           - auto
           - self-signed
-          - pfx
           - none
         default: 'auto'
 
@@ -126,7 +125,6 @@ jobs:
         id: signing
         shell: pwsh
         env:
-          PFX_BASE64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
           SIGNING_INPUT: ${{ inputs.signing || 'auto' }}
         run: |
           $mode = $env:SIGNING_INPUT
@@ -134,19 +132,6 @@ jobs:
           if ($mode -eq 'none') { $mode = '' }
           "signing_mode=$mode" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Signing mode: $mode"
-
-      - name: Decode PFX certificate
-        if: steps.signing.outputs.signing_mode == 'pfx'
-        shell: pwsh
-        env:
-          PFX_BASE64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
-          PFX_PWD: ${{ secrets.CODE_SIGN_PFX_PASSWORD }}
-        run: |
-          $pfxBytes = [System.Convert]::FromBase64String($env:PFX_BASE64)
-          $pfxPath = Join-Path $env:RUNNER_TEMP 'code-signing.pfx'
-          [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
-          "CODE_SIGN_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "CODE_SIGN_PFX_PASSWORD=$($env:PFX_PWD)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build & Package
         id: package

@@ -10,7 +10,8 @@ dotnet test tests/GregModmanager.Tests/GregModmanager.Tests.csproj -c Release --
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
-The current host lacks the .NET 9 runtime; Major roll-forward was required and is not a production-runtime substitute.
+Use the SDK selected in `global.json`. Do not rely on runtime roll-forward as a
+substitute for the supported .NET 9 application runtime.
 
 ## Layout
 

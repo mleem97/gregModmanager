@@ -196,8 +196,8 @@ function Invoke-Clean {
         'src\GregModmanager.Avalonia\obj',
         'src\GregModmanager.Core\bin',
         'src\GregModmanager.Core\obj',
-        'src\SubDirectoryFixer\bin',
-        'src\SubDirectoryFixer\obj',
+        'src\GregModmanager.Melons\SubDirectoryFixer\bin',
+        'src\GregModmanager.Melons\SubDirectoryFixer\obj',
         'tests\GregModmanager.Tests\bin',
         'tests\GregModmanager.Tests\obj'
     )

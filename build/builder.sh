@@ -184,7 +184,7 @@ invoke_clean() {
     print_banner
     echo -e "  ${C_PRIMARY}[CLEAN]${C_RESET}"
     echo ""
-    local dirs=("artifacts" "build/installer/Output" "src/GregModmanager.Avalonia/bin" "src/GregModmanager.Avalonia/obj" "src/GregModmanager.Core/bin" "src/GregModmanager.Core/obj" "src/SubDirectoryFixer/bin" "src/SubDirectoryFixer/obj" "tests/GregModmanager.Tests/bin" "tests/GregModmanager.Tests/obj")
+    local dirs=("artifacts" "build/installer/Output" "src/GregModmanager.Avalonia/bin" "src/GregModmanager.Avalonia/obj" "src/GregModmanager.Core/bin" "src/GregModmanager.Core/obj" "src/GregModmanager.Melons/SubDirectoryFixer/bin" "src/GregModmanager.Melons/SubDirectoryFixer/obj" "tests/GregModmanager.Tests/bin" "tests/GregModmanager.Tests/obj")
     for d in "${dirs[@]}"; do
         local p="$REPO_ROOT/$d"
         if [[ -d "$p" ]]; then

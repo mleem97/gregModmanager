@@ -1,4 +1,10 @@
-# Desktop/Webapp API-Kompatibilität
+# Desktop/Webapp API-Kompatibilität — historical integration audit
+
+> **Scope:** This is a July 2026 audit snapshot that references a separate local
+> `gregWeb.Modstore` checkout. It is planning evidence, not a stable public API
+> specification and not proof that the named web routes are deployed. Confirm
+> request/response contracts against the owning web repository before changing
+> desktop code or documenting a feature as released.
 
 Stand: `v1.6.1-pre.13`
 

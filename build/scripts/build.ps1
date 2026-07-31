@@ -7,12 +7,12 @@
 #   - WSL mit bash + dotnet + nfpm (optional fuer Linux-Packages)
 #
 # Ausfuehren:
-#   .\scripts\build.ps1                    # Alles bauen
-#   .\scripts\build.ps1 -SkipTest         # Ohne Unit-Tests
-#   .\scripts\build.ps1 -SkipLinux        # Nur Windows
-#   .\scripts\build.ps1 -SkipWindows      # Nur Linux
-#   .\scripts\build.ps1 -Sign             # Mit Code-Signing
-#   .\scripts\build.ps1 -SkipPublish      # Publish ueberspringen (nur Setup neu)
+#   .\build\scripts\build.ps1                    # Alles bauen
+#   .\build\scripts\build.ps1 -SkipTest         # Ohne Unit-Tests
+#   .\build\scripts\build.ps1 -SkipLinux        # Nur Windows
+#   .\build\scripts\build.ps1 -SkipWindows      # Nur Linux
+#   .\build\scripts\build.ps1 -Sign             # Mit Code-Signing
+#   .\build\scripts\build.ps1 -SkipPublish      # Publish ueberspringen (nur Installer neu)
 #Requires -Version 5.1
 param(
     [switch]$SkipTest,
@@ -227,17 +227,16 @@ function New-DetachedArtifactSignature {
 }
 
 function Invoke-BuildSubDirectoryFixer {
-    $fixerProjPath = Join-Path $repoRoot 'src\SubDirectoryFixer\SubDirectoryFixer.csproj'
+    $fixerProjPath = Join-Path $repoRoot 'src\GregModmanager.Melons\SubDirectoryFixer\SubDirectoryFixer.csproj'
     $fixerAssetsDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\Assets\SubDirectoryFixer'
     $fixerDllPath = Join-Path $fixerAssetsDir 'SubDirectoryFixer.dll'
     if (-not (Test-Path -LiteralPath $fixerProjPath)) {
-        Write-Warning '[build] SubDirectoryFixer-Projekt nicht gefunden - wird uebersprungen.'
-        return
+        throw "SubDirectoryFixer-Projekt fehlt: $fixerProjPath"
     }
     Write-Host '[build] Baue SubDirectoryFixer (net6.0) ...'
     & dotnet build $fixerProjPath -c Release
     if ($LASTEXITCODE -ne 0) { throw 'SubDirectoryFixer Build fehlgeschlagen.' }
-    $builtDll = Join-Path $repoRoot 'src\SubDirectoryFixer\bin\Release\net6.0\SubDirectoryFixer.dll'
+    $builtDll = Join-Path $repoRoot 'src\GregModmanager.Melons\SubDirectoryFixer\bin\Release\net6.0\SubDirectoryFixer.dll'
     if (-not (Test-Path -LiteralPath $builtDll)) { throw 'SubDirectoryFixer DLL nicht gefunden.' }
     New-Item -ItemType Directory -Path $fixerAssetsDir -Force | Out-Null
     Copy-Item -LiteralPath $builtDll -Destination $fixerDllPath -Force
@@ -331,6 +330,25 @@ $artifactsDir = Join-Path $repoRoot 'artifacts'
 
 New-Item -ItemType Directory -Path $installerOutDir -Force | Out-Null
 New-Item -ItemType Directory -Path $artifactsDir -Force | Out-Null
+
+if ($SignOnly) {
+    if (-not $isWindowsHost) { throw '-SignOnly requires a Windows host and Authenticode tooling.' }
+    if (-not $wantSign) { throw '-SignOnly requires signing; omit -SigningMode none.' }
+    $targetSetup = $SetupPath
+    if ([string]::IsNullOrWhiteSpace($targetSetup)) {
+        $targetSetup = Get-ChildItem -LiteralPath $installerOutDir -Filter 'gregModmanager-*-Windows.exe' -File |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
+    if ([string]::IsNullOrWhiteSpace($targetSetup) -or -not (Test-Path -LiteralPath $targetSetup)) {
+        throw 'No existing Windows Setup EXE was found. Pass -SetupPath with the installer path.'
+    }
+    Invoke-BuildSign -TargetPath $targetSetup
+    Assert-AuthenticodeSignaturePresent -TargetPath $targetSetup
+    New-Sha256File -TargetPath $targetSetup
+    Write-Host "[build] Existing Setup EXE signed: $targetSetup"
+    return
+}
 
 # ---------------------------------------------------------------------------
 # Phase 2 - Windows Build

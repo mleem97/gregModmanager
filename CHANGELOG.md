@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Docker Buildx targets for deterministic test runs, Windows cross-publish,
+  and macOS x64/arm64 cross-publish; a Windows-container Dockerfile is
+  available for compatible Windows Docker hosts.
+- SSH-based workflow to build, test, and prepare a manual GUI test on a real
+  macOS host from a Linux development machine.
+
 ### Fixed
 
 - **CI Build Error**: Replaced MAUI `Preferences.Default` and Avalonia `SettingsPage` references in Core services with platform-agnostic `S.Preferences` and `AppSettings` APIs, restoring Windows/Linux build compatibility.

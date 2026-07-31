@@ -16,7 +16,9 @@
 ## Signing
 
 - Windows signing uses `build/installer/sign-authenticode.ps1`.
-- Supported signing inputs: `CODE_SIGN_THUMBPRINT`, or `CODE_SIGN_PFX` plus `CODE_SIGN_PFX_PASSWORD`.
+- `auto`/`self-signed` creates a fresh build certificate; use `-SigningMode pfx`
+  with `CODE_SIGN_THUMBPRINT`, or `CODE_SIGN_PFX` plus `CODE_SIGN_PFX_PASSWORD`,
+  to reuse an existing certificate.
 - Do not include `steam_api64.dll` in signing loops unless the maintainer confirms the vendor binary is safe to sign.
 
 ## Telemetry

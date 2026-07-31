@@ -4,7 +4,7 @@
 
 - Application: gregModmanager.
 - Purpose: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI framework: Avalonia UI 11.2.
+- UI framework: Avalonia UI 12.1.0.
 - Desktop target: .NET 9.
 - Runtime-facing helper compatibility: .NET 6 unless explicitly requested and validated.
 - Primary solution: `GregModmanager.sln`.
@@ -13,11 +13,11 @@
 
 - Desktop app: `src/GregModmanager.Avalonia/`.
 - Core services and models: `src/GregModmanager.Core/`.
-- SubDirectoryFixer helper: `src/SubDirectoryFixer/`.
+- SubDirectoryFixer helper: `src/GregModmanager.Melons/SubDirectoryFixer/`.
 - Tests: `tests/GregModmanager.Tests/`.
 - Build scripts: `build/scripts/`.
 - Installer assets: `build/installer/`.
-- Wiki submodule: `wiki/`.
+- Canonical documentation: `docs/` (tracked directly in this repository).
 
 ## Architecture
 

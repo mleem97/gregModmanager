@@ -5,7 +5,7 @@
 | System | Type | Purpose | Auth | Criticality | Evidence |
 |---|---|---|---|---|---|
 | Steamworks | native SDK | Steam init and Workshop browse/download/upload | Steam client/session | high | `SteamWorkshopService.cs` |
-| Modstore Webapp | HTTPS API | auth bridge and future catalog/creator integration | bearer/session | high | `api-compatibility.md`, `Services/Auth/` |
+| Modstore services | HTTPS API | desktop account/session bridge and configured service calls | bearer/session | high | `Services/Auth/` |
 | GitHub releases | HTTPS API | MelonLoader/SteamModfix downloads | public API/User-Agent | medium | installer services |
 | Local filesystem | local state/game files | workspace, projects, logs, deployment | OS permissions | high | `WorkspaceService`, `AppSettings` |
 
@@ -19,7 +19,10 @@
 
 ## Secrets
 
-Session tokens are obtained through the Better-Auth desktop bridge; passwords are not stored by the desktop app. App IDs/public URLs are configuration, not secrets. Token lifecycle follows the webapp bridge; broader API-key lifecycle is `[TODO]`.
+Session tokens are obtained through the desktop authentication bridge; passwords
+are not stored by the desktop app. App IDs and public URLs are configuration, not
+secrets. Tokens, PFX paths/passwords, and telemetry credentials must never be
+written to diagnostic logs or committed configuration.
 
 ## Reliability
 

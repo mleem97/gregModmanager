@@ -1,130 +1,58 @@
-# External Dependencies — gregModmanager
+# External dependencies
 
-> [!NOTE]
-> This document reflects the current repository structure (Avalonia UI, .NET 9, `src/`/`tests/`/`build/` layout). For additional context, see `README.md` and the project Wiki.
+This inventory is a technical transparency aid, not legal advice. Project files
+and the third-party licence text are the authoritative sources when distributing
+a release.
 
-This document is an **open-source transparency** note: what this application ships or relies on, and how that relates to licenses. It is **not legal advice**.
+## Application dependencies
 
----
+| Component | Current use | Licence/source |
+| --- | --- | --- |
+| .NET 9 | application runtime and SDK | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) |
+| Avalonia 12.1.0 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
+| Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
+| Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
+| xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |
 
-## Open source at a glance
+## Redistributables and platform assets
 
-| Category | Description |
-| :--- | :--- |
-| **This application's source code** | Licensed under the same terms as the containing repository (see root `LICENSE` if present). |
-| **Open-source components we ship or depend on** | **.NET**, **Avalonia UI**, **Microsoft.Extensions.DependencyInjection**, **Facepunch.Steamworks** — typically **MIT** or permissive open-source licenses; see tables below and upstream notices. |
-| **Not open source (binary redistributables)** | **steam_api64.dll** from Valve's **Steamworks SDK** — distributed under Valve's terms, not under a public source license. You must comply with [Steamworks](https://partner.steamgames.com/) agreements when building or redistributing the app. |
-| **Runtime on the user's PC** | **Visual C++ Redistributable** and **.NET** runtime components may be installed separately; those are governed by their respective Microsoft (or other) licenses. |
+| Asset | Platforms | Distribution note |
+| --- | --- | --- |
+| Steam native library | Windows DLL or Linux shared object, depending on publish RID | governed by Valve Steamworks terms; do not present it as open source |
+| `steam_appid.txt` | platform publish output where configured | project configuration, not a library |
+| bundled fonts | desktop resources | see the licence files beside the vendored fonts |
+| Visual C++ Redistributable | Windows when required by the installed runtime/components | governed by Microsoft terms |
 
-For release outputs (portable ZIP, Setup EXE, Linux tarball): the publish output includes managed assemblies from NuGet (see `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` and `src/GregModmanager.Core/GregModmanager.Core.csproj`) plus native **steam_api64.dll** and **steam_appid.txt** as described below.
+macOS is not a distributed release target. Do not republish a cross-published
+macOS directory as a supported macOS product without native dependency review,
+signing, and notarization.
 
----
+## Build and release tooling
 
-## Runtime and framework (open source)
+| Tool | Purpose |
+| --- | --- |
+| .NET SDK (pinned by `global.json`) | restore, build, test, publish |
+| Inno Setup 6 | Windows Setup EXE |
+| WiX CLI 5 | Windows MSI |
+| nfpm and native package tools | DEB, RPM, APK, and Arch packages |
+| WSL | optional Windows-host Linux package adapter |
+| Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
 
-| Component | Use | License / terms |
-| :--- | :--- | :--- |
-| **.NET 9** | Runtime and SDK | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) |
-| **Avalonia UI 11.2** | Cross-platform UI framework | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
-| **Microsoft.Extensions.DependencyInjection** | Service registration / DI container | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
+## Release formats
 
-## NuGet packages (open source)
+| Platform | Formats |
+| --- | --- |
+| Windows x64 | portable ZIP, Setup EXE, MSI |
+| Linux x64 | portable ZIP/tarball, DEB, RPM, APK, Arch package |
+| macOS x64 | no published format |
 
-| Package | Use | License |
-| :--- | :--- | :--- |
-| **Avalonia** | Core Avalonia framework | MIT |
-| **Avalonia.Desktop** | Desktop backend (Windows/Linux/macOS) | MIT |
-| **Avalonia.Themes.Fluent** | Built-in Fluent theme base | MIT |
-| **Avalonia.Fonts.Inter** | Inter font integration | MIT |
-| **Microsoft.Extensions.DependencyInjection** | DI container used in `Program.cs` | MIT |
-| **Facepunch.Steamworks** | Steamworks API wrapper (managed) | **MIT** ([repository](https://github.com/Facepunch/Facepunch.Steamworks)) |
-| **xunit** / **xunit.runner.visualstudio** / **coverlet.collector** | Unit testing (tests project only) | MIT / Apache-2.0 |
-| **Microsoft.NET.Test.Sdk** | Test runner SDK (tests project only) | MIT |
+The Windows self-signed certificate used by default is newly generated for each
+build and is not a redistribution dependency. See
+[Code signing](build/installer/CODE_SIGNING.md) for its trust limitations.
 
-## Binary redistributables (not "open source")
+## MelonLoader integration
 
-| File | Source | Notes |
-| :--- | :--- | :--- |
-| **steam_api64.dll** | [Steamworks SDK](https://partner.steamgames.com/doc/sdk) | Valve **redistributable** for Steam-enabled applications. You do not have source code; distribution is governed by **Steamworks SDK** and Steam partner terms. Do not imply Valve endorses this project. |
-| **steam_appid.txt** | Project / game configuration | Text file containing the Steam AppID (`4170200`); not a library. |
-
-Using Steamworks implies acceptance of Valve's applicable agreements for developers and players.
-
-## Fonts (vendored)
-
-The following fonts are embedded as `AvaloniaResource` or `EmbeddedResource` and are used under their respective open-source licenses:
-
-| Font | License | Usage |
-| :--- | :--- | :--- |
-| **Inter** | [OFL 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Primary UI font (body, labels, buttons) |
-| **Inter Tight** | [OFL 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt) | Condensed UI variants |
-| **JetBrains Mono** | [OFL 1.1](https://github.com/JetBrains/JetBrainsMono/blob/master/OFL.txt) | Monospace metadata, status values, paths, IDs |
-| **Space Grotesk** | [OFL 1.1](https://github.com/floriankarsten/space-grotesk/blob/master/OFL.txt) | Display and headline typography |
-| **Nexa** | Proprietary / see vendor license | Branding elements (if included) |
-
-## Windows components
-
-| Component | Notes |
-| :--- | :--- |
-| **Visual C++ runtime** | May be required on some PCs; [Microsoft VC++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) (see Microsoft license terms). |
-| **Inno Setup** (build-time) | Used to create the Windows Setup EXE. [Inno Setup License](https://jrsoftware.org/isfaq.php?license) (free for commercial and non-commercial use). |
-
-## Build tooling
-
-| Tool | Purpose | License |
-| :--- | :--- | :--- |
-| **PowerShell 5.1+** | Build orchestration (`build/scripts/build.ps1`) | MIT |
-| **Inno Setup 6** | Windows installer creation (`build/installer/gregModmanager.iss`) | Inno Setup License |
-| **WiX Toolset CLI 5** | Windows MSI creation (`build/installer/wix/Package.wxs`) | Microsoft Reciprocal License |
-| **nfpm** | Linux package building (DEB/RPM/Arch) | [Apache-2.0](https://github.com/goreleaser/nfpm/blob/main/LICENSE) |
-| **tar** | Linux tarball creation | GPL (typically provided by the host OS) |
-| **WSL** (optional) | Linux package builds from Windows hosts | Microsoft Terms |
-| **Docker** (optional) | GHCR container image builds | Apache-2.0 |
-
-## CI / CD (GitHub Actions)
-
-The workflow files live under `.github/workflows/`:
-
-- **`build-and-release.yml`** — Main CI workflow: test, build Windows (Setup + Portable ZIP), build Linux (tarball), build Linux packages (DEB/RPM/Arch), create GitHub Release.
-- **`linux-packages.yml`** — Standalone Linux package workflow triggered on `workflow_dispatch` or pushes affecting Linux packaging files.
-
-Version resolution uses `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` as the single source of truth.
-
-## GitHub Releases and distribution formats
-
-### Windows
-
-- **Portable ZIP** (`win64-v{version}-portable.zip`) — Self-contained `win-x64` publish output. Best compression (`Compress-Archive -CompressionLevel Optimal`).
-- **Setup EXE** (`gregModmanager-{version}-Windows.exe`) — Inno Setup installer with auto-uninstall of previous versions.
-- **MSI** (`gregModmanager-{version}-Windows.msi`) — WiX installer for managed deployments.
-
-### Linux
-
-- **Tarball** (`gregmodmanager-{version}-linux-x64.tar.gz`) — Self-contained `linux-x64` single-file publish.
-- **Packages** (optional, via `nfpm`):
-
-  - `.deb` (Debian/Ubuntu)
-  - `.rpm` (Fedora/openSUSE)
-  - `.apk` (Alpine Linux)
-  - `.pkg.tar.zst` (Arch Linux)
-
-### Container (optional)
-
-- **GHCR image** (`ghcr.io/{owner}/gregmodmanager:{version}`) — Built from `mcr.microsoft.com/dotnet/runtime-deps:9.0` base image.
-
-## SubDirectoryFixer (MelonLoader plugin)
-
-The `src/SubDirectoryFixer/` project is a **.NET 6.0** MelonLoader plugin distributed alongside the main application. It is built separately and its output (`SubDirectoryFixer.dll`) is copied to `src/GregModmanager.Avalonia/Assets/SubDirectoryFixer/` during the build process.
-
-- **Runtime target**: `net6.0` (Unity IL2CPP + MelonLoader compatibility requirement).
-- **External reference**: `MelonLoader.dll` (from the game's `MelonLoader` folder, marked `<Private>false</Private>`).
-
-## Trademarks
-
-**Steam** is a trademark of Valve Corporation. **Data Center** and related assets are the property of their respective rights holders. This tool is a community modding utility and is not affiliated with or endorsed by Valve or the game publisher unless explicitly stated elsewhere.
-
-**Avalonia UI** is a trademark of the Avalonia UI project. **.NET** is a trademark of Microsoft Corporation.
-
----
-
-###### Last updated: 2026-05-05
+`src/GregModmanager.Melons/SubDirectoryFixer/` is a `net6.0` MelonLoader plugin.
+Its local `MelonLoader.dll` reference is a game-environment dependency, not a
+NuGet dependency. Configure the reference on the build machine without
+committing machine-specific game paths or copied game binaries.
