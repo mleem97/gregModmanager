@@ -9,22 +9,35 @@ namespace GregModmanager.Services.Auth;
 
 public class AuthApiClient : IAuthApiClient
 {
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http;
+    private readonly IReadOnlyList<string> _loginUrlFormats;
+    private readonly IReadOnlyList<string> _authApiBaseUrls;
+
+    public AuthApiClient()
+        : this(CreateHttpClient(), AppSettings.DesktopLoginUrlFormats, AppSettings.AuthApiBaseUrls)
+    {
+    }
+
+    public AuthApiClient(HttpClient http, IReadOnlyList<string> loginUrlFormats, IReadOnlyList<string> authApiBaseUrls)
+    {
+        _http = http;
+        _loginUrlFormats = loginUrlFormats;
+        _authApiBaseUrls = authApiBaseUrls;
+    }
 
     public async Task<string> GetLoginUrlAsync(string requestId)
     {
         var escapedRedirect = Uri.EscapeDataString(AppSettings.AuthCallbackRedirectUri);
-        return await Task.FromResult(string.Format(AppSettings.DesktopLoginUrlFormat, escapedRedirect, requestId));
+        var candidates = _loginUrlFormats
+            .Select(format => string.Format(format, escapedRedirect, Uri.EscapeDataString(requestId)))
+            .ToArray();
+        return await AuthEndpointFallback.ResolveReachableUrlAsync(_http, candidates);
     }
 
     public async Task<ActiveSession?> ExchangeCallbackCodeAsync(string requestId, string code, string state, string nonce, string signature)
     {
         try
         {
-            var baseUrl = AppSettings.IsLocalBuild
-                ? "http://localhost:5001/auth"
-                : AppSettings.AuthApiBaseUrl;
-
             var payload = new TokenExchangeRequest
             {
                 RequestId = requestId,
@@ -35,7 +48,13 @@ public class AuthApiClient : IAuthApiClient
                 RedirectUri = AppSettings.AuthCallbackRedirectUri
             };
 
-            var response = await _http.PostAsJsonAsync($"{baseUrl}/token", payload, AppJsonContext.Default.TokenExchangeRequest);
+            using var response = await AuthEndpointFallback.SendAsync(
+                _http,
+                _authApiBaseUrls,
+                baseUrl => new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/token")
+                {
+                    Content = JsonContent.Create(payload, AppJsonContext.Default.TokenExchangeRequest)
+                });
 
             if (response.IsSuccessStatusCode)
             {
@@ -73,14 +92,15 @@ public class AuthApiClient : IAuthApiClient
     {
         try
         {
-            var baseUrl = AppSettings.IsLocalBuild
-                ? "http://localhost:5001/auth"
-                : AppSettings.AuthApiBaseUrl;
-
-            var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/logout");
-            request.Headers.Add("Authorization", $"Bearer {accessToken}");
-
-            var response = await _http.SendAsync(request);
+            using var response = await AuthEndpointFallback.SendAsync(
+                _http,
+                _authApiBaseUrls,
+                baseUrl =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/logout");
+                    request.Headers.Add("Authorization", $"Bearer {accessToken}");
+                    return request;
+                });
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -89,4 +109,9 @@ public class AuthApiClient : IAuthApiClient
             return false;
         }
     }
+
+    private static HttpClient CreateHttpClient() => new()
+    {
+        Timeout = TimeSpan.FromSeconds(10)
+    };
 }

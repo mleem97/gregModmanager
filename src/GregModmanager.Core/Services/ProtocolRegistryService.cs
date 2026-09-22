@@ -59,14 +59,15 @@ public static class ProtocolRegistryService
     {
         try
         {
-            var desktopFileContent = $@"
-[Desktop Entry]
-Name=gregModmanager
-Exec={appPath} %u
-Type=Application
-Terminal=false
-MimeType=x-scheme-handler/{ProtocolScheme};
-";
+			var escapedAppPath = appPath.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+			var desktopFileContent = string.Join(Environment.NewLine,
+				"[Desktop Entry]",
+				"Name=gregModmanager",
+				$"Exec=\"{escapedAppPath}\" %u",
+				"Type=Application",
+				"Terminal=false",
+				$"MimeType=x-scheme-handler/{ProtocolScheme};",
+				string.Empty);
             var desktopFilePath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 ".local/share/applications/gregmodmanager.desktop");
@@ -75,11 +76,13 @@ MimeType=x-scheme-handler/{ProtocolScheme};
             File.WriteAllText(desktopFilePath, desktopFileContent.Trim());
 
             // Update mime database
-            var psi = new ProcessStartInfo("update-desktop-database", "~/.local/share/applications")
-            {
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
+			var applicationsDirectory = Path.GetDirectoryName(desktopFilePath)!;
+			var psi = new ProcessStartInfo("update-desktop-database", applicationsDirectory)
+			{
+				UseShellExecute = false,
+				CreateNoWindow = true,
+				WindowStyle = ProcessWindowStyle.Hidden
+			};
             Process.Start(psi)?.WaitForExit();
         }
         catch (Exception ex)

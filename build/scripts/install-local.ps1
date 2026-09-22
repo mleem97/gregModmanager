@@ -24,7 +24,7 @@ if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\$AppFolderName"
 }
 
-$publishRel = Join-Path $repoRoot "src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish"
+$publishRel = Join-Path $repoRoot "src\GregModmanager.Avalonia\bin\Release\net10.0\win-x64\publish"
 $exePath = Join-Path $InstallDir $ExeName
 $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
 $startMenuPrograms = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'

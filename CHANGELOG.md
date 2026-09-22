@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Headless publish accepts `--changelog <text>` (alias `--change-note`) so
+  Steam Workshop updates carry a change note for version control.
+
+- Shared Terminal Core components for secondary, compact, danger, and active-tab
+  buttons as well as reusable card and content-surface containers.
 - Docker Buildx targets for deterministic test runs, Windows cross-publish,
   and macOS x64/arm64 cross-publish; a Windows-container Dockerfile is
   available for compatible Windows Docker hosts.
@@ -22,6 +27,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Linux Steam publish**: replaced the broken Facepunch `Editor` publish path
+  with direct native `ISteamUGC` calls via reflection (`NativePublishAsync`).
+  `SetItemContent`/`SetItemPreview` through the `Editor` wrapper returned
+  `FileNotFound` on Linux even though every file existed and was readable.
+  The preview is staged to a temp copy before the upload (locked originals —
+  file manager, image viewer, or our own UI — no longer block Steam), live
+  progress and elapsed time are reported during the upload, and the wait loop
+  exits early on `CommittingChanges` instead of hanging. `TrimmerRoots.xml`
+  is now referenced from the Avalonia project so trimmed release builds keep
+  the `ISteamUGC` update methods.
+- **Linux Steam connection**: replaced the bundled Linux `libsteam_api.so` /
+  `libsteam_api64.so` (Steamworks SDK 1.62 interface set, `SteamApps_v009`) with
+  the SDK 1.61 build (`SteamApps_v008`/`SteamFriends_v017`) matching
+  `Cherry.Facepunch.Steamworks 2.5.0`. `SteamClient.Init` failed with
+  `EntryPointNotFoundException` before, so the app permanently showed
+  "Steam Disconnected" on Linux; Workshop browse, subscribe, and publish work
+  again against a running Steam client.
+- **Project editing**: each project card now has an explicit Edit/Bearbeiten
+  button (reliable `Click` handling alongside tap-to-open). Opening a project
+  can no longer fail silently: navigation and load errors are logged and shown
+  as a dialog instead of leaving the Projects page without feedback.
+  Navigation resolves the main window via the DI singleton with a visual-tree
+  fallback.
+- **Merged Projects/My Uploads page**: the separate My Uploads page is gone.
+  The Projects page now has two tabs — local projects (search, refresh, edit)
+  and Workshop uploads (refresh, import selected, edit/add-update/download/view
+  on Steam, paging). Importing an item refreshes the local list and opens the
+  editor directly. The sidebar entry and profile-menu link point here.
+- **Steam native-load diagnostics**: `SteamApiNativeLoader` now records every
+  searched candidate path, so the "not found" hint actually lists where the
+  loader looked instead of an empty path list.
+- **Modstore authentication routing**: desktop login, token exchange, logout,
+  and Better Auth now use `datacentermods.com` as the primary service and
+  fail over to the trusted `datacentermods.home` endpoint only when the public
+  endpoint is unreachable or unavailable.
+- **Steam fallback**: invalid Steam API initializations no longer cause project
+  opening or the My Uploads list to crash; local projects remain editable when
+  Workshop metadata cannot be refreshed.
+- **Workshop editing**: the editor and Mod Store now use consistent tab and
+  action states, while item actions remain usable on narrow desktop windows.
+- **Linux Steam detection**: native Steam API discovery now also checks the
+  Flatpak Steam installation and accepts whitespace-formatted Steam library
+  VDF files.
+- **Linux release artifacts**: portable CI builds exclude the Windows Steam DLL
+  and include both supported Linux Steam API library names.
+- **Linux protocol registration**: desktop entries correctly quote application
+  paths and refresh the actual applications directory.
 - **CI Build Error**: Replaced MAUI `Preferences.Default` and Avalonia `SettingsPage` references in Core services with platform-agnostic `S.Preferences` and `AppSettings` APIs, restoring Windows/Linux build compatibility.
 - **Build consistency**: aligned GitHub Actions with the SDK pinned in
   `global.json`, updated non-MelonLoader package/action dependencies, and

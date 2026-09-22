@@ -64,7 +64,7 @@ is built separately from the main solution and copied to the Avalonia assets by
 
 ## Technology
 
-- .NET 9 (`net9.0`) and Avalonia 12.1.1
+- .NET 10 (`net10.0`) and Avalonia 12.1.1
 - Cherry.Facepunch.Steamworks 2.5.0
 - Microsoft.Extensions.DependencyInjection 10.0.10
 - xUnit for automated tests

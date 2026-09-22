@@ -6,22 +6,26 @@
     <Color x:Key="SurfaceContainerColor">#122131</Color>
     <Color x:Key="SurfaceContainerHighColor">#1C2B3C</Color>
     <Color x:Key="PrimaryColor">#8AEBFF</Color>
+    <Color x:Key="OnPrimaryColor">#062235</Color>
     <Color x:Key="SecondaryColor">#4DE082</Color>
     <Color x:Key="OnSurfaceColor">#D4E4FA</Color>
     <Color x:Key="OnSurfaceVariantColor">#BBC9CD</Color>
     <Color x:Key="OutlineVariantColor">#3C494C</Color>
     <Color x:Key="ErrorColor">#FFB4AB</Color>
+    <Color x:Key="ErrorContainerColor">#3C1B22</Color>
 
     <SolidColorBrush x:Key="Surface" Color="{DynamicResource SurfaceColor}" />
     <SolidColorBrush x:Key="SurfaceContainerLow" Color="{DynamicResource SurfaceContainerLowColor}" />
     <SolidColorBrush x:Key="SurfaceContainer" Color="{DynamicResource SurfaceContainerColor}" />
     <SolidColorBrush x:Key="SurfaceContainerHigh" Color="{DynamicResource SurfaceContainerHighColor}" />
     <SolidColorBrush x:Key="Primary" Color="{DynamicResource PrimaryColor}" />
+    <SolidColorBrush x:Key="OnPrimary" Color="{DynamicResource OnPrimaryColor}" />
     <SolidColorBrush x:Key="Secondary" Color="{DynamicResource SecondaryColor}" />
     <SolidColorBrush x:Key="OnSurface" Color="{DynamicResource OnSurfaceColor}" />
     <SolidColorBrush x:Key="OnSurfaceVariant" Color="{DynamicResource OnSurfaceVariantColor}" />
     <SolidColorBrush x:Key="OutlineVariant" Color="{DynamicResource OutlineVariantColor}" />
     <SolidColorBrush x:Key="Error" Color="{DynamicResource ErrorColor}" />
+    <SolidColorBrush x:Key="ErrorContainer" Color="{DynamicResource ErrorContainerColor}" />
   </Styles.Resources>
 
   <Style Selector="TextBlock">
@@ -61,6 +65,86 @@
     <Setter Property="Background" Value="#17364A" />
     <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
     <Setter Property="BorderBrush" Value="{DynamicResource Primary}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainerHigh}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="14,9" />
+    <Setter Property="FontSize" Value="11" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainer}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Primary}" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainerLow}" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.55" />
+  </Style>
+
+  <Style Selector="Button.btn-secondary">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainer}" />
+  </Style>
+
+  <Style Selector="Button.btn-tab">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurfaceVariant}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Button.btn-tab:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainer}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+  </Style>
+
+  <Style Selector="Button.btn-tab.active">
+    <Setter Property="Background" Value="{DynamicResource Primary}" />
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimary}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Primary}" />
+    <Setter Property="FontWeight" Value="Bold" />
+  </Style>
+
+  <Style Selector="Button.btn-compact">
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+
+  <Style Selector="Button.btn-danger">
+    <Setter Property="Background" Value="{DynamicResource ErrorContainer}" />
+    <Setter Property="Foreground" Value="{DynamicResource Error}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource Error}" />
+  </Style>
+
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainerLow}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12" />
+  </Style>
+
+  <Style Selector="Border.content-surface">
+    <Setter Property="Background" Value="{DynamicResource SurfaceContainer}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="14" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="Foreground" Value="{DynamicResource OnSurface}" />
+  </Style>
+
+  <Style Selector="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OutlineVariant}" />
   </Style>
 
   <Style Selector="Border.titlebar">
@@ -214,7 +298,7 @@
 
   <Style Selector="Button.btn-primary">
     <Setter Property="Background" Value="{DynamicResource Primary}" />
-    <Setter Property="Foreground" Value="#062235" />
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimary}" />
     <Setter Property="BorderBrush" Value="#8AEBFF" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontSize" Value="11" />
@@ -228,12 +312,12 @@
 
   <Style Selector="TextBlock.headline">
     <Setter Property="FontFamily" Value="Inter" />
-    <Setter Property="FontSize" Value="44" />
+    <Setter Property="FontSize" Value="36" />
     <Setter Property="FontWeight" Value="Bold" />
   </Style>
 
   <Style Selector="TextBlock.card-title">
-    <Setter Property="FontSize" Value="30" />
+    <Setter Property="FontSize" Value="24" />
     <Setter Property="FontWeight" Value="Bold" />
   </Style>
 

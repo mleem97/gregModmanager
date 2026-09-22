@@ -8,7 +8,7 @@
 | Area | Value | Evidence |
 |---|---|---|
 | Language | C# | `src/GregModmanager.Core/` |
-| Runtime | .NET 9 (`net9.0`) | `src/GregModmanager.Core/GregModmanager.Core.csproj` |
+| Runtime | .NET 10 (`net10.0`) | `src/GregModmanager.Core/GregModmanager.Core.csproj` |
 | UI | Avalonia 12.1.1 | `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` |
 | Build | .NET SDK/MSBuild | `GregModmanager.sln`, `global.json` |
 
@@ -47,7 +47,8 @@ Trimming/single-file publishing is enabled in the Avalonia project.
 | --- | --- | --- |
 | `DATA_CENTER_GAME_DIR` | override automatic game-root discovery | no |
 | `IS_LOCAL_BUILD`, `IS_LOCAL_TEST_BUILD` | select local development endpoints | no |
-| `MODSTORE_WEB_URL`, `MODSTORE_API_URL` | override web/API base URLs | no, but use trusted HTTPS endpoints |
+| `MODSTORE_WEB_URL`, `MODSTORE_API_URL` | override primary web/API base URLs | no, but use trusted HTTPS endpoints |
+| `MODSTORE_WEB_FALLBACK_URL`, `MODSTORE_API_FALLBACK_URL` | override the trusted fallback URLs (default `https://datacentermods.home`) | no, but security-sensitive |
 | `MELONLOADER_RELEASES_URL`, `MELONLOADER_LATEST_API_URL` | override MelonLoader release lookup | no |
 | `AUTH_LOGIN_URL_FORMAT`, `AUTH_CALLBACK_REDIRECT_URI` | override desktop authentication flow | no, but security-sensitive |
 | `TELEMETRY_URL`, `GIT_SERVER_URL` | override telemetry/Git endpoints | telemetry credentials are secret; URLs are not |

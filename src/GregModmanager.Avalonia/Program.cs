@@ -154,6 +154,7 @@ internal static class Program
         services.AddSingleton<TelemetryService>();
         services.AddSingleton<ReproBundleService>();
         services.AddSingleton<SteamWorkshopService>();
+        services.AddSingleton<ModStoreUpdateService>();
         services.AddSingleton<GameAdapterRegistry>(_ => new GameAdapterRegistry(new IGameAdapter[]
         {
             new DataCenterGameAdapter()
@@ -193,7 +194,6 @@ internal static class Program
         services.AddSingleton<MainWindow>();
         services.AddTransient<Views.ProjectsPage>();
         services.AddTransient<Views.NewProjectPage>();
-        services.AddTransient<Views.MyUploadsPage>();
         services.AddTransient<Views.ModManagerPage>();
         services.AddTransient<Views.SettingsPage>();
         services.AddTransient<Views.EditorPage>();

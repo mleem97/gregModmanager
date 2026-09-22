@@ -8,7 +8,7 @@
 | System | Type | Purpose | Auth | Criticality | Evidence |
 |---|---|---|---|---|---|
 | Steamworks | native SDK | Steam init and Workshop browse/download/upload | Steam client/session | high | `SteamWorkshopService.cs` |
-| Modstore services | HTTPS API | desktop account/session bridge and configured service calls | bearer/session | high | `Services/Auth/` |
+| Modstore services | HTTPS API | desktop account/session bridge and configured service calls; `datacentermods.com` primary with trusted `.home` availability fallback | bearer/session | high | `Services/Auth/` |
 | GitHub releases | HTTPS API | MelonLoader/SteamModfix downloads | public API/User-Agent | medium | installer services |
 | Local filesystem | local state/game files | workspace, projects, logs, deployment | OS permissions | high | `WorkspaceService`, `AppSettings` |
 
@@ -33,7 +33,12 @@ logs or committed configuration.
 
 ## Reliability
 
-Installer clients use finite HTTP timeouts. Cancellation and result records exist in download/install services, but no common retry policy or circuit breaker exists. Steam native loading tries multiple platform paths.
+Authentication clients use finite HTTP timeouts and retry the explicitly trusted
+`.home` endpoint only for transport failures, missing routes, timeouts, or server
+availability failures. Authentication failures such as 401 and 403 are not
+retried against another host. Cancellation and result records exist in
+download/install services, but no app-wide retry policy or circuit breaker
+exists. Steam native loading tries multiple platform paths.
 
 ## Observability
 

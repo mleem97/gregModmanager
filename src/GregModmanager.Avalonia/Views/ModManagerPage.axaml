@@ -17,18 +17,71 @@
     </Border>
 
     <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
-      <Button x:Name="TabStore" Content="Store" Click="OnTabStore" />
-      <Button x:Name="TabInstalled" Content="Installed" Click="OnTabInstalled" />
-      <Button x:Name="TabFavorites" Content="Favorites" Click="OnTabFavorites" />
-      <Button x:Name="TabHealth" Content="Health" Click="OnTabHealth" />
+      <Button x:Name="TabGregStore" Content="Greg Store" Classes="btn-tab" Click="OnTabGregStore" />
+      <Button x:Name="TabUpdates" Content="Updates" Classes="btn-tab" Click="OnTabUpdates" />
+      <Button x:Name="TabStore" Content="Steam Workshop" Classes="btn-tab" Click="OnTabStore" />
+      <Button x:Name="TabInstalled" Content="Installed" Classes="btn-tab" Click="OnTabInstalled" />
+      <Button x:Name="TabFavorites" Content="Favorites" Classes="btn-tab" Click="OnTabFavorites" />
+      <Button x:Name="TabHealth" Content="Health" Classes="btn-tab" Click="OnTabHealth" />
       <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshCurrentTab" />
-      <Button x:Name="StoreViewListBtn" Content="List" Click="OnStoreListView" />
-      <Button x:Name="StoreViewGalleryBtn" Content="Gallery" Click="OnStoreGalleryView" />
+      <Button x:Name="StoreViewListBtn" Content="List" Classes="btn-secondary" Click="OnStoreListView" />
+      <Button x:Name="StoreViewGalleryBtn" Content="Gallery" Classes="btn-secondary" Click="OnStoreGalleryView" />
       <Button x:Name="MassInstallBtn" Content="Mass Install (0)" Classes="btn-primary" Click="OnMassInstall" IsEnabled="False" />
     </StackPanel>
 
+    <!-- Native Greg Store catalog -->
+    <Border x:Name="GregStorePanel" Grid.Row="3" Classes="content-surface" IsVisible="True">
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer>
+          <ItemsControl x:Name="GregStoreList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="models:ModStoreCatalogItem">
+                <Border Classes="card" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Classes="subtext" MaxWidth="720" />
+                      <TextBlock Text="{Binding Release.Version, StringFormat='Version {0}'}" Classes="micro-label cyan" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Install" Classes="btn-primary" Click="OnInstallGregStoreMod" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <TextBlock Grid.Row="1" x:Name="GregStoreStatusLabel" Classes="subtext" Margin="0,8,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- Versioned Greg Store updates -->
+    <Border x:Name="UpdatesPanel" Grid.Row="3" Classes="content-surface" IsVisible="False">
+      <Grid RowDefinitions="*,Auto">
+        <ScrollViewer>
+          <ItemsControl x:Name="UpdatesList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="models:ModStoreUpdate">
+                <Border Classes="card" Margin="0,0,0,8">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                      <TextBlock Text="{Binding InstalledVersion, StringFormat='Installed: {0}'}" Classes="subtext" />
+                      <TextBlock Text="{Binding Release.Version, StringFormat='Available: {0}'}" Classes="micro-label cyan" />
+                      <TextBlock Text="{Binding Release.Changelog}" TextWrapping="Wrap" Classes="subtext" MaxWidth="720" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Update" Classes="btn-primary" Click="OnInstallModStoreUpdate" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <TextBlock Grid.Row="1" x:Name="UpdatesStatusLabel" Classes="subtext" Margin="0,8,0,0" />
+      </Grid>
+    </Border>
+
     <!-- Store -->
-    <Border x:Name="StorePanel" Grid.Row="3" Classes="panel" IsVisible="True">
+    <Border x:Name="StorePanel" Grid.Row="3" Classes="content-surface" IsVisible="True">
       <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
           <TextBox x:Name="SearchEntry" PlaceholderText="Search..." Width="250" Classes="input-terminal" />
@@ -40,7 +93,7 @@
           <ItemsControl x:Name="StoreList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:WorkshopItemDetailVm">
-                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                <Border Classes="card" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
                       <CheckBox IsCheckedChanged="OnStoreSelectionChanged" VerticalAlignment="Center" />
@@ -70,7 +123,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:WorkshopItemDetailVm">
-                <Border Classes="panel" Width="220" Margin="0,0,10,10">
+                <Border Classes="card" Width="220" Margin="0,0,10,10">
                   <StackPanel Spacing="8">
                     <Image Source="{Binding PreviewImageUrl}" Height="120" Stretch="UniformToFill" />
                     <TextBlock Text="{Binding Title}" FontWeight="Bold" TextWrapping="Wrap" />
@@ -102,7 +155,7 @@
           <ItemsControl x:Name="InstalledList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:WorkshopItemDetailVm">
-                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                <Border Classes="card" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
                       <TextBlock Text="{Binding Title}" FontWeight="Bold" />
@@ -131,7 +184,7 @@
           <ItemsControl x:Name="FavoritesList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:WorkshopItemDetailVm">
-                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                <Border Classes="card" Margin="0,0,0,8">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
                       <TextBlock Text="{Binding Title}" FontWeight="Bold" />
@@ -162,7 +215,7 @@
           <ItemsControl x:Name="ChecksList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:DependencyCheckResult">
-                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
+                <Border Classes="card" Margin="0,0,0,6">
                   <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Spacing="2">
                       <TextBlock Text="{Binding Label}" FontWeight="Bold" />
@@ -184,7 +237,7 @@
           <ItemsControl x:Name="PluginsList">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="models:PluginPackageInfo">
-                <Border Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,6">
+                <Border Classes="card" Margin="0,0,0,6">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding PluginId}" FontWeight="Bold" />
                     <TextBlock Text="{Binding Version}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
