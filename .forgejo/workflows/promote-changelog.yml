@@ -1,0 +1,92 @@
+name: Promote Changelog
+
+# Forgejo Actions port — see build-and-release.yml header for instance notes.
+# `origin` is the Forgejo instance here (GitHub is a read-only mirror).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Target version to release (e.g. 1.6.0)'
+        required: true
+      create_tag:
+        description: 'Create and push git tag v{version}'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    name: Promote Changelog & Bump Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        shell: bash
+        run: |
+          ver='${{ github.event.inputs.version }}'
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Invalid version format: $ver. Expected: x.y.z or x.y.z-prerelease"
+            exit 1
+          fi
+          echo "Version format OK: $ver"
+
+      - name: Promote CHANGELOG.md
+        shell: bash
+        run: |
+          ver='${{ github.event.inputs.version }}'
+          date="$(date +%F)"
+          changelog='CHANGELOG.md'
+
+          if ! grep -q '## \[Unreleased\]' "$changelog"; then
+            echo "CHANGELOG.md does not contain an [Unreleased] section. Nothing to promote."
+            exit 1
+          fi
+
+          new_unreleased=$(printf '## [Unreleased]\n\n### Added\n\n### Changed\n\n### Deprecated\n\n### Removed\n\n### Fixed\n\n### Security\n\n')
+          python3 - "$changelog" "$ver" "$date" "$new_unreleased" <<'EOF'
+          import sys
+          path, ver, date, new_unreleased = sys.argv[1:5]
+          with open(path, encoding='utf-8') as fh:
+              content = fh.read()
+          versioned = f'## [{ver}] - {date}'
+          content = content.replace('## [Unreleased]', versioned, 1)
+          content = content.replace(versioned + '\n', versioned + '\n\n' + new_unreleased, 1)
+          with open(path, 'w', encoding='utf-8', newline='') as fh:
+              fh.write(content)
+          print(f'Promoted [Unreleased] to [{ver}] - {date}')
+          EOF
+
+      - name: Bump .csproj version
+        shell: bash
+        run: |
+          ver='${{ github.event.inputs.version }}'
+          csproj='src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+          old="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$csproj" | head -n 1)"
+          sed -i "s|<Version>[^<]*</Version>|<Version>${ver}</Version>|" "$csproj"
+          echo "Bumped version in .csproj: $old -> $ver"
+
+      - name: Commit and push to main
+        run: |
+          git config user.name "forgejo-actions[bot]"
+          git config user.email "forgejo-actions[bot]@users.noreply.localhost"
+          git add CHANGELOG.md src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+          git commit -m "chore(release): promote changelog and bump version to ${{ github.event.inputs.version }}"
+          git push origin main
+
+      - name: Create and push tag
+        if: ${{ github.event.inputs.create_tag == 'true' }}
+        run: |
+          ver='${{ github.event.inputs.version }}'
+          git tag "v$ver"
+          git push origin "v$ver"
+        shell: bash

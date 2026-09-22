@@ -19,7 +19,7 @@
 | --- | --- |
 | application version and runtime | `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` |
 | pinned SDK | `global.json` |
-| CI release outputs | `.github/workflows/build-and-release.yml` |
+| CI release outputs | `.forgejo/workflows/build-and-release.yml` |
 | local release orchestration | `build/scripts/build.ps1` |
 | Linux package formats | `build/scripts/linux/build-avalonia-packages.sh` |
 | Windows installers | `build/installer/` |

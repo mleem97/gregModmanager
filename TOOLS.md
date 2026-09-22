@@ -4,7 +4,9 @@
 
 - Local build script: `build/scripts/build.ps1`.
 - Interactive builders: `build/builder.ps1` and `build/builder.sh`.
-- CI workflow: `.github/workflows/build-and-release.yml`.
+- CI workflows: `.forgejo/workflows/` (Forgejo Actions, Linux-only runners;
+  Windows artifacts are cross-built). GitHub is a read-only mirror — `.github/`
+  contains no workflows.
 - Keep script and workflow changes aligned unless the PR explicitly documents a staged migration.
 
 ## Steam Workshop

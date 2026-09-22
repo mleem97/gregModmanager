@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Forgejo Actions CI in `.forgejo/workflows/` (build, test, Linux packages,
+  Forgejo releases, one Discord notification per run). Windows artifacts are
+  cross-built on Linux runners; the Inno Setup EXE is best-effort under Wine.
 - Headless publish accepts `--changelog <text>` (alias `--change-note`) so
   Steam Workshop updates carry a change note for version control.
 
@@ -80,6 +83,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaced the stale root Linux build pipeline with a compatibility wrapper.
 - **Build usability**: corrected the interactive Bash builder's release-script
   paths and host-specific commands.
+
+### Removed
+
+- GitHub Actions workflows (`.github/workflows/`): GitHub is now a read-only
+  mirror, all automation lives in `.forgejo/workflows/`. The standalone
+  Discord release workflow is gone — the main pipeline sends exactly one
+  Discord message per completed run.
 
 ## [1.6.1] - 2026-06-29
 

@@ -30,4 +30,4 @@
 
 - Version source of truth: `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`.
 - Changelog source of truth: `CHANGELOG.md`.
-- Release promotion normally runs through `.github/workflows/promote-changelog.yml`.
+- Release promotion normally runs through `.forgejo/workflows/promote-changelog.yml`.

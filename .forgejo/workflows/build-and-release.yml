@@ -1,0 +1,503 @@
+name: Build & Release
+
+# Forgejo Actions pipeline (Linux-only runners).
+# .github/workflows/ is gone on purpose: GitHub is a read-only mirror of the
+# primary Forgejo instance, so all automation lives here.
+#
+# TODO(instance): no hardcoded instance URL is needed — links use
+#   github.server_url, and the container registry host is derived from it.
+#   Secrets to configure on the Forgejo instance:
+#   TELEMETRY_ENDPOINT / TELEMETRY_USER / TELEMETRY_API_KEY / TELEMETRY_TENANT,
+#   DISCORD_WEBHOOK_URL (single notification per run, see `notify` job).
+#
+# Windows artifacts are cross-built on Linux (dotnet publish -r win-x64):
+#   - portable ZIP: always
+#   - Inno Setup EXE: best-effort when Wine + ISCC are available, else skipped
+#   - WiX MSI: skipped on Linux (needs a Windows host)
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      signing:
+        description: 'Signing mode (Linux hosts: self-signed via osslsigncode if installed, else unsigned)'
+        type: choice
+        options:
+          - none
+          - self-signed
+        default: 'none'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
+  CORE_PROJECT: 'src/GregModmanager.Core/GregModmanager.Core.csproj'
+  SOLUTION: 'GregModmanager.sln'
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      numeric_version: ${{ steps.resolve.outputs.numeric_version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+      is_pre: ${{ steps.resolve.outputs.is_pre }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: resolve
+        shell: bash
+        run: |
+          ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+          [ -n "$ver" ] || ver='1.5.0'
+          numeric="${ver%%-*}"
+          if [[ "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            numeric="$numeric.0"
+          elif [[ ! "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            numeric='1.5.0.0'
+          fi
+          is_release=false
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9] ]] && is_release=true
+          is_pre=false
+          [[ "$ver" == *-* || "$GITHUB_REF_NAME" == *-* ]] && is_pre=true
+          {
+            echo "version=$ver"
+            echo "numeric_version=$numeric"
+            echo "is_release=$is_release"
+            echo "is_pre=$is_pre"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version=$ver Numeric=$numeric IsRelease=$is_release IsPre=$is_pre"
+
+  test:
+    name: Test
+    needs: [version]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet restore ${{ env.SOLUTION }}
+      - run: dotnet build ${{ env.SOLUTION }} --no-restore -c Release
+      - run: dotnet test ${{ env.SOLUTION }} --no-build -c Release --verbosity normal
+
+  build-windows-cross:
+    name: Build Windows (cross-compiled on Linux)
+    needs: [version, test]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      setup_name: ${{ steps.package.outputs.setup_name }}
+      portable_name: ${{ steps.package.outputs.portable_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Telemetry Injection
+        shell: bash
+        env:
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+        run: |
+          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
+          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
+            echo "Injecting telemetry secrets..."
+            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
+            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
+            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
+            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
+          fi
+
+      - name: Publish Windows x64 (cross-compile)
+        run: |
+          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r win-x64 \
+            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
+            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
+            -o ./publish/win-x64
+          rm -f ./publish/win-x64/libsteam_api.so ./publish/win-x64/libsteam_api64.so
+          if [ -f "src/GregModmanager.Core/steam_api64.dll" ]; then
+            cp "src/GregModmanager.Core/steam_api64.dll" ./publish/win-x64/steam_api64.dll
+          fi
+
+      - name: Self-sign (osslsigncode, best-effort)
+        if: ${{ inputs.signing == 'self-signed' }}
+        run: |
+          if command -v osslsigncode >/dev/null 2>&1 && [ -n "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" ]; then
+            echo "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" | base64 -d > /tmp/sign.pfx
+            osslsigncode sign -pkcs12 /tmp/sign.pfx -pass "${{ secrets.WINDOWS_SIGN_PASSWORD }}" \
+              -n "gregModmanager" -i "https://github.com/mleem97/gregModmanager" \
+              -in ./publish/win-x64/GregModmanager.exe -out ./publish/win-x64/GregModmanager-signed.exe
+            mv ./publish/win-x64/GregModmanager-signed.exe ./publish/win-x64/GregModmanager.exe
+            rm -f /tmp/sign.pfx
+          else
+            echo "::warning::self-signed requested but osslsigncode or WINDOWS_SIGN_PFX_B64 secret missing — shipping unsigned."
+          fi
+
+      - name: Inno Setup EXE (Wine, best-effort)
+        run: |
+          if command -v wine >/dev/null 2>&1 && { command -v iscc >/dev/null 2>&1 || [ -f "$HOME/.wine/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then
+            echo "Attempting Inno Setup build under Wine..."
+            ISCC_BIN="$(command -v iscc || echo "$HOME/.wine/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
+            wine "$ISCC_BIN" "build/installer/gregModmanager.iss" \
+              "/DAppVersion=${{ needs.version.outputs.version }}" \
+              "/DAppNumericVersion=${{ needs.version.outputs.numeric_version }}" \
+              "/DSourceDir=$PWD/publish/win-x64" || echo "::warning::Inno Setup build failed — shipping portable ZIP only."
+          else
+            echo "::notice::Wine/ISCC not available — skipping installer EXE, shipping portable ZIP only."
+          fi
+        shell: bash
+
+      - name: Package
+        id: package
+        env:
+          IS_PRE: ${{ needs.version.outputs.is_pre }}
+        run: |
+          mkdir -p ./artifacts
+          preSuffix=""
+          if [ "$IS_PRE" = "true" ]; then preSuffix="-pre"; fi
+          zipName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Windows.zip"
+          cd ./publish/win-x64 && zip -r "../../artifacts/${zipName}" . && cd ../..
+          echo "portable_name=${zipName}" >> "$GITHUB_OUTPUT"
+          setup="$(ls build/installer/Output/gregModmanager-*${preSuffix}-Windows.exe 2>/dev/null | head -n 1 || true)"
+          if [ -n "$setup" ]; then
+            cp "$setup" ./artifacts/
+            echo "setup_name=$(basename "$setup")" >> "$GITHUB_OUTPUT"
+          else
+            echo "setup_name=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Portable: ${zipName}, Setup: ${setup:-none}"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-portable
+          path: |
+            artifacts/gregModmanager-*-Windows.zip
+            artifacts/gregModmanager-*-Windows.exe
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux
+    needs: [version, test]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      tar_name: ${{ steps.package.outputs.tar_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Telemetry Injection
+        shell: bash
+        env:
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+        run: |
+          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
+          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
+            echo "Injecting telemetry secrets..."
+            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
+            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
+            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
+            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
+          fi
+
+      - name: Publish Linux x64
+        run: |
+          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
+            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
+            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
+            -o ./publish/linux-x64
+          rm -f ./publish/linux-x64/steam_api64.dll
+          for steam_library in libsteam_api64.so libsteam_api.so; do
+            if [ -f "src/GregModmanager.Core/${steam_library}" ]; then
+              cp "src/GregModmanager.Core/${steam_library}" "./publish/linux-x64/${steam_library}"
+            fi
+          done
+
+      - name: Create tarball
+        id: package
+        env:
+          IS_PRE: ${{ needs.version.outputs.is_pre }}
+        run: |
+          mkdir -p ./artifacts
+          chmod +x ./publish/linux-x64/GregModmanager
+          preSuffix=""
+          if [ "$IS_PRE" = "true" ]; then preSuffix="-pre"; fi
+          tarName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.tar.gz"
+          tar -czf "./artifacts/${tarName}" -C ./publish/linux-x64 .
+          echo "tar_name=${tarName}" >> "$GITHUB_OUTPUT"
+          zipName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.zip"
+          cd ./publish/linux-x64 && zip -r "../../artifacts/${zipName}" . && cd ../..
+          echo "zip_name=${zipName}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-portable
+          path: |
+            artifacts/gregModmanager-*-Linux.tar.gz
+            artifacts/gregModmanager-*-Linux.zip
+          if-no-files-found: error
+
+  build-linux-packages:
+    name: Build Linux Packages (DEB/RPM/APK/Arch)
+    needs: [version, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Install nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt update
+          sudo apt install -y nfpm
+          nfpm --version
+
+      - name: Telemetry Injection
+        shell: bash
+        env:
+          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
+          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
+          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+        run: |
+          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
+          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
+            echo "Injecting telemetry secrets..."
+            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
+            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
+            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
+            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
+          fi
+
+      - name: Publish Linux x64
+        run: |
+          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
+            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
+            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
+            -o ./artifacts/publish
+
+      - name: Build packages
+        run: |
+          chmod +x ./build/scripts/linux/build-avalonia-packages.sh
+          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: artifacts/packages/gregModmanager-*
+          if-no-files-found: error
+
+      - name: Build & Push Container (Forgejo registry)
+        if: github.event_name != 'pull_request'
+        run: |
+          # Derive registry host from the Forgejo instance URL (no hardcoded host).
+          REGISTRY_HOST="$(echo "${{ github.server_url }}" | sed -e 's|^https\?://||' -e 's|/.*$||')"
+          IMAGE="oci://${REGISTRY_HOST}/${{ github.repository_owner }}/gregmodmanager"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY_HOST" -u ${{ github.actor }} --password-stdin
+          docker build -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}" -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest" -f - . <<'EOF'
+          FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
+          WORKDIR /opt/gregmodmanager
+          COPY artifacts/publish/ ./
+          RUN chmod +x /opt/gregmodmanager/GregModmanager
+          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
+          EOF
+          docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}"
+          docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest"
+
+  release:
+    name: Release (Forgejo)
+    needs: [version, build-windows-cross, build-linux, build-linux-packages]
+    runs-on: ubuntu-latest
+    if: needs.version.outputs.is_release == 'true' && github.event_name != 'pull_request'
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows Portable
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-portable
+          path: ./dist
+
+      - name: Download Linux Portable
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-portable
+          path: ./dist
+
+      - name: Download Linux Packages
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-packages
+          path: ./dist
+
+      - name: Create Forgejo release & upload assets
+        env:
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+          IS_PRE: ${{ needs.version.outputs.is_pre }}
+        run: |
+          python3 - "$FORGEJO_TOKEN" "${{ github.server_url }}" "${{ github.repository }}" "$TAG_NAME" "$IS_PRE" <<'EOF'
+          import json, mimetypes, os, sys, urllib.request
+
+          token, server, repo, tag, is_pre = sys.argv[1:6]
+          api = server.rstrip('/') + '/api/v1'
+          headers = {'Authorization': f'token {token}', 'Content-Type': 'application/json'}
+
+          def call(method, path, payload=None, raw=None, ctype=None):
+              data = raw if raw is not None else (json.dumps(payload).encode() if payload is not None else None)
+              h = dict(headers)
+              if ctype:
+                  h['Content-Type'] = ctype
+              req = urllib.request.Request(api + path, data=data, headers=h, method=method)
+              with urllib.request.urlopen(req) as res:
+                  body = res.read()
+                  return json.loads(body) if body and res.headers.get_content_type() == 'application/json' else body
+
+          release = call('POST', f'/repos/{repo}/releases', {
+              'tag_name': tag,
+              'name': tag,
+              'prerelease': is_pre.lower() == 'true',
+              'draft': False,
+              'body': f'Release {tag} — built by Forgejo Actions.',
+          })
+          rid = release['id']
+          print(f"Release id={rid}")
+
+          dist = 'dist'
+          for root, _, files in os.walk(dist):
+              for name in sorted(files):
+                  path = os.path.join(root, name)
+                  ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
+                  with open(path, 'rb') as fh:
+                      data = fh.read()
+                  req = urllib.request.Request(
+                      f'{api}/repos/{repo}/releases/{rid}/assets?name={name}',
+                      data=data,
+                      headers={'Authorization': f'token {token}', 'Content-Type': ctype},
+                      method='POST')
+                  with urllib.request.urlopen(req):
+                      print(f'Uploaded {name} ({len(data)} bytes)')
+          EOF
+
+  notify:
+    # Exactly ONE Discord message per completed run (push/dispatch only — PR
+    # runs stay silent so the channel is not spammed).
+    name: Notify Discord (once)
+    needs: [version, test, build-windows-cross, build-linux, build-linux-packages, release]
+    if: always() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Send single Discord notification
+        shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VERSION: ${{ needs.version.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "DISCORD_WEBHOOK_URL is empty, skipping notification."
+            exit 0
+          fi
+
+          if echo "$RESULTS" | grep -q '"result":"failure"'; then
+            status="❌ Failed"; color=15158332
+          elif echo "$RESULTS" | grep -q '"result":"cancelled"'; then
+            status="⚠️ Cancelled"; color=16776960
+          else
+            status="✅ Success"; color=3066993
+          fi
+
+          payload=$(cat <<EOF
+          {
+            "username": "gregModmanager CI",
+            "embeds": [
+              {
+                "title": "${status}: ${EVENT} ${REF} (${VERSION})",
+                "description": "One summary per run — details in the linked run.",
+                "url": "${RUN_URL}",
+                "color": ${color},
+                "fields": [
+                  { "name": "Version", "value": "\`${VERSION}\`", "inline": true },
+                  { "name": "Event", "value": "\`${EVENT}\`", "inline": true }
+                ],
+                "footer": { "text": "Build powered by Forgejo Actions" },
+                "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              }
+            ],
+            "components": [
+              {
+                "type": 1,
+                "components": [
+                  { "type": 2, "style": 5, "label": "View Run", "url": "${RUN_URL}" }
+                ]
+              }
+            ]
+          }
+          EOF
+          )
+
+          curl -sS -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$payload"

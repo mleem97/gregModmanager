@@ -36,4 +36,4 @@ No enforced coverage threshold. Missing tests cover native Steam, auth/network, 
 
 - `tests/GregModmanager.Tests/GregModmanager.Tests.csproj`
 - `tests/GregModmanager.Tests/GameAdapterTests.cs`
-- `.github/workflows/build-and-release.yml`
+- `.forgejo/workflows/build-and-release.yml`

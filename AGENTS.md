@@ -50,7 +50,7 @@ This file is the short entry point for agent-oriented repository instructions. R
 
 ## Build and release guardrails
 
-- Keep PowerShell build scripts and GitHub Actions workflows aligned unless a PR intentionally stages a migration and explains the temporary divergence.
+- Keep PowerShell build scripts and Forgejo Actions workflows (`.forgejo/workflows/`) aligned unless a PR intentionally stages a migration and explains the temporary divergence. GitHub is a read-only mirror — no CI lives in `.github/`.
 - Preserve publish-size settings unless a measured, reviewed change requires otherwise.
 - Breaking changes normally require a major SemVer bump; ask the maintainer before applying a different release policy.
 - Manual release promotion is allowed only when the automated workflow is unavailable or the maintainer requests it.
