@@ -62,4 +62,4 @@ private keys. Validate any overridden endpoint before distributing a build.
 
 - `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`
 - `src/GregModmanager.Core/GregModmanager.Core.csproj`
-- `.github/workflows/build-and-release.yml`
+- `.forgejo/workflows/build-and-release.yml`

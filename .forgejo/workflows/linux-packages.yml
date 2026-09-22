@@ -1,5 +1,8 @@
 name: Avalonia Linux Packages
 
+# Forgejo Actions port — see build-and-release.yml header for instance notes.
+# Manual or path-triggered detailed package build (no release, no notify).
+
 on:
   workflow_dispatch:
   push:
@@ -8,13 +11,11 @@ on:
       - 'src/GregModmanager.Avalonia/**'
       - 'src/GregModmanager.Core/**'
       - 'build/scripts/linux/**'
-      - '.github/workflows/linux-packages.yml'
+      - '.forgejo/workflows/linux-packages.yml'
 
 permissions:
   contents: read
   packages: write
-  attestations: write
-  id-token: write
 
 env:
   DOTNET_VERSION: '10.0.x'
@@ -34,24 +35,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - id: resolve
-        shell: pwsh
+        shell: bash
         run: |
-          [xml]$csproj = Get-Content -LiteralPath $env:AVALONIA_PROJECT
-          $ver = ($csproj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1).Trim()
-          if ([string]::IsNullOrWhiteSpace($ver)) { $ver = '1.5.0' }
-          $isPre = if ($ver -match '-' -or ($env:GITHUB_REF_NAME -ne 'main' -and $env:GITHUB_REF_NAME -ne 'master')) { 'true' } else { 'false' }
-          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "is_pre=$isPre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+          [ -n "$ver" ] || ver='1.5.0'
+          is_pre='false'
+          [[ "$ver" == *-* || "$GITHUB_REF_NAME" != "main" ]] && is_pre='true'
+          {
+            echo "version=$ver"
+            echo "is_pre=$is_pre"
+          } >> "$GITHUB_OUTPUT"
 
   build-packages:
     needs: [version]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
-      attestations: write
-      id-token: write
     steps:
       - uses: actions/checkout@v7
 
@@ -84,24 +85,17 @@ jobs:
           path: artifacts/avalonia-linux/packages/gregModmanager-*
           if-no-files-found: error
 
-      - name: Attest packages
+      - name: Build container (Forgejo registry)
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v4
-        with:
-          subject-path: artifacts/avalonia-linux/packages/gregModmanager-*
-
-      - name: Build GHCR container
-        if: github.event_name != 'pull_request'
-        env:
-          IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/gregmodmanager
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker build -t "$IMAGE_NAME:${{ needs.version.outputs.version }}" -t "$IMAGE_NAME:latest" -f - . <<'EOF'
+          REGISTRY_HOST="$(echo "${{ github.server_url }}" | sed -e 's|^https\?://||' -e 's|/.*$||')"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY_HOST" -u ${{ github.actor }} --password-stdin
+          docker build -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}" -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest" -f - . <<'EOF'
           FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
           WORKDIR /opt/gregmodmanager
           COPY artifacts/avalonia-linux/publish/ ./
           RUN chmod +x /opt/gregmodmanager/GregModmanager
           ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
           EOF
-          docker push "$IMAGE_NAME:${{ needs.version.outputs.version }}"
-          docker push "$IMAGE_NAME:latest"
+          docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}"
+          docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest"

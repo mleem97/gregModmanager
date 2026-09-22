@@ -39,8 +39,9 @@ docker build --file docker/Dockerfile.windows --target publish --output type=loc
 
 The native Windows installer build remains a Windows-host task because it
 requires Inno Setup, WiX and Authenticode signing. Use the existing
-`build/scripts/build.ps1` workflow or the Windows GitHub Actions runner for
-the EXE and MSI.
+`build/scripts/build.ps1` workflow on a Windows host for the EXE and MSI;
+CI cross-builds the Windows portable ZIP on Linux and attempts the Inno
+Setup EXE best-effort under Wine (see `.forgejo/workflows/build-and-release.yml`).
 
 ## macOS boundary
 
