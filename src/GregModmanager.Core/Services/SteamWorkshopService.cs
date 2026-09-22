@@ -426,34 +426,48 @@ public sealed class SteamWorkshopService
 
 		try
 		{
-		if (!result.Success && result.Result == Steamworks.Result.FileNotFound
-			&& justCreated && metadata.PublishedFileId != 0)
+		// Fresh items hit a flaky backend: the uploader's info lookup fails
+		// with FileNotFound in clusters (works 16:14-16:44, fails before and
+		// after — same items, same code, files proven fine). Retry with backoff
+		// over ~15 min; each attempt uses a fresh update handle and reuses the
+		// known id (never creates duplicates). Cancel anytime via dialog/CTRL+C.
+		// NOTE: FileNotFound from the uploader is virtually always the backend
+		// item lookup, never local files — so retry ANY such failure, not just
+		// just-created items.
+		int[] backoffSeconds = [0, 30, 90, 240, 480];
+		for (int attempt = 0; attempt < backoffSeconds.Length; attempt++)
 		{
-			// Backend replication lag on a brand-new item — wait, re-verify
-			// (time-boxed so a hanging query can never block us), then retry
-			// the full submit once with the now-known file id.
-			log?.Report("First submit hit backend replication lag — waiting 30s and retrying once...");
-			try { await Task.Delay(30000, cancellationToken).ConfigureAwait(false); }
-			catch (OperationCanceledException) { throw; }
-			try
+			if (attempt > 0)
 			{
-				var check = WaitForReplicationAsync(metadata.PublishedFileId);
-				var winner = await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
-				if (winner != check)
-					log?.Report("Replication check timed out — retrying submit anyway...");
+				log?.Report($"Retry attempt {attempt + 1}/{backoffSeconds.Length} after {backoffSeconds[attempt]}s...");
+				try { await Task.Delay(TimeSpan.FromSeconds(backoffSeconds[attempt]), cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { throw; }
+				try
+				{
+					var check = WaitForReplicationAsync(metadata.PublishedFileId);
+					var winner = await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+					if (winner != check)
+						log?.Report("Replication check timed out — retrying submit anyway...");
+				}
+				catch (OperationCanceledException) { throw; }
+				catch (Exception ex) { log?.Report($"Replication check skipped: {ex.Message}"); }
+				try
+				{
+					result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) { throw; }
+				catch (Exception ex)
+				{
+					try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+					return PublishOutcome.Fail(ex.Message);
+				}
 			}
-			catch (OperationCanceledException) { throw; }
-			catch (Exception ex) { log?.Report($"Replication check skipped: {ex.Message}"); }
-			try
-			{
-				result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException) { throw; }
-			catch (Exception ex)
-			{
-				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
-				return PublishOutcome.Fail(ex.Message);
-			}
+
+			bool retryable = !result.Success && result.Result == Steamworks.Result.FileNotFound
+				&& metadata.PublishedFileId != 0;
+			if (!retryable)
+				break;
+			log?.Report($"Attempt {attempt + 1} failed with FileNotFound (backend flaky, files are fine)...");
 		}
 
 		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
@@ -471,7 +485,7 @@ public sealed class SteamWorkshopService
 			{
 				metadata.PublishedFileId = result.FileId.Value;
 				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
-				log?.Report($"Workshop item {metadata.PublishedFileId} was created but the update failed; retry will reuse it.");
+				log?.Report($"Workshop item {metadata.PublishedFileId} update failed; the id is saved — retry will reuse it.");
 			}
 			var detail = $"Steam publish failed: {result.Result} (item={metadata.PublishedFileId}, content={absContent}, preview={absPreview}). " +
 				"Note: FileNotFound here means the Workshop backend does not know the item (yet) — not that local files are missing. " +
