@@ -362,11 +362,23 @@ public sealed class SteamWorkshopService
 			justCreated = metadata.PublishedFileId == 0;
 			return await ed.SubmitAsync(uploadProgress, onItemCreated: r =>
 			{
+				// Log EVERY creation result — a silent id 0 here used to cause
+				// a doomed StartItemUpdate(0) and a confusing FileNotFound.
+				log?.Report($"CreateItem result: id={r.FileId.Value}, result={r.Result}, agreement={r.NeedsWorkshopAgreement}");
 				if (r.FileId.Value != 0)
 				{
 					metadata.PublishedFileId = r.FileId.Value;
 					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
 					log?.Report($"Created new workshop item {r.FileId.Value}.");
+					return;
+				}
+				if (justCreated)
+				{
+					// Steam returned OK but no file id (throttled/failed create).
+					// Abort before the doomed update instead of burning it.
+					throw new InvalidOperationException(
+						"Steam created no file id for the new item (creation throttled or failed). " +
+						"Wait a few minutes and retry — your content is untouched.");
 				}
 				// NOTE: no blocking wait here — a replication check inside this
 				// callback hung the whole submit (query await never returned).
@@ -377,7 +389,9 @@ public sealed class SteamWorkshopService
 		// Facepunch only dispatches Steam callbacks while someone pumps
 		// SteamClient.RunCallbacks(). Nothing else in the app does that during
 		// publish, so run a dedicated pumper for the whole operation.
-		using var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		// (The CTS is cancelled + awaited in the finally below — disposing it
+		// while the pump still runs crashed the app with ObjectDisposedException.)
+		var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		var pumpTask = Task.Run(async () =>
 		{
 			while (!pumpCts.Token.IsCancellationRequested)
@@ -385,7 +399,7 @@ public sealed class SteamWorkshopService
 				try { SteamClient.RunCallbacks(); } catch { /* never break the pump */ }
 				try { await Task.Delay(16, pumpCts.Token).ConfigureAwait(false); } catch { /* cancelled */ }
 			}
-		});
+		}, cancellationToken);
 		static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
 		{
 			var winner = await Task.WhenAny(task, Task.Delay(timeout, ct)).ConfigureAwait(false);
@@ -474,7 +488,13 @@ public sealed class SteamWorkshopService
 		}
 		finally
 		{
-			pumpCts.Cancel();
+			// Stop the pumper cleanly: cancel first, THEN dispose (never while
+			// the loop still runs — that crashed with ObjectDisposedException).
+			// Await briefly so no unobserved pump exception escapes.
+			try { pumpCts.Cancel(); } catch { /* already gone */ }
+			try { await pumpTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+			catch { /* pump stopped or timed out — not fatal */ }
+			try { pumpCts.Dispose(); } catch { /* already gone */ }
 		}
 	}
 

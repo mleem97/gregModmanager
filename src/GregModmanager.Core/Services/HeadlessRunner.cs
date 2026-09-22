@@ -120,8 +120,10 @@ public static class HeadlessRunner
 			}
 
 			var metadata = workspace.LoadMetadata(projectRoot);
-			var progress = new Progress<string>(Console.WriteLine);
-			var upload = new Progress<float>(p => Console.WriteLine($"Upload {p:P0}"));
+			// Progress<T> posts async — mirror to the file log too so fast exits
+			// can't lose trailing lines (Environment.Exit doesn't flush the queue).
+			var progress = new Progress<string>(s => { try { Console.WriteLine(s); } catch { } AppFileLog.Info(s); });
+			var upload = new Progress<float>(p => { try { Console.WriteLine($"Upload {p:P0}"); } catch { } });
 
 			var outcome = await steam.PublishAsync(
 				projectRoot,
@@ -135,11 +137,14 @@ public static class HeadlessRunner
 			if (!outcome.Success)
 			{
 				Console.Error.WriteLine(outcome.Message);
+				AppFileLog.Error($"Headless publish failed: {outcome.Message}");
 				if (autocommit)
 				{
 					ralph.WriteStatus(projectRoot, "publish", false, outcome.Message);
 				}
 
+				// Let queued Progress<T> callbacks flush before the process exits.
+				try { await Task.Delay(500).ConfigureAwait(false); } catch { /* shutting down */ }
 				return 1;
 			}
 
@@ -151,6 +156,8 @@ public static class HeadlessRunner
 				ralph.WriteStatus(projectRoot, "publish", true, $"Published file id {outcome.PublishedFileId}");
 			}
 
+			// Let queued Progress<T> callbacks flush before the process exits.
+			try { await Task.Delay(500).ConfigureAwait(false); } catch { /* shutting down */ }
 			return 0;
 		}
 		finally
