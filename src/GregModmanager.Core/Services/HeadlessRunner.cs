@@ -25,6 +25,12 @@ public static class HeadlessRunner
 				  --path <dir>         Project root (must contain content/ and metadata.json)
 				  --changelog <text>   Change note attached to the Steam update
 				  --autocommit         Write .ralph/tasks/status.json on completion
+				  --verbose            Mirror the file log to stdout (also works for the GUI)
+				  --console-log        Same as --verbose
+				  --log-file <path>    Write the log file to <path> instead of the default
+
+				Live log location (GUI and headless):
+				  logs/app-YYYYMMDD.log next to the binary (or LocalAppData fallback)
 
 				Example (path is usually <game>/workshop/<project>):
 				  {{executableName}} --mode publish --path "<project-path>" --changelog "Fixed X" --autocommit

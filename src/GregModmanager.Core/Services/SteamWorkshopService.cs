@@ -294,12 +294,188 @@ public sealed class SteamWorkshopService
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
 		}
 
-		// Use native ISteamUGC calls — the Facepunch Editor wrapper is broken
-		// on Linux (SetItemContent/SetItemPreview return FileNotFound).
-		return await NativePublishAsync(
-			projectRoot, metadata, absContent, absPreview,
-			changeLog, tagList, uploadProgress, log, cancellationToken
-		).ConfigureAwait(false);
+		// Stage the preview to a temp copy — the original may be locked by our
+		// own UI or external processes. Read bytes first to avoid lock contention.
+		string? tempPreview = null;
+		string previewForSteam = absPreview;
+		try
+		{
+			var previewBytes = await File.ReadAllBytesAsync(absPreview, cancellationToken).ConfigureAwait(false);
+			tempPreview = Path.Combine(Path.GetTempPath(), $"gm_preview_{Guid.NewGuid():N}{Path.GetExtension(absPreview)}");
+			await File.WriteAllBytesAsync(tempPreview, previewBytes, cancellationToken).ConfigureAwait(false);
+			previewForSteam = tempPreview;
+		}
+		catch (Exception ex)
+		{
+			log?.Report($"Preview copy failed, trying original: {ex.Message}");
+		}
+
+		// Use Facepunch's Editor (proven create/update flow) — NOT raw native
+		// calls. A previous native reimplementation failed identically because
+		// the actual problem was never file access: new items need CreateItem
+		// first (the Editor does this), and the backend needs a moment to
+		// replicate the new item before Submit (handled below + retry).
+		Steamworks.Ugc.Editor BuildEditor(ulong fileId)
+		{
+			var ed = fileId == 0
+				? Steamworks.Ugc.Editor.NewCommunityFile
+				: new Steamworks.Ugc.Editor((PublishedFileId)fileId);
+			ed = ed
+				.ForAppId((AppId)SteamConstants.DataCenterAppId)
+				.WithTitle(title)
+				.WithDescription(description)
+				.WithContent(absContent)
+				.WithPreviewFile(previewForSteam);
+			ed = tagList.Aggregate(ed, (current, tag) => current.WithTag(tag));
+			if (!string.IsNullOrWhiteSpace(changeLog))
+				ed = ed.WithChangeLog(changeLog);
+			return ApplyVisibility(ed, metadata.Visibility);
+		}
+
+		// The backend must know a just-created item before Submit, or the
+		// uploader fails with FileNotFound (proven via workshop_log.txt).
+		async Task WaitForReplicationAsync(ulong fileId)
+		{
+			for (int i = 0; i < 24; i++)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				if (i > 0)
+					await Task.Delay(5000, cancellationToken).ConfigureAwait(false);
+				WorkshopItemDetailVm? detail = null;
+				try { detail = await GetItemDetailsAsync(fileId, cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { throw; }
+				catch { /* keep waiting */ }
+				if (detail is not null)
+				{
+					log?.Report($"Workshop backend knows item {fileId} — submitting...");
+					return;
+				}
+				log?.Report($"Waiting for Workshop backend to replicate item {fileId}...");
+			}
+			log?.Report($"Item {fileId} not yet visible; submitting anyway (retry follows on FileNotFound).");
+		}
+
+		bool justCreated = false;
+		async Task<Steamworks.Ugc.PublishResult> SubmitOnceAsync()
+		{
+			var ed = BuildEditor(metadata.PublishedFileId);
+			justCreated = metadata.PublishedFileId == 0;
+			return await ed.SubmitAsync(uploadProgress, onItemCreated: r =>
+			{
+				if (r.FileId.Value != 0)
+				{
+					metadata.PublishedFileId = r.FileId.Value;
+					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+					log?.Report($"Created new workshop item {r.FileId.Value}.");
+				}
+				// NOTE: no blocking wait here — a replication check inside this
+				// callback hung the whole submit (query await never returned).
+				// Replication is handled after submit via retry (see below).
+			}).ConfigureAwait(false);
+		}
+
+		// Facepunch only dispatches Steam callbacks while someone pumps
+		// SteamClient.RunCallbacks(). Nothing else in the app does that during
+		// publish, so run a dedicated pumper for the whole operation.
+		using var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var pumpTask = Task.Run(async () =>
+		{
+			while (!pumpCts.Token.IsCancellationRequested)
+			{
+				try { SteamClient.RunCallbacks(); } catch { /* never break the pump */ }
+				try { await Task.Delay(16, pumpCts.Token).ConfigureAwait(false); } catch { /* cancelled */ }
+			}
+		});
+		static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
+		{
+			var winner = await Task.WhenAny(task, Task.Delay(timeout, ct)).ConfigureAwait(false);
+			if (winner != task)
+				throw new TimeoutException($"Submit timed out after {(int)timeout.TotalMinutes} min with no result from Steam.");
+			return await task.ConfigureAwait(false);
+		}
+
+		Steamworks.Ugc.PublishResult result;
+		try
+		{
+			log?.Report(metadata.PublishedFileId == 0
+				? "Creating new workshop item..."
+				: $"Updating workshop item {metadata.PublishedFileId}...");
+			result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
+		catch (Exception ex)
+		{
+			pumpCts.Cancel();
+			try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+			return PublishOutcome.Fail(ex.Message);
+		}
+
+		try
+		{
+		if (!result.Success && result.Result == Steamworks.Result.FileNotFound
+			&& justCreated && metadata.PublishedFileId != 0)
+		{
+			// Backend replication lag on a brand-new item — wait, re-verify
+			// (time-boxed so a hanging query can never block us), then retry
+			// the full submit once with the now-known file id.
+			log?.Report("First submit hit backend replication lag — waiting 30s and retrying once...");
+			try { await Task.Delay(30000, cancellationToken).ConfigureAwait(false); }
+			catch (OperationCanceledException) { throw; }
+			try
+			{
+				var check = WaitForReplicationAsync(metadata.PublishedFileId);
+				var winner = await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+				if (winner != check)
+					log?.Report("Replication check timed out — retrying submit anyway...");
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex) { log?.Report($"Replication check skipped: {ex.Message}"); }
+			try
+			{
+				result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex)
+			{
+				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+				return PublishOutcome.Fail(ex.Message);
+			}
+		}
+
+		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+
+		if (result.NeedsWorkshopAgreement)
+		{
+			return PublishOutcome.Fail("Workshop legal agreement must be accepted in the Steam client.");
+		}
+
+		if (!result.Success)
+		{
+			// Steam may create the item before its content update fails. Preserve the ID
+			// so retrying updates the existing item instead of creating a duplicate.
+			if (result.FileId.Value != 0)
+			{
+				metadata.PublishedFileId = result.FileId.Value;
+				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
+				log?.Report($"Workshop item {metadata.PublishedFileId} was created but the update failed; retry will reuse it.");
+			}
+			var detail = $"Steam publish failed: {result.Result} (content={absContent}, preview={absPreview})";
+			log?.Report(detail);
+			return PublishOutcome.Fail(detail);
+		}
+
+		var id = result.FileId.Value;
+		if (id != 0)
+		{
+			metadata.PublishedFileId = id;
+		}
+
+		return PublishOutcome.Ok(metadata.PublishedFileId);
+		}
+		finally
+		{
+			pumpCts.Cancel();
+		}
 	}
 
 	/// <summary>Completes local post-publish bookkeeping without replacing the editable local project from Steam.</summary>
@@ -1016,191 +1192,6 @@ public sealed class SteamWorkshopService
 	/// The Editor's WithContent/WithPreviewFile calls are broken on Linux (return
 	/// FileNotFound even when files exist). This method calls ISteamUGC directly.
 	/// </summary>
-	private async Task<PublishOutcome> NativePublishAsync(
-		string projectRoot,
-		WorkshopMetadata metadata,
-		string absContent,
-		string absPreview,
-		string? changeLog,
-		List<string> tags,
-		IProgress<float>? uploadProgress,
-		IProgress<string>? log,
-		CancellationToken ct)
-	{
-		// Resolve ISteamUGC internal object via reflection
-		var ugcType = typeof(SteamUGC);
-		var internalProp = ugcType.GetProperty("Internal", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-		var ugcInternal = internalProp?.GetValue(null);
-		if (ugcInternal is null)
-			return PublishOutcome.Fail("SteamUGC.Internal is null — Steam not initialized?");
-
-		var internalType = ugcInternal.GetType();
-		const BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy;
-
-		// Use GetMethods + LINQ — the .NET trimmer strips method metadata that
-		// GetMethod relies on, but GetMethods preserves them.
-		MethodInfo? FindMethod(string name) =>
-			internalType.GetMethods(bf).FirstOrDefault(m => m.Name == name);
-
-		var startItemUpdate = FindMethod("StartItemUpdate");
-		if (startItemUpdate is null)
-		{
-			var methods = string.Join(", ", internalType.GetMethods(bf).Select(m => m.Name).Distinct().Order());
-			return PublishOutcome.Fail($"StartItemUpdate not found on {internalType.FullName}. Methods: {methods}");
-		}
-		var setItemTitle = FindMethod("SetItemTitle");
-		var setItemDescription = FindMethod("SetItemDescription");
-		var setItemContent = FindMethod("SetItemContent");
-		var setItemPreview = FindMethod("SetItemPreview");
-		var setItemVisibility = FindMethod("SetItemVisibility");
-		var setItemTags = FindMethod("SetItemTags");
-		var submitItemUpdate = FindMethod("SubmitItemUpdate");
-		if (submitItemUpdate is null)
-			return PublishOutcome.Fail("SubmitItemUpdate not found");
-		var getUpdateProgress = FindMethod("GetItemUpdateProgress");
-
-		// StartItemUpdate(appId, publishedFileId) -> UGCUpdateHandle_t
-		var handle = startItemUpdate.Invoke(ugcInternal, [(AppId)SteamConstants.DataCenterAppId, (PublishedFileId)metadata.PublishedFileId]);
-		if (handle is null)
-			return PublishOutcome.Fail("StartItemUpdate returned null handle");
-
-		// Set fields
-		setItemTitle?.Invoke(ugcInternal, [handle, metadata.Title ?? ""]);
-		setItemDescription?.Invoke(ugcInternal, [handle, metadata.Description ?? ""]);
-		setItemContent?.Invoke(ugcInternal, [handle, absContent]);
-
-		// Copy preview to temp file — the original may be locked by our own app
-		// (Image controls, metadata scan, etc.) or by external processes.
-		// Read bytes first to avoid any file-lock contention.
-		string? tempPreview = null;
-		try
-		{
-			var previewBytes = await File.ReadAllBytesAsync(absPreview, ct).ConfigureAwait(false);
-			tempPreview = Path.Combine(Path.GetTempPath(), $"gm_preview_{Guid.NewGuid():N}{Path.GetExtension(absPreview)}");
-			await File.WriteAllBytesAsync(tempPreview, previewBytes, ct).ConfigureAwait(false);
-			setItemPreview?.Invoke(ugcInternal, [handle, tempPreview]);
-		}
-		catch (Exception ex)
-		{
-			log?.Report($"Preview copy failed, trying original: {ex.Message}");
-			setItemPreview?.Invoke(ugcInternal, [handle, absPreview]);
-		}
-
-		// Visibility
-		var visibilityValue = metadata.Visibility switch
-		{
-			"Private" => 2,    // RemoteStoragePublishedFileVisibility.Private
-			"FriendsOnly" => 1, // RemoteStoragePublishedFileVisibility.FriendsOnly
-			"Unlisted" => 3,    // RemoteStoragePublishedFileVisibility.Unlisted
-			_ => 0              // RemoteStoragePublishedFileVisibility.Public
-		};
-		setItemVisibility?.Invoke(ugcInternal, [handle, visibilityValue]);
-
-		// Tags via SteamParamStringArray_t
-		if (tags.Count > 0 && setItemTags is not null)
-		{
-			try
-			{
-				var ssaType = typeof(SteamUGC).Assembly.GetType("Steamworks.Data.SteamParamStringArray_t");
-				var ssaManagedType = typeof(SteamUGC).Assembly.GetType("Steamworks.Ugc.SteamParamStringArray");
-				if (ssaType is not null && ssaManagedType is not null)
-				{
-					var nativeStrings = new IntPtr[tags.Count];
-					var gcHandles = new GCHandle[tags.Count];
-					for (int i = 0; i < tags.Count; i++)
-					{
-						gcHandles[i] = GCHandle.Alloc(System.Text.Encoding.UTF8.GetBytes(tags[i] + '\0'), GCHandleType.Pinned);
-						nativeStrings[i] = gcHandles[i].AddrOfPinnedObject();
-					}
-
-					var nativeArray = Marshal.AllocHGlobal(tags.Count * IntPtr.Size);
-					Marshal.Copy(nativeStrings, 0, nativeArray, tags.Count);
-
-					var ssa = Activator.CreateInstance(ssaType)!;
-					ssaType.GetField("Strings")!.SetValue(ssa, nativeArray);
-					ssaType.GetField("NumStrings")!.SetValue(ssa, tags.Count);
-
-					setItemTags.Invoke(ugcInternal, [handle, ssa, false]);
-
-					Marshal.FreeHGlobal(nativeArray);
-					foreach (var h in gcHandles) h.Free();
-				}
-			}
-			catch (Exception ex)
-			{
-				log?.Report($"Tag upload failed (non-fatal): {ex.Message}");
-			}
-		}
-
-		// SubmitItemUpdate(handle, changeNote)
-		log?.Report(metadata.PublishedFileId == 0
-			? "Creating new workshop item (native)..."
-			: $"Updating workshop item {metadata.PublishedFileId} (native)...");
-
-		var callResult = submitItemUpdate.Invoke(ugcInternal, [handle, changeLog ?? ""]);
-
-		// Wait for completion by pumping callbacks — same pattern as SteamUgcPreviews.
-		// GetItemUpdateProgress returns a boxed ItemUpdateStatus enum (NOT int —
-		// `is int` never matches). Use Convert.ToInt32 on the boxed enum.
-		// Status: 0=Invalid, 1=PreparingConfig, 2=PreparingContent,
-		// 3=UploadingContent, 4=UploadingPreviewFile, 5=CommittingChanges.
-		const int maxWaitIntervals = 600; // 5 minutes max
-		var finished = false;
-		for (int i = 0; i < maxWaitIntervals && !finished; i++)
-		{
-			ct.ThrowIfCancellationRequested();
-			await Task.Delay(500, ct).ConfigureAwait(false);
-			SteamClient.RunCallbacks();
-
-			if (getUpdateProgress is not null)
-			{
-				try
-				{
-					var progressArgs = new object?[] { handle, (ulong)0, (ulong)0 };
-					var statusObj = getUpdateProgress.Invoke(ugcInternal, progressArgs);
-					if (statusObj is not null)
-					{
-						int updateStatus = Convert.ToInt32(statusObj);
-						var bytesProcessed = (ulong)(progressArgs[1] ?? 0UL);
-						var bytesTotal = (ulong)(progressArgs[2] ?? 0UL);
-						if (bytesTotal > 0)
-						{
-							float pct = (float)bytesProcessed / bytesTotal;
-							uploadProgress?.Report(pct);
-							if (i % 4 == 0) // log every 2s, not every tick
-								log?.Report($"Uploading... {pct:P0} ({bytesProcessed}/{bytesTotal} bytes)");
-						}
-						else if (i % 2 == 0) // every 1s when no byte counts yet
-						{
-							log?.Report($"Uploading... ({(i / 2) + 1}s elapsed, status={updateStatus})");
-						}
-
-						if (updateStatus >= 5) // CommittingChanges — done, finalize
-						{
-							finished = true;
-							await Task.Delay(1000, ct).ConfigureAwait(false);
-							SteamClient.RunCallbacks();
-						}
-					}
-				}
-				catch { /* best-effort progress */ }
-			}
-			else if (i % 2 == 0) // no progress API at all
-			{
-				log?.Report($"Uploading... ({(i / 2) + 1}s elapsed)");
-			}
-		}
-
-		// Give Steam a moment to finalize
-		await Task.Delay(2000, ct).ConfigureAwait(false);
-		SteamClient.RunCallbacks();
-
-		// Clean up temp preview file
-		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
-
-		log?.Report("Publish completed via native API.");
-		return PublishOutcome.Ok(metadata.PublishedFileId);
-	}
 }
 
 public readonly record struct PublishOutcome(bool Success, ulong PublishedFileId, string Message)

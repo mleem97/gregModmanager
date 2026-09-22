@@ -889,89 +889,132 @@ public partial class EditorPage : UserControl
             var checks = UploadDependencyChecker.Check(_projectRoot, _metadata, ChangeLogEditor.Text);
             if (!UploadDependencyChecker.IsReadyToUpload(checks))
             {
-                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-                await dialog.ShowMessageAsync(S.Get("Editor_NotReady"), S.Get("Editor_NotReadyMsg"));
+                var notReadyDialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await notReadyDialog.ShowMessageAsync(S.Get("Editor_NotReady"), S.Get("Editor_NotReadyMsg"));
                 return;
             }
 
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
 
             var content = Path.GetFullPath(Path.Combine(_projectRoot, "content"));
-            SyncStatusLabel.Text = S.Get("Editor_Uploading");
             var changeLogText = (ChangeLogEditor.Text ?? "").Trim();
             var changeLog = string.IsNullOrWhiteSpace(changeLogText)
                 ? $"v{_metadata.Version}"
                 : $"v{_metadata.Version}: {changeLogText}";
 
-            var originalDesc = _metadata.Description;
-            _metadata.Description = BuildUploadDescription(_metadata);
-
-            var upload = new Progress<float>(p =>
+            var owner = TopLevel.GetTopLevel(this) as Window
+                ?? App.Services.GetService<MainWindow>() as Window;
+            if (owner is null)
             {
-                Dispatcher.UIThread.Post(() =>
-                    SyncStatusLabel.Text = S.Format("Editor_UploadProgress", p));
-            });
-            var log = new Progress<string>(s =>
-            {
-                _log.Append(s);
-                // Show upload status in the label too
-                if (s.StartsWith("Uploading"))
-                    Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = s);
-            });
-
-            var outcome = await _steam.PublishAsync(
-                _projectRoot, _metadata, content, changeLog,
-                upload, log, CancellationToken.None);
-
-            _metadata.Description = originalDesc;
-
-            if (!outcome.Success)
-            {
-                SyncStatusLabel.Text = S.Format("Editor_PublishFailed", outcome.Message);
-                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-                await dialog.ShowMessageAsync(S.Get(ErrorKey), outcome.Message);
+                var noOwnerDialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await noOwnerDialog.ShowMessageAsync(S.Get(ErrorKey), S.Get("Editor_ProjectOpenFailed"));
                 return;
             }
+
+            var dialog = new UploadDialog(S.Get("UploadDialog_Title"));
+            var uploadTask = RunUploadFlowAsync(dialog, content, changeLog);
+            await dialog.ShowDialog(owner);
+            var outcome = await uploadTask;
+
+            SyncStatusLabel.Text = outcome.Success
+                ? S.Get("Editor_SyncComplete")
+                : S.Format("Editor_PublishFailed", outcome.Message);
+
+            if (!outcome.Success)
+                return;
 
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
             PublishedIdLabel.Text = S.Format("Editor_FileId", _metadata.PublishedFileId);
             ChangeLogHintLabel.Text = S.Get("Editor_ChangeNotesHint");
             ViewOnSteamBtn.IsVisible = true;
-
-            if (_metadata.AdditionalPreviews.Count > 0 && SteamUgcPreviews.IsAvailable)
-            {
-                SyncStatusLabel.Text = S.Get("Editor_UploadingScreenshots");
-                var absPaths = _metadata.AdditionalPreviews
-                    .Select(p => Path.GetFullPath(Path.Combine(_projectRoot, p)))
-                    .ToList();
-                await SteamUgcPreviews.UploadAdditionalPreviewsAsync(
-                    _metadata.PublishedFileId, absPaths, log, CancellationToken.None);
-            }
-
-            SyncStatusLabel.Text = S.Get("Editor_PublishedSyncing");
-
-            var synced = await _steam.SyncAfterPublishAsync(
-                _metadata.PublishedFileId, _projectRoot, _metadata, _workspace, log, CancellationToken.None);
-
-            SyncStatusLabel.Text = synced
-                ? S.Get("Editor_SyncComplete")
-                : S.Get("Editor_SyncIncomplete");
-
             PreviewPathLabel.Text = Path.GetFullPath(Path.Combine(_projectRoot, _metadata.PreviewImageRelativePath));
             RebuildScreenshotGallery();
             UpdateContentSizeUi();
             RunUploadCheck();
-
-            var dialog2 = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog2.ShowMessageAsync(S.Get("Editor_Publish"),
-                S.Format("Editor_FileId", _metadata.PublishedFileId) + "\n\n" +
-                (synced ? S.Get("Editor_SyncComplete") : S.Get("Editor_SyncIncomplete")));
         }
         catch (Exception ex)
         {
             SyncStatusLabel.Text = "";
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
             await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_PublishException"), ex);
+        }
+    }
+
+    private string _originalDescription = "";
+
+    /// <summary>Runs publish + screenshots + sync inside the upload modal.
+    /// Cancellation comes from the dialog's Cancel button (or closing it).</summary>
+    private async Task<PublishOutcome> RunUploadFlowAsync(UploadDialog dialog, string content, string changeLog)
+    {
+        var ct = dialog.Token;
+        var upload = new Progress<float>(p =>
+        {
+            dialog.ReportProgress(p);
+            dialog.ReportStatus(S.Format("Editor_UploadProgress", p));
+        });
+        var log = new Progress<string>(s =>
+        {
+            _log.Append(s);
+            dialog.ReportLog(s);
+            if (s.StartsWith("Uploading", StringComparison.Ordinal))
+                dialog.ReportStatus(s);
+        });
+
+        try
+        {
+            _originalDescription = _metadata.Description;
+            _metadata.Description = BuildUploadDescription(_metadata);
+
+            PublishOutcome outcome;
+            try
+            {
+                outcome = await _steam.PublishAsync(
+                    _projectRoot, _metadata, content, changeLog,
+                    upload, log, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                outcome = PublishOutcome.Fail(S.Get("UploadDialog_StatusCancelled"));
+            }
+
+            if (!outcome.Success)
+            {
+                dialog.SetFinished(false, S.Format("UploadDialog_StatusFailed", outcome.Message));
+                return outcome;
+            }
+
+            if (_metadata.AdditionalPreviews.Count > 0 && SteamUgcPreviews.IsAvailable)
+            {
+                dialog.ReportStatus(S.Get("Editor_UploadingScreenshots"));
+                var absPaths = _metadata.AdditionalPreviews
+                    .Select(p => Path.GetFullPath(Path.Combine(_projectRoot, p)))
+                    .ToList();
+                await SteamUgcPreviews.UploadAdditionalPreviewsAsync(
+                    _metadata.PublishedFileId, absPaths, log, ct);
+            }
+
+            dialog.ReportStatus(S.Get("Editor_PublishedSyncing"));
+            var synced = await _steam.SyncAfterPublishAsync(
+                _metadata.PublishedFileId, _projectRoot, _metadata, _workspace, log, ct);
+
+            dialog.SetFinished(true, synced
+                ? S.Get("Editor_SyncComplete")
+                : S.Get("Editor_SyncIncomplete"));
+            return PublishOutcome.Ok(_metadata.PublishedFileId);
+        }
+        catch (OperationCanceledException)
+        {
+            dialog.SetFinished(false, S.Get("UploadDialog_StatusCancelled"));
+            return PublishOutcome.Fail(S.Get("UploadDialog_StatusCancelled"));
+        }
+        catch (Exception ex)
+        {
+            dialog.SetFinished(false, S.Format("UploadDialog_StatusFailed", ex.Message));
+            return PublishOutcome.Fail(ex.Message);
+        }
+        finally
+        {
+            _metadata.Description = _originalDescription;
         }
     }
 

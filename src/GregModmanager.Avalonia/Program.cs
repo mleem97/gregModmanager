@@ -20,6 +20,28 @@ internal static class Program
         AppDomain.CurrentDomain.ProcessExit += (_, _) => AppFileLog.EndSession();
         AppFileLog.Info("Avalonia Program entry");
 
+        // CLI logging: --verbose / --console-log mirrors the file log to stdout,
+        // --log-file <path> overrides the log location. One banner line is always
+        // printed so CLI users know where "wat phase is".
+        var cliArgs = Environment.GetCommandLineArgs();
+        for (int i = 0; i < cliArgs.Length; i++)
+        {
+            if (string.Equals(cliArgs[i], "--log-file", StringComparison.OrdinalIgnoreCase) && i + 1 < cliArgs.Length)
+                AppFileLog.SetLogPathOverride(cliArgs[i + 1]);
+        }
+        if (cliArgs.Any(a => string.Equals(a, "--verbose", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(a, "--console-log", StringComparison.OrdinalIgnoreCase)))
+        {
+            AppFileLog.MirrorToConsole = true;
+        }
+        try
+        {
+            var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?";
+            Console.WriteLine($"gregModmanager {ver} | log: {AppFileLog.LogPath} | pid {Environment.ProcessId}"
+                + (AppFileLog.MirrorToConsole ? " | verbose" : " (use --verbose for live log)"));
+        }
+        catch { /* no console attached */ }
+
         // Eager Telemetry: Try to send old crash reports as early as possible
         try
         {

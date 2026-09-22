@@ -361,6 +361,14 @@
   <data name="Settings_Telemetry" xml:space="preserve"><value>Gesundheitsstatus &amp; Telemetrie</value></data>
   <data name="Settings_EnableTelemetry" xml:space="preserve"><value>Anonyme Absturzberichte und Performance-Metriken aktivieren</value></data>
   <data name="Settings_TelemetryPrivacy" xml:space="preserve"><value>Datenschutz: Wir sammeln anonymisierte Daten, um die App zu verbessern. Es werden keine persönlichen Daten oder Mod-Dateien gesendet.</value></data>
+  <data name="UploadDialog_Title" xml:space="preserve"><value>Workshop-Upload</value></data>
+  <data name="UploadDialog_StatusStarting" xml:space="preserve"><value>Upload wird vorbereitet...</value></data>
+  <data name="UploadDialog_StatusCancelling" xml:space="preserve"><value>Wird abgebrochen... aktueller Schritt wird beendet.</value></data>
+  <data name="UploadDialog_StatusCancelled" xml:space="preserve"><value>Upload abgebrochen.</value></data>
+  <data name="UploadDialog_StatusSuccess" xml:space="preserve"><value>Upload erfolgreich abgeschlossen.</value></data>
+  <data name="UploadDialog_StatusFailed" xml:space="preserve"><value>Upload fehlgeschlagen: {0}</value></data>
+  <data name="UploadDialog_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="UploadDialog_Close" xml:space="preserve"><value>Schließen</value></data>
 
 </root>
 
