@@ -323,7 +323,7 @@ if ($wantSign -and $SigningMode -in @('auto', 'self-signed')) {
 }
 $projPath = Join-Path $repoRoot 'src\GregModmanager.Avalonia\GregModmanager.Avalonia.csproj'
 $iss = Join-Path $repoRoot 'build\installer\gregModmanager.iss'
-$winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net9.0\win-x64\publish'
+$winPublishDir = Join-Path $repoRoot 'src\GregModmanager.Avalonia\bin\Release\net10.0\win-x64\publish'
 $linuxPublishDir = Join-Path $repoRoot 'artifacts\publish\linux-x64'
 $installerOutDir = Join-Path $repoRoot 'build\installer\Output'
 $artifactsDir = Join-Path $repoRoot 'artifacts'

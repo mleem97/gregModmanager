@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/dotnet/runtime:9.0-noble AS runtime9
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS restore
 WORKDIR /src
 
-# The solution is built by SDK 10 (global.json) but testhost targets net9.0.
+# The solution is built by SDK 10 (global.json) but testhost targets net10.0.
 COPY --from=runtime9 /usr/share/dotnet/shared/Microsoft.NETCore.App/ /usr/share/dotnet/shared/Microsoft.NETCore.App/
 
 COPY global.json GregModmanager.sln ./

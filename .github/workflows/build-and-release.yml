@@ -246,6 +246,12 @@ jobs:
             --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
             /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
             -o ./publish/linux-x64
+          rm -f ./publish/linux-x64/steam_api64.dll
+          for steam_library in libsteam_api64.so libsteam_api.so; do
+            if [ -f "src/GregModmanager.Core/${steam_library}" ]; then
+              cp "src/GregModmanager.Core/${steam_library}" "./publish/linux-x64/${steam_library}"
+            fi
+          done
 
       - name: Create tarball
         id: package

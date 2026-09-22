@@ -15,8 +15,8 @@ Stand: `v1.6.1-pre.13`
 
 | Zweck | Desktop-Aufruf | Webapp-Status |
 |---|---|---|
-| Browser-Login starten | `GET /auth/login` auf `https://datacentermods.home` | Implementiert in `src/app/auth/login/route.ts` |
-| Code gegen Session tauschen | `POST /auth/token` auf `https://api.datacentermods.home` | Implementiert in `src/app/auth/token/route.ts` |
+| Browser-Login starten | `GET /auth/login` auf `https://datacentermods.com`, Fallback `https://datacentermods.home` | Implementiert in `src/app/auth/login/route.ts` |
+| Code gegen Session tauschen | `POST /auth/token` auf `https://datacentermods.com`, Fallback `https://datacentermods.home` | Implementiert in `src/app/auth/token/route.ts` |
 | Refresh prüfen | `POST /auth/token` mit `state=refresh` | Implementiert; prüft die Better-Auth-Session gegen Ablauf/Widerruf |
 | Logout | `POST /auth/logout` mit Bearer-Sessiontoken | Implementiert in `src/app/auth/logout/route.ts` |
 | Webapp-Session | Better Auth `/api/auth/*` | Bestehende Webapp-Authentifizierung bleibt unverändert |
@@ -26,8 +26,13 @@ Stand: `v1.6.1-pre.13`
 Der Starter `/usr/local/bin/gregmodmanager-local-test` setzt:
 
 - `MODSTORE_WEB_URL=https://datacentermods.home`
-- `MODSTORE_API_URL=https://api.datacentermods.home`
+- `MODSTORE_API_URL=https://datacentermods.home`
 - `IS_LOCAL_TEST_BUILD=TRUE`
+
+Normal builds use `https://datacentermods.com` first. Optional
+`MODSTORE_WEB_FALLBACK_URL` and `MODSTORE_API_FALLBACK_URL` overrides can
+replace the trusted `https://datacentermods.home` fallback. Authentication
+failures such as HTTP 401 or 403 never trigger failover.
 
 Die lokale Webapp muss danach neu gebaut/gestartet werden. Außerdem müssen `datacentermods.home` und `api.datacentermods.home` auf die lokale Reverse-Proxy-Adresse zeigen; aktuell ist `api.datacentermods.home` auf diesem System noch nicht auflösbar.
 

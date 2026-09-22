@@ -5,8 +5,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-windowsservercore-ltsc2022 AS build
 SHELL ["powershell", "-NoProfile", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
 WORKDIR C:\src
 
-# The projects target net9.0 while global.json selects SDK 10. Copy the matching
-# runtime into the SDK image so the test stage can execute net9.0 test binaries.
+# The projects target net10.0 while global.json selects SDK 10. Copy the matching
+# runtime into the SDK image so the test stage can execute net10.0 test binaries.
 COPY --from=runtime9 ["C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App\\", "C:\\Program Files\\dotnet\\shared\\Microsoft.NETCore.App\\"]
 
 COPY . .

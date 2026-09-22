@@ -28,7 +28,7 @@ Artifacts are written to `artifacts/docker/`, which is ignored by Git.
 It requires a Windows host with Docker configured for **Windows containers**
 and a host version compatible with `windowsservercore-ltsc2022`.
 
-The project targets `net9.0` while `global.json` selects SDK 10. The image
+The project targets `net10.0` while `global.json` selects SDK 10. The image
 copies the .NET 9 runtime into the SDK image so its `test` target can execute
 the test binaries without a manual image patch.
 

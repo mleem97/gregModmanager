@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
@@ -22,7 +24,7 @@ public sealed class SteamWorkshopService
 		{
 			if (_initialized)
 			{
-				return true;
+				return HasUsableSteamClient(log);
 			}
 
 			try
@@ -31,7 +33,10 @@ public sealed class SteamWorkshopService
 				if (!preloaded)
 				{
 					var paths = string.Join("; ", SteamApiNativeLoader.GetAttemptedPaths());
-					LastSteamConnectionHint = $"steam_api64.dll nicht gefunden. Gesucht: {paths}";
+					var nativeLibrary = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+						? "steam_api64.dll"
+						: "libsteam_api64.so / libsteam_api.so";
+					LastSteamConnectionHint = $"{nativeLibrary} nicht gefunden. Gesucht: {paths}";
 					AppFileLog.Warn($"[Steam] {LastSteamConnectionHint}");
 					log?.Report(LastSteamConnectionHint);
 					return false;
@@ -42,10 +47,15 @@ public sealed class SteamWorkshopService
 				{
 					if (SteamClient.IsValid)
 					{
-						_initialized = true;
-						LastSteamConnectionHint = string.Empty;
-						AppFileLog.Info($"[Steam] SteamClient already initialized.");
-						return true;
+						if (HasUsableSteamClient(log))
+						{
+							_initialized = true;
+							LastSteamConnectionHint = string.Empty;
+							AppFileLog.Info($"[Steam] SteamClient already initialized.");
+							return true;
+						}
+
+						return false;
 					}
 				}
 				catch
@@ -67,6 +77,11 @@ public sealed class SteamWorkshopService
 				// Give async callbacks a moment to complete
 				Thread.Sleep(500);
 				
+				if (!HasUsableSteamClient(log))
+				{
+					return false;
+				}
+
 				_initialized = true;
 				LastSteamConnectionHint = string.Empty;
 				AppFileLog.Info($"[Steam] SteamClient.Init succeeded.");
@@ -78,10 +93,15 @@ public sealed class SteamWorkshopService
 				// If already initialized, treat as success
 				if (ex.Message.Contains("already initialized"))
 				{
-					_initialized = true;
-					LastSteamConnectionHint = string.Empty;
-					AppFileLog.Info($"[Steam] SteamClient was already initialized.");
-					return true;
+					if (HasUsableSteamClient(log))
+					{
+						_initialized = true;
+						LastSteamConnectionHint = string.Empty;
+						AppFileLog.Info($"[Steam] SteamClient was already initialized.");
+						return true;
+					}
+
+					return false;
 				}
 				
 				LastSteamConnectionHint = ex.Message;
@@ -92,13 +112,40 @@ public sealed class SteamWorkshopService
 		}
 	}
 
+	private bool HasUsableSteamClient(IProgress<string>? log)
+	{
+		try
+		{
+			if (!SteamClient.IsValid)
+			{
+				LastSteamConnectionHint = "Steam API ungültig (IsValid=false).";
+				log?.Report(LastSteamConnectionHint);
+				return false;
+			}
+
+			// Query construction requires a valid Steam ID. Some incompatible native
+			// libraries report IsValid=true but throw here, which must not be treated
+			// as a usable Workshop connection.
+			_ = SteamClient.SteamId;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			_initialized = false;
+			LastSteamConnectionHint = $"Steam API is not usable: {ex.Message}";
+			AppFileLog.Warn($"[Steam] {LastSteamConnectionHint}");
+			log?.Report(LastSteamConnectionHint);
+			return false;
+		}
+	}
+
 	/// <summary>True when Steam API is up and the user is logged on (see <see cref="SteamClient.IsLoggedOn"/>).</summary>
 	public bool TryGetSteamReady(out string? userName)
 	{
 		userName = null;
 		lock (InitLock)
 		{
-			if (!_initialized && !EnsureInitialized(null))
+			if (!EnsureInitialized(null))
 			{
 				return false;
 			}
@@ -218,14 +265,15 @@ public sealed class SteamWorkshopService
 			return PublishOutcome.Fail($"Preview image exceeds Steam's {WorkspaceService.FormatBytes(SteamConstants.MaxPreviewImageBytes)} limit.");
 		}
 
-		Steamworks.Ugc.Editor editor = metadata.PublishedFileId == 0
-			? Steamworks.Ugc.Editor.NewCommunityFile
-			: new Steamworks.Ugc.Editor((PublishedFileId)metadata.PublishedFileId);
+		// Resolve to absolute paths – the native Steamworks API may not resolve
+		// relative or partially-qualified paths correctly on Linux.
+		var absContent = Path.GetFullPath(contentFolder);
+		var absPreview = Path.GetFullPath(previewPath);
 
 		// Embed mod-type marker so subscribers know where to install this item.
 		try
 		{
-			var markerPath = Path.Combine(Path.GetFullPath(contentFolder), "greg-modmanager.meta.json");
+			var markerPath = Path.Combine(absContent, "greg-modmanager.meta.json");
 			var markerJson = System.Text.Json.JsonSerializer.Serialize(new ModStoreMarker { modType = metadata.ModType }, AppJsonContext.Default.ModStoreMarker);
 			File.WriteAllText(markerPath, markerJson);
 		}
@@ -234,21 +282,11 @@ public sealed class SteamWorkshopService
 			// non-critical
 		}
 
-		editor = editor
-			.WithTitle(title)
-			.WithDescription(description)
-			.WithContent(contentFolder);
-
-		editor = editor.WithPreviewFile(previewPath);
-
-		editor = metadata.Tags
+		// Collect tags
+		var tagList = metadata.Tags
 			.Where(t => !string.IsNullOrWhiteSpace(t))
-			.Aggregate(editor, (current, tag) => current.WithTag(tag.Trim()));
-
-		if (!string.IsNullOrWhiteSpace(changeLog))
-		{
-			editor = editor.WithChangeLog(changeLog);
-		}
+			.Select(t => t.Trim())
+			.ToList();
 
 		if (!SteamPublishRateLimiter.Shared.TryAcquire(out var retryAfter))
 		{
@@ -256,47 +294,12 @@ public sealed class SteamWorkshopService
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
 		}
 
-		editor = ApplyVisibility(editor, metadata.Visibility);
-
-		log?.Report(metadata.PublishedFileId == 0
-			? "Creating new workshop item..."
-			: $"Updating workshop item {metadata.PublishedFileId}...");
-
-		Steamworks.Ugc.PublishResult result;
-		try
-		{
-			result = await editor.SubmitAsync(uploadProgress).ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			return PublishOutcome.Fail(ex.Message);
-		}
-
-		if (!result.Success)
-		{
-			// Steam may create the item before its content update fails. Preserve the ID
-			// so retrying updates the existing item instead of creating a duplicate.
-			if (result.FileId.Value != 0)
-			{
-				metadata.PublishedFileId = result.FileId.Value;
-				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
-				log?.Report($"Workshop item {metadata.PublishedFileId} was created but the update failed; retry will reuse it.");
-			}
-			return PublishOutcome.Fail($"Steam publish failed: {result.Result}");
-		}
-
-		if (result.NeedsWorkshopAgreement)
-		{
-			return PublishOutcome.Fail("Workshop legal agreement must be accepted in the Steam client.");
-		}
-
-		var id = result.FileId.Value;
-		if (id != 0)
-		{
-			metadata.PublishedFileId = id;
-		}
-
-		return PublishOutcome.Ok(metadata.PublishedFileId);
+		// Use native ISteamUGC calls — the Facepunch Editor wrapper is broken
+		// on Linux (SetItemContent/SetItemPreview return FileNotFound).
+		return await NativePublishAsync(
+			projectRoot, metadata, absContent, absPreview,
+			changeLog, tagList, uploadProgress, log, cancellationToken
+		).ConfigureAwait(false);
 	}
 
 	/// <summary>Completes local post-publish bookkeeping without replacing the editable local project from Steam.</summary>
@@ -475,21 +478,30 @@ public sealed class SteamWorkshopService
 
 		ct.ThrowIfCancellationRequested();
 
-		var item = await Item.GetAsync((PublishedFileId)publishedFileId).ConfigureAwait(false);
-		if (!item.HasValue)
+		try
 		{
+			var item = await Item.GetAsync((PublishedFileId)publishedFileId).ConfigureAwait(false);
+			if (!item.HasValue)
+			{
+				return null;
+			}
+
+			var vm = MapItemToVm(item.Value);
+
+			if (SteamUgcPreviews.CanQueryPreviews)
+			{
+				var galleryUrls = await SteamUgcPreviews.QueryAdditionalPreviewUrlsAsync(publishedFileId).ConfigureAwait(false);
+				vm.AdditionalPreviewUrls = galleryUrls.ToArray();
+			}
+
+			return vm;
+		}
+		catch (Exception ex)
+		{
+			LastSteamConnectionHint = $"Workshop item {publishedFileId} could not be loaded: {ex.Message}";
+			AppFileLog.Warn($"[Steam] {LastSteamConnectionHint}");
 			return null;
 		}
-
-		var vm = MapItemToVm(item.Value);
-
-		if (SteamUgcPreviews.CanQueryPreviews)
-		{
-			var galleryUrls = await SteamUgcPreviews.QueryAdditionalPreviewUrlsAsync(publishedFileId).ConfigureAwait(false);
-			vm.AdditionalPreviewUrls = galleryUrls.ToArray();
-		}
-
-		return vm;
 	}
 
 	/// <summary>
@@ -505,7 +517,12 @@ public sealed class SteamWorkshopService
 	{
 		target.PublishedFileId = steam.PublishedFileId;
 		target.Title = steam.Title ?? "";
-		target.Description = steam.Description ?? "";
+		// Keep local description when Steam returns empty — the user may have
+		// edited it locally and the empty value means Steam was never updated.
+		if (!string.IsNullOrWhiteSpace(steam.Description))
+		{
+			target.Description = steam.Description;
+		}
 		target.Visibility = steam.Visibility is "Private" or "FriendsOnly" or "Public"
 			? steam.Visibility
 			: "Public";
@@ -993,6 +1010,197 @@ public sealed class SteamWorkshopService
 	}
 
 	#endregion
+
+	/// <summary>
+	/// Native Steam publish that bypasses the Facepunch.Steamworks Editor wrapper.
+	/// The Editor's WithContent/WithPreviewFile calls are broken on Linux (return
+	/// FileNotFound even when files exist). This method calls ISteamUGC directly.
+	/// </summary>
+	private async Task<PublishOutcome> NativePublishAsync(
+		string projectRoot,
+		WorkshopMetadata metadata,
+		string absContent,
+		string absPreview,
+		string? changeLog,
+		List<string> tags,
+		IProgress<float>? uploadProgress,
+		IProgress<string>? log,
+		CancellationToken ct)
+	{
+		// Resolve ISteamUGC internal object via reflection
+		var ugcType = typeof(SteamUGC);
+		var internalProp = ugcType.GetProperty("Internal", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+		var ugcInternal = internalProp?.GetValue(null);
+		if (ugcInternal is null)
+			return PublishOutcome.Fail("SteamUGC.Internal is null — Steam not initialized?");
+
+		var internalType = ugcInternal.GetType();
+		const BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy;
+
+		// Use GetMethods + LINQ — the .NET trimmer strips method metadata that
+		// GetMethod relies on, but GetMethods preserves them.
+		MethodInfo? FindMethod(string name) =>
+			internalType.GetMethods(bf).FirstOrDefault(m => m.Name == name);
+
+		var startItemUpdate = FindMethod("StartItemUpdate");
+		if (startItemUpdate is null)
+		{
+			var methods = string.Join(", ", internalType.GetMethods(bf).Select(m => m.Name).Distinct().Order());
+			return PublishOutcome.Fail($"StartItemUpdate not found on {internalType.FullName}. Methods: {methods}");
+		}
+		var setItemTitle = FindMethod("SetItemTitle");
+		var setItemDescription = FindMethod("SetItemDescription");
+		var setItemContent = FindMethod("SetItemContent");
+		var setItemPreview = FindMethod("SetItemPreview");
+		var setItemVisibility = FindMethod("SetItemVisibility");
+		var setItemTags = FindMethod("SetItemTags");
+		var submitItemUpdate = FindMethod("SubmitItemUpdate");
+		if (submitItemUpdate is null)
+			return PublishOutcome.Fail("SubmitItemUpdate not found");
+		var getUpdateProgress = FindMethod("GetItemUpdateProgress");
+
+		// StartItemUpdate(appId, publishedFileId) -> UGCUpdateHandle_t
+		var handle = startItemUpdate.Invoke(ugcInternal, [(AppId)SteamConstants.DataCenterAppId, (PublishedFileId)metadata.PublishedFileId]);
+		if (handle is null)
+			return PublishOutcome.Fail("StartItemUpdate returned null handle");
+
+		// Set fields
+		setItemTitle?.Invoke(ugcInternal, [handle, metadata.Title ?? ""]);
+		setItemDescription?.Invoke(ugcInternal, [handle, metadata.Description ?? ""]);
+		setItemContent?.Invoke(ugcInternal, [handle, absContent]);
+
+		// Copy preview to temp file — the original may be locked by our own app
+		// (Image controls, metadata scan, etc.) or by external processes.
+		// Read bytes first to avoid any file-lock contention.
+		string? tempPreview = null;
+		try
+		{
+			var previewBytes = await File.ReadAllBytesAsync(absPreview, ct).ConfigureAwait(false);
+			tempPreview = Path.Combine(Path.GetTempPath(), $"gm_preview_{Guid.NewGuid():N}{Path.GetExtension(absPreview)}");
+			await File.WriteAllBytesAsync(tempPreview, previewBytes, ct).ConfigureAwait(false);
+			setItemPreview?.Invoke(ugcInternal, [handle, tempPreview]);
+		}
+		catch (Exception ex)
+		{
+			log?.Report($"Preview copy failed, trying original: {ex.Message}");
+			setItemPreview?.Invoke(ugcInternal, [handle, absPreview]);
+		}
+
+		// Visibility
+		var visibilityValue = metadata.Visibility switch
+		{
+			"Private" => 2,    // RemoteStoragePublishedFileVisibility.Private
+			"FriendsOnly" => 1, // RemoteStoragePublishedFileVisibility.FriendsOnly
+			"Unlisted" => 3,    // RemoteStoragePublishedFileVisibility.Unlisted
+			_ => 0              // RemoteStoragePublishedFileVisibility.Public
+		};
+		setItemVisibility?.Invoke(ugcInternal, [handle, visibilityValue]);
+
+		// Tags via SteamParamStringArray_t
+		if (tags.Count > 0 && setItemTags is not null)
+		{
+			try
+			{
+				var ssaType = typeof(SteamUGC).Assembly.GetType("Steamworks.Data.SteamParamStringArray_t");
+				var ssaManagedType = typeof(SteamUGC).Assembly.GetType("Steamworks.Ugc.SteamParamStringArray");
+				if (ssaType is not null && ssaManagedType is not null)
+				{
+					var nativeStrings = new IntPtr[tags.Count];
+					var gcHandles = new GCHandle[tags.Count];
+					for (int i = 0; i < tags.Count; i++)
+					{
+						gcHandles[i] = GCHandle.Alloc(System.Text.Encoding.UTF8.GetBytes(tags[i] + '\0'), GCHandleType.Pinned);
+						nativeStrings[i] = gcHandles[i].AddrOfPinnedObject();
+					}
+
+					var nativeArray = Marshal.AllocHGlobal(tags.Count * IntPtr.Size);
+					Marshal.Copy(nativeStrings, 0, nativeArray, tags.Count);
+
+					var ssa = Activator.CreateInstance(ssaType)!;
+					ssaType.GetField("Strings")!.SetValue(ssa, nativeArray);
+					ssaType.GetField("NumStrings")!.SetValue(ssa, tags.Count);
+
+					setItemTags.Invoke(ugcInternal, [handle, ssa, false]);
+
+					Marshal.FreeHGlobal(nativeArray);
+					foreach (var h in gcHandles) h.Free();
+				}
+			}
+			catch (Exception ex)
+			{
+				log?.Report($"Tag upload failed (non-fatal): {ex.Message}");
+			}
+		}
+
+		// SubmitItemUpdate(handle, changeNote)
+		log?.Report(metadata.PublishedFileId == 0
+			? "Creating new workshop item (native)..."
+			: $"Updating workshop item {metadata.PublishedFileId} (native)...");
+
+		var callResult = submitItemUpdate.Invoke(ugcInternal, [handle, changeLog ?? ""]);
+
+		// Wait for completion by pumping callbacks — same pattern as SteamUgcPreviews.
+		// GetItemUpdateProgress returns a boxed ItemUpdateStatus enum (NOT int —
+		// `is int` never matches). Use Convert.ToInt32 on the boxed enum.
+		// Status: 0=Invalid, 1=PreparingConfig, 2=PreparingContent,
+		// 3=UploadingContent, 4=UploadingPreviewFile, 5=CommittingChanges.
+		const int maxWaitIntervals = 600; // 5 minutes max
+		var finished = false;
+		for (int i = 0; i < maxWaitIntervals && !finished; i++)
+		{
+			ct.ThrowIfCancellationRequested();
+			await Task.Delay(500, ct).ConfigureAwait(false);
+			SteamClient.RunCallbacks();
+
+			if (getUpdateProgress is not null)
+			{
+				try
+				{
+					var progressArgs = new object?[] { handle, (ulong)0, (ulong)0 };
+					var statusObj = getUpdateProgress.Invoke(ugcInternal, progressArgs);
+					if (statusObj is not null)
+					{
+						int updateStatus = Convert.ToInt32(statusObj);
+						var bytesProcessed = (ulong)(progressArgs[1] ?? 0UL);
+						var bytesTotal = (ulong)(progressArgs[2] ?? 0UL);
+						if (bytesTotal > 0)
+						{
+							float pct = (float)bytesProcessed / bytesTotal;
+							uploadProgress?.Report(pct);
+							if (i % 4 == 0) // log every 2s, not every tick
+								log?.Report($"Uploading... {pct:P0} ({bytesProcessed}/{bytesTotal} bytes)");
+						}
+						else if (i % 2 == 0) // every 1s when no byte counts yet
+						{
+							log?.Report($"Uploading... ({(i / 2) + 1}s elapsed, status={updateStatus})");
+						}
+
+						if (updateStatus >= 5) // CommittingChanges — done, finalize
+						{
+							finished = true;
+							await Task.Delay(1000, ct).ConfigureAwait(false);
+							SteamClient.RunCallbacks();
+						}
+					}
+				}
+				catch { /* best-effort progress */ }
+			}
+			else if (i % 2 == 0) // no progress API at all
+			{
+				log?.Report($"Uploading... ({(i / 2) + 1}s elapsed)");
+			}
+		}
+
+		// Give Steam a moment to finalize
+		await Task.Delay(2000, ct).ConfigureAwait(false);
+		SteamClient.RunCallbacks();
+
+		// Clean up temp preview file
+		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+
+		log?.Report("Publish completed via native API.");
+		return PublishOutcome.Ok(metadata.PublishedFileId);
+	}
 }
 
 public readonly record struct PublishOutcome(bool Success, ulong PublishedFileId, string Message)

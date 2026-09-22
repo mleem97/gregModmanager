@@ -15,7 +15,7 @@
             Grid.ColumnSpan="2"
             Classes="titlebar"
             PointerPressed="OnTitleBarPointerPressed">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto">
         <StackPanel Margin="14,0,0,0"
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
@@ -29,6 +29,25 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1"
+                    Margin="0,4,0,4"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Spacing="4">
+          <Button Classes="nav-item"
+                  Content="Start Game"
+                  Click="OnStartGameClicked"
+                  Padding="10,2" />
+          <Button Classes="nav-item"
+                  Content="With Mods"
+                  Click="OnStartGameWithModsClicked"
+                  Padding="10,2" />
+          <Button Classes="nav-item"
+                  Content="No Mods"
+                  Click="OnStartGameNoModsClicked"
+                  Padding="10,2" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="2"
                     Margin="0,4,6,4"
                     Orientation="Horizontal"
                     Spacing="4">
@@ -57,7 +76,6 @@
           <TextBlock Classes="micro-label cyan" Text="MODMANAGER" />
           <Button x:Name="BtnProjects" Classes="nav-item active" Content="Projects" Click="OnNavProjects" />
           <Button x:Name="BtnNewProject" Classes="nav-item" Content="New Project" Click="OnNavNewProject" />
-          <Button x:Name="BtnMyUploads" Classes="nav-item" Content="My Uploads" Click="OnNavMyUploads" />
           <TextBlock Classes="micro-label cyan" Margin="0,12,0,0" Text="MODSTORE" />
           <Button x:Name="BtnModStore" Classes="nav-item" Content="Mod Store" Click="OnNavModStore" IsVisible="False" />
           <TextBlock Classes="micro-label" Margin="0,12,0,0" Text="SYSTEM" />

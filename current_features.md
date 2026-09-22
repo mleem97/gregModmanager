@@ -286,9 +286,9 @@ Der eigentliche lokale Steam-Workshop-Upload, Update, Download und Fortschritt b
 
 - Webapp erzeugt `greg://install?modId=<id>`-Installationslinks.
 - Desktop registriert und verarbeitet das `greg://`-Protokoll.
-- Desktop-Testprofil unterstützt:
-  - Browser/Login: `https://datacentermods.home`;
-  - API: `https://api.datacentermods.home`.
+- Desktop-Authentifizierung verwendet `https://datacentermods.com` als
+  primären Browser-/API-Endpunkt und `https://datacentermods.home` als
+  vertrauenswürdigen Verfügbarkeits-Fallback.
 - Webapp-Desktop-Auth-Bridge im Quellcode:
   - `GET /auth/login`;
   - `POST /auth/token`;

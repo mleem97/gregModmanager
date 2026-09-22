@@ -47,14 +47,14 @@ public sealed class WorkspaceService
 			var custom = S.Preferences.GetString(CustomWorkspacePathKey, "");
 			if (!string.IsNullOrWhiteSpace(custom) && Directory.Exists(custom))
 			{
-				_cachedWorkspaceRoot = custom;
+				_cachedWorkspaceRoot = Path.GetFullPath(custom);
 				return _cachedWorkspaceRoot;
 			}
 
 			_steam?.EnsureInitialized(null);
 			var fromGame = TryGetGameWorkshopDirectory();
 			_cachedWorkspaceRoot = !string.IsNullOrEmpty(fromGame)
-				? fromGame!
+				? Path.GetFullPath(fromGame!)
 				: LegacyFallbackPath;
 			return _cachedWorkspaceRoot;
 		}

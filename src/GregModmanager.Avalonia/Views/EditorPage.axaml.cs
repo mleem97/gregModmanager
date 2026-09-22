@@ -59,7 +59,7 @@ public partial class EditorPage : UserControl
 
     public void LoadProject(string rootPath)
     {
-        _projectRoot = rootPath;
+        _projectRoot = Path.GetFullPath(rootPath);
         _ = LoadAsyncSafe();
     }
 
@@ -105,7 +105,15 @@ public partial class EditorPage : UserControl
         {
             Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_LoadingFromSteam"));
 
-            var steam = await _steam.GetItemDetailsAsync(_metadata.PublishedFileId, CancellationToken.None);
+            WorkshopItemDetailVm? steam = null;
+            try
+            {
+                steam = await _steam.GetItemDetailsAsync(_metadata.PublishedFileId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _log.Append($"Steam refresh skipped while opening {_metadata.PublishedFileId}: {ex.Message}");
+            }
 
             if (steam is not null)
             {
@@ -352,16 +360,7 @@ public partial class EditorPage : UserControl
 
     private static void SetEditorTabStyle(Button btn, bool active)
     {
-        if (active)
-        {
-            btn.Background = new SolidColorBrush(Color.Parse("#61F4D8"));
-            btn.Foreground = new SolidColorBrush(Color.Parse("#001110"));
-        }
-        else
-        {
-            btn.Background = Brushes.Transparent;
-            btn.Foreground = new SolidColorBrush(Color.Parse("#61F4D8"));
-        }
+        btn.Classes.Set("active", active);
     }
 
     private void OnNeedsgregToggled(object? sender, RoutedEventArgs e) => RunUploadCheck();
@@ -897,7 +896,7 @@ public partial class EditorPage : UserControl
 
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
 
-            var content = Path.Combine(_projectRoot, "content");
+            var content = Path.GetFullPath(Path.Combine(_projectRoot, "content"));
             SyncStatusLabel.Text = S.Get("Editor_Uploading");
             var changeLogText = (ChangeLogEditor.Text ?? "").Trim();
             var changeLog = string.IsNullOrWhiteSpace(changeLogText)
@@ -912,7 +911,13 @@ public partial class EditorPage : UserControl
                 Dispatcher.UIThread.Post(() =>
                     SyncStatusLabel.Text = S.Format("Editor_UploadProgress", p));
             });
-            var log = new Progress<string>(s => _log.Append(s));
+            var log = new Progress<string>(s =>
+            {
+                _log.Append(s);
+                // Show upload status in the label too
+                if (s.StartsWith("Uploading"))
+                    Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = s);
+            });
 
             var outcome = await _steam.PublishAsync(
                 _projectRoot, _metadata, content, changeLog,
@@ -937,7 +942,7 @@ public partial class EditorPage : UserControl
             {
                 SyncStatusLabel.Text = S.Get("Editor_UploadingScreenshots");
                 var absPaths = _metadata.AdditionalPreviews
-                    .Select(p => Path.Combine(_projectRoot, p))
+                    .Select(p => Path.GetFullPath(Path.Combine(_projectRoot, p)))
                     .ToList();
                 await SteamUgcPreviews.UploadAdditionalPreviewsAsync(
                     _metadata.PublishedFileId, absPaths, log, CancellationToken.None);
@@ -952,7 +957,7 @@ public partial class EditorPage : UserControl
                 ? S.Get("Editor_SyncComplete")
                 : S.Get("Editor_SyncIncomplete");
 
-            PreviewPathLabel.Text = Path.Combine(_projectRoot, _metadata.PreviewImageRelativePath);
+            PreviewPathLabel.Text = Path.GetFullPath(Path.Combine(_projectRoot, _metadata.PreviewImageRelativePath));
             RebuildScreenshotGallery();
             UpdateContentSizeUi();
             RunUploadCheck();

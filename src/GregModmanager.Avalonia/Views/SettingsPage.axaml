@@ -16,12 +16,12 @@
       <StackPanel Spacing="12">
         <TextBlock Text="GAME ROOT PATH" Classes="micro-label" />
         <TextBlock x:Name="CurrentGameRootLabel" Classes="subtext" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBox x:Name="GameRootEntry" Classes="input-terminal" Width="400" />
-          <Button Content="Browse" Classes="btn-primary" Click="OnBrowseGameRoot" />
-          <Button Content="Apply" Classes="btn-primary" Click="OnApplyGameRoot" />
-          <Button Content="Reset" Click="OnResetGameRoot" />
-        </StackPanel>
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+          <TextBox x:Name="GameRootEntry" Grid.Column="0" Classes="input-terminal" MinWidth="180" />
+          <Button Grid.Column="1" Content="Browse" Classes="btn-primary" Click="OnBrowseGameRoot" />
+          <Button Grid.Column="2" Content="Apply" Classes="btn-primary" Click="OnApplyGameRoot" />
+          <Button Grid.Column="3" Content="Reset" Classes="btn-secondary" Click="OnResetGameRoot" />
+        </Grid>
         <TextBlock x:Name="GameRootHint" Foreground="{DynamicResource Error}" FontSize="11" />
       </StackPanel>
     </Border>
@@ -30,12 +30,12 @@
       <StackPanel Spacing="12">
         <TextBlock Text="WORKSPACE PATH" Classes="micro-label" />
         <TextBlock x:Name="CurrentPathLabel" Classes="subtext" />
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBox x:Name="CustomPathEntry" Classes="input-terminal" Width="400" />
-          <Button Content="Browse" Classes="btn-primary" Click="OnBrowseWorkspace" />
-          <Button Content="Apply" Classes="btn-primary" Click="OnApplyPath" />
-          <Button Content="Reset" Click="OnResetPath" />
-        </StackPanel>
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+          <TextBox x:Name="CustomPathEntry" Grid.Column="0" Classes="input-terminal" MinWidth="180" />
+          <Button Grid.Column="1" Content="Browse" Classes="btn-primary" Click="OnBrowseWorkspace" />
+          <Button Grid.Column="2" Content="Apply" Classes="btn-primary" Click="OnApplyPath" />
+          <Button Grid.Column="3" Content="Reset" Classes="btn-secondary" Click="OnResetPath" />
+        </Grid>
         <TextBlock x:Name="PathHint" Foreground="{DynamicResource Error}" FontSize="11" />
       </StackPanel>
     </Border>
@@ -69,10 +69,10 @@
     </Border>
 
     <StackPanel Orientation="Horizontal" Spacing="8">
-      <Button x:Name="OpenLogsButton" Click="OnOpenLogs" />
-      <Button x:Name="CopyLogsButton" Click="OnCopyLogs" />
-      <Button x:Name="SaveLogsButton" Click="OnSaveLogs" />
-      <Button Content="Create Repro Bundle" Click="OnCreateReproBundle" />
+      <Button x:Name="OpenLogsButton" Classes="btn-secondary" Click="OnOpenLogs" />
+      <Button x:Name="CopyLogsButton" Classes="btn-secondary" Click="OnCopyLogs" />
+      <Button x:Name="SaveLogsButton" Classes="btn-secondary" Click="OnSaveLogs" />
+      <Button Content="Create Repro Bundle" Classes="btn-secondary" Click="OnCreateReproBundle" />
       <Button Content="Restart App" Classes="btn-primary" Click="OnRestartApp" />
     </StackPanel>
     </StackPanel>

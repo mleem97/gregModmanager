@@ -16,16 +16,18 @@ public static class HeadlessRunner
 		exitCode = 0;
 		if (args.Any(a => string.Equals(a, "--help", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "-h", StringComparison.OrdinalIgnoreCase)))
 		{
-			Console.WriteLine("""
+			var executableName = Path.GetFileName(Environment.ProcessPath) ?? "GregModmanager";
+			Console.WriteLine($$"""
 				gregCoreMF Workshop Uploader (headless)
 
 				  --mode publish       Publish a local workshop project
 				  --upload             Same as --mode publish
 				  --path <dir>         Project root (must contain content/ and metadata.json)
+				  --changelog <text>   Change note attached to the Steam update
 				  --autocommit         Write .ralph/tasks/status.json on completion
 
 				Example (path is usually <game>/workshop/<project>):
-				  GregModmanager.exe --mode publish --path "D:\Steam\steamapps\common\Data Center\workshop\MyMod" --autocommit
+				  {{executableName}} --mode publish --path "<project-path>" --changelog "Fixed X" --autocommit
 				""");
 			exitCode = 0;
 			return true;
@@ -46,8 +48,9 @@ public static class HeadlessRunner
 
 		path = Path.GetFullPath(path.Trim().Trim('"'));
 		var autocommit = args.Any(a => string.Equals(a, "--autocommit", StringComparison.OrdinalIgnoreCase));
+		var changeLog = GetArgValue(args, "--changelog") ?? GetArgValue(args, "--change-note");
 
-		exitCode = RunPublishAsync(path, autocommit).GetAwaiter().GetResult();
+		exitCode = RunPublishAsync(path, autocommit, changeLog).GetAwaiter().GetResult();
 		return true;
 	}
 
@@ -79,7 +82,7 @@ public static class HeadlessRunner
 	/// Publishes one local project and returns 0 on success, 1 for project or
 	/// Steam failures. When requested, writes automation status beside the project.
 	/// </summary>
-	private static async Task<int> RunPublishAsync(string projectRoot, bool autocommit)
+	private static async Task<int> RunPublishAsync(string projectRoot, bool autocommit, string? changeLog)
 	{
 		var workspace = new WorkspaceService();
 		var steam = new SteamWorkshopService();
@@ -118,7 +121,7 @@ public static class HeadlessRunner
 				projectRoot,
 				metadata,
 				content,
-				null,
+				changeLog,
 				upload,
 				progress,
 				CancellationToken.None).ConfigureAwait(false);

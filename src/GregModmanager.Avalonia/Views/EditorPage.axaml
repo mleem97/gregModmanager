@@ -14,11 +14,11 @@
     </StackPanel>
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
-      <Button x:Name="TabBtnDetails" Content="Details" Click="OnTabDetails" />
-      <Button x:Name="TabBtnAssets" Content="Assets" Click="OnTabAssets" />
-      <Button x:Name="TabBtnPublish" Content="Publish" Click="OnTabPublish" />
-      <Button Content="Reload from Disk" Click="OnReloadFromDisk" />
-      <Button Content="Open in Explorer" Click="OnOpenInExplorer" />
+      <Button x:Name="TabBtnDetails" Content="Details" Classes="btn-tab" Click="OnTabDetails" />
+      <Button x:Name="TabBtnAssets" Content="Assets" Classes="btn-tab" Click="OnTabAssets" />
+      <Button x:Name="TabBtnPublish" Content="Publish" Classes="btn-tab" Click="OnTabPublish" />
+      <Button Content="Reload from Disk" Classes="btn-secondary" Click="OnReloadFromDisk" />
+      <Button Content="Open in Explorer" Classes="btn-secondary" Click="OnOpenInExplorer" />
     </StackPanel>
 
     <ScrollViewer Grid.Row="2" x:Name="PanelDetails" IsVisible="True">
@@ -37,21 +37,21 @@
             <TextBox x:Name="DescriptionEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="180" TextChanged="OnMetadataTextChanged" />
             <TextBlock x:Name="DescriptionCountLabel" Classes="subtext" />
             <WrapPanel Orientation="Horizontal">
-              <Button Content="B" Click="OnBbBold" />
-              <Button Content="I" Click="OnBbItalic" />
-              <Button Content="U" Click="OnBbUnderline" />
-              <Button Content="S" Click="OnBbStrike" />
-              <Button Content="H1" Click="OnBbH1" />
-              <Button Content="H2" Click="OnBbH2" />
-              <Button Content="H3" Click="OnBbH3" />
-              <Button Content="Code" Click="OnBbCode" />
-              <Button Content="Quote" Click="OnBbQuote" />
-              <Button Content="Spoiler" Click="OnBbSpoiler" />
-              <Button Content="URL" Click="OnBbUrl" />
-              <Button Content="IMG" Click="OnBbImg" />
-              <Button Content="List" Click="OnBbList" />
-              <Button Content="HR" Click="OnBbHr" />
-              <Button Content="Table" Click="OnBbTable" />
+              <Button Content="B" Classes="btn-compact" Click="OnBbBold" />
+              <Button Content="I" Classes="btn-compact" Click="OnBbItalic" />
+              <Button Content="U" Classes="btn-compact" Click="OnBbUnderline" />
+              <Button Content="S" Classes="btn-compact" Click="OnBbStrike" />
+              <Button Content="H1" Classes="btn-compact" Click="OnBbH1" />
+              <Button Content="H2" Classes="btn-compact" Click="OnBbH2" />
+              <Button Content="H3" Classes="btn-compact" Click="OnBbH3" />
+              <Button Content="Code" Classes="btn-compact" Click="OnBbCode" />
+              <Button Content="Quote" Classes="btn-compact" Click="OnBbQuote" />
+              <Button Content="Spoiler" Classes="btn-compact" Click="OnBbSpoiler" />
+              <Button Content="URL" Classes="btn-compact" Click="OnBbUrl" />
+              <Button Content="IMG" Classes="btn-compact" Click="OnBbImg" />
+              <Button Content="List" Classes="btn-compact" Click="OnBbList" />
+              <Button Content="HR" Classes="btn-compact" Click="OnBbHr" />
+              <Button Content="Table" Classes="btn-compact" Click="OnBbTable" />
             </WrapPanel>
           </StackPanel>
         </Border>
@@ -140,7 +140,7 @@
             <TextBlock Text="CHANGELOG" Classes="micro-label" />
             <TextBox x:Name="ChangeLogEditor" Classes="input-terminal" AcceptsReturn="True" TextWrapping="Wrap" Height="120" TextChanged="OnChangeLogTextChanged" />
             <TextBlock x:Name="ChangeLogHintLabel" Classes="subtext" />
-            <Button x:Name="ViewOnSteamBtn" Content="View on Steam" Click="OnViewOnSteam" IsVisible="False" />
+            <Button x:Name="ViewOnSteamBtn" Content="View on Steam" Classes="btn-secondary" Click="OnViewOnSteam" IsVisible="False" />
           </StackPanel>
         </Border>
 
@@ -165,7 +165,7 @@
         <StackPanel Orientation="Horizontal" Spacing="8">
           <Button Content="Save" Classes="btn-primary" Click="OnSave" />
           <Button Content="Save &amp; Upload" Classes="btn-primary" Click="OnSaveAndUpload" />
-          <Button Content="Export ZIP" Click="OnExportContentZip" />
+          <Button Content="Export ZIP" Classes="btn-secondary" Click="OnExportContentZip" />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

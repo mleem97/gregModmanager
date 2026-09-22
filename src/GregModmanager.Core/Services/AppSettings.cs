@@ -30,11 +30,32 @@ public static class AppSettings
         Environment.GetEnvironmentVariable("MODSTORE_WEB_URL")
         ?? (IsLocalTestBuild ? "https://datacentermods.home" : "https://datacentermods.com");
 
+    public static string ModStoreWebFallbackBaseUrl =>
+        Environment.GetEnvironmentVariable("MODSTORE_WEB_FALLBACK_URL")
+        ?? "https://datacentermods.home";
+
     public static string ModStoreApiBaseUrl =>
         Environment.GetEnvironmentVariable("MODSTORE_API_URL")
         ?? (IsLocalTestBuild ? "https://api.datacentermods.home" : "https://datacentermods.com");
 
-    public static string AuthApiBaseUrl => $"{ModStoreApiBaseUrl.TrimEnd('/')}/auth";
+    public static string ModStoreApiFallbackBaseUrl =>
+        Environment.GetEnvironmentVariable("MODSTORE_API_FALLBACK_URL")
+        ?? "https://datacentermods.home";
+
+    public static IReadOnlyList<string> ModStoreWebBaseUrls =>
+        DistinctBaseUrls(ModStoreWebBaseUrl, ModStoreWebFallbackBaseUrl);
+
+    public static IReadOnlyList<string> ModStoreApiBaseUrls =>
+        DistinctBaseUrls(ModStoreApiBaseUrl, ModStoreApiFallbackBaseUrl);
+
+    public static IReadOnlyList<string> AuthApiBaseUrls => IsLocalBuild
+        ? new[] { "http://localhost:5001/auth" }
+        : ModStoreApiBaseUrls.Select(url => $"{url}/auth").ToArray();
+
+    public static IReadOnlyList<string> BetterAuthApiBaseUrls =>
+        ModStoreWebBaseUrls.Select(url => $"{url}/api/auth").ToArray();
+
+    public static string AuthApiBaseUrl => AuthApiBaseUrls[0];
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SonarLint", "S1075", Justification = "Hardcoded fallback URIs are required for core ecosystem stability.")]
     public static string MelonLoaderReleasesUrl => 
@@ -51,6 +72,20 @@ public static class AppSettings
         ?? (IsLocalBuild 
             ? "http://localhost:5001/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={0}&requestId={1}&state=desktop_flow&nonce=mock_nonce" 
             : $"{ModStoreWebBaseUrl}/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={{0}}&requestId={{1}}&state=desktop_flow&nonce=desktop_nonce");
+
+    public static IReadOnlyList<string> DesktopLoginUrlFormats
+    {
+        get
+        {
+            var configured = Environment.GetEnvironmentVariable("AUTH_LOGIN_URL_FORMAT");
+            if (!string.IsNullOrWhiteSpace(configured) || IsLocalBuild)
+                return new[] { DesktopLoginUrlFormat };
+
+            return ModStoreWebBaseUrls
+                .Select(url => $"{url}/auth/login?client_id=greg_desktop&response_type=code&redirect_uri={{0}}&requestId={{1}}&state=desktop_flow&nonce=desktop_nonce")
+                .ToArray();
+        }
+    }
     
     public static string AuthCallbackRedirectUri => 
         Environment.GetEnvironmentVariable("AUTH_CALLBACK_REDIRECT_URI")
@@ -178,5 +213,14 @@ public static class AppSettings
     public static bool IsTelemetryEnabled()
     {
         return S.Preferences.GetBool(TelemetryEnabledKey, true);
+    }
+
+    private static IReadOnlyList<string> DistinctBaseUrls(params string[] urls)
+    {
+        return urls
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(url => url.Trim().TrimEnd('/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

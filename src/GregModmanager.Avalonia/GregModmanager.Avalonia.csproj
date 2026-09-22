@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -22,6 +22,12 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <SatelliteResourceLanguages>en;de;fr;es;it;ja;pl;ru;zh</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <!-- Preserve Facepunch.Steamworks assemblies from trimming — we access
+       ISteamUGC methods via reflection and the trimmer removes them. -->
+  <ItemGroup>
+    <TrimmerRootDescriptor Include="..\GregModmanager.Core\TrimmerRoots.xml" />
+  </ItemGroup>
 
   <!-- Default RuntimeIdentifier: win-x64 on Windows, linux-x64 on Linux -->
   <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' AND $([MSBuild]::IsOSPlatform('Windows'))">
@@ -55,6 +61,12 @@
 
   <ItemGroup>
     <!-- Steamworks native libraries must remain external to the single-file bundle. -->
+    <Content Include="..\GregModmanager.Core\steam_api64.dll" Condition="'$(RuntimeIdentifier)' == 'win-x64' AND Exists('..\GregModmanager.Core\steam_api64.dll')">
+      <Link>steam_api64.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </Content>
     <Content Include="..\GregModmanager.Core\libsteam_api64.so" Condition="'$(RuntimeIdentifier)' == 'linux-x64' AND Exists('..\GregModmanager.Core\libsteam_api64.so')">
       <Link>libsteam_api64.so</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

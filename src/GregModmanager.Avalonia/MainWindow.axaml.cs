@@ -405,7 +405,7 @@ public partial class MainWindow : Window
     private void OnMyModsClicked(object? sender, RoutedEventArgs e)
     {
         ProfileMenu.IsOpen = false;
-        OnNavMyUploads(sender, e);
+        OnNavProjects(sender, e);
     }
 
     private void OnUploadModClicked(object? sender, RoutedEventArgs e)
@@ -447,12 +447,6 @@ public partial class MainWindow : Window
     {
         SetNavActive(BtnNewProject);
         NavigateTo<NewProjectPage>();
-    }
-
-    private void OnNavMyUploads(object? sender, RoutedEventArgs e)
-    {
-        SetNavActive(BtnMyUploads);
-        NavigateTo<MyUploadsPage>();
     }
 
     private void OnNavModStore(object? sender, RoutedEventArgs e)
@@ -515,5 +509,73 @@ public partial class MainWindow : Window
         _statusTimer?.Dispose();
         _statusTimer = null;
         Close();
+    }
+
+    private void OnStartGameClicked(object? sender, RoutedEventArgs e)
+    {
+        LaunchGameViaSteam();
+    }
+
+    private void OnStartGameWithModsClicked(object? sender, RoutedEventArgs e)
+    {
+        LaunchGameViaSteam();
+    }
+
+    private void OnStartGameNoModsClicked(object? sender, RoutedEventArgs e)
+    {
+        LaunchGameWithoutMods();
+    }
+
+    private static void LaunchGameViaSteam()
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "steam://rungameid/4170200",
+                UseShellExecute = true,
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error($"Failed to launch game via Steam: {ex.Message}", ex);
+        }
+    }
+
+    private void LaunchGameWithoutMods()
+    {
+        try
+        {
+            var adapter = new GregModmanager.Services.GameAdapters.DataCenterGameAdapter();
+            var install = adapter.Detect();
+            if (install is null)
+            {
+                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+                _ = dialog.ShowMessageAsync("Launch", "Data Center installation not found.");
+                return;
+            }
+
+            var paths = adapter.GetPaths(install.RootPath);
+            var exe = paths.Executable;
+            if (string.IsNullOrEmpty(exe) || !File.Exists(exe))
+            {
+                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+                _ = dialog.ShowMessageAsync("Launch", "Game executable not found.");
+                return;
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exe,
+                WorkingDirectory = install.RootPath,
+                UseShellExecute = false,
+            };
+            System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.Error($"Failed to launch game without mods: {ex.Message}", ex);
+        }
     }
 }

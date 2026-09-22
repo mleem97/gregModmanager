@@ -53,6 +53,10 @@
   <data name="Projects_Ready" xml:space="preserve"><value>Bereit.</value></data>
   <data name="Projects_Refreshed" xml:space="preserve"><value>Projektliste aktualisiert.</value></data>
   <data name="Projects_Migrated" xml:space="preserve"><value>{0} Projekt(e) aus dem alten Ordner migriert.</value></data>
+  <data name="Projects_Edit" xml:space="preserve"><value>Bearbeiten</value></data>
+  <data name="Projects_OpenFailed" xml:space="preserve"><value>Projekt konnte nicht geöffnet werden.</value></data>
+  <data name="Projects_TabLocal" xml:space="preserve"><value>Lokale Projekte</value></data>
+  <data name="Projects_TabWorkshop" xml:space="preserve"><value>Workshop-Uploads</value></data>
 
   <!-- NewProjectPage -->
   <data name="NewProject_Headline" xml:space="preserve"><value>Neues Workshop-Projekt</value></data>

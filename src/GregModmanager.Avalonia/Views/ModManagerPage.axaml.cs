@@ -4,9 +4,9 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.Media;
 using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Services;
@@ -24,6 +24,7 @@ public partial class ModManagerPage : UserControl
     private readonly WorkshopSyncOrchestrator _syncOrchestrator;
     private readonly MelonLoaderInstallerService _melonLoader;
     private readonly SteamModfixInstallerService _steamModfix;
+    private readonly ModStoreUpdateService _modStore;
 
     private readonly ObservableCollection<DependencyCheckResult> _checks = new();
     private readonly ObservableCollection<PluginPackageInfo> _plugins = new();
@@ -31,7 +32,11 @@ public partial class ModManagerPage : UserControl
     private readonly ObservableCollection<WorkshopItemDetailVm> _installedItems = new();
     private readonly ObservableCollection<WorkshopItemDetailVm> _favoritesItems = new();
     private readonly HashSet<ulong> _selectedStoreItems = new();
+    private readonly ObservableCollection<ModStoreCatalogItem> _gregStoreItems = new();
+    private readonly ObservableCollection<ModStoreUpdate> _modStoreUpdates = new();
 
+    private const string TabGregStoreKey = "greg-store";
+    private const string TabUpdatesKey = "updates";
     private const string TabStoreKey = "store";
     private const string TabInstalledKey = "installed";
     private const string TabFavoritesKey = "favorites";
@@ -54,7 +59,8 @@ public partial class ModManagerPage : UserControl
         AppLogService log,
         WorkshopSyncOrchestrator syncOrchestrator,
         MelonLoaderInstallerService melonLoader,
-        SteamModfixInstallerService steamModfix)
+        SteamModfixInstallerService steamModfix,
+        ModStoreUpdateService modStore)
     {
         InitializeComponent();
         _steam = steam;
@@ -64,6 +70,7 @@ public partial class ModManagerPage : UserControl
         _syncOrchestrator = syncOrchestrator;
         _melonLoader = melonLoader;
         _steamModfix = steamModfix;
+        _modStore = modStore;
 
         ChecksList.ItemsSource = _checks;
         PluginsList.ItemsSource = _plugins;
@@ -71,6 +78,8 @@ public partial class ModManagerPage : UserControl
         InstalledList.ItemsSource = _installedItems;
         FavoritesList.ItemsSource = _favoritesItems;
         StoreGalleryList.ItemsSource = _storeItems;
+        GregStoreList.ItemsSource = _gregStoreItems;
+        UpdatesList.ItemsSource = _modStoreUpdates;
 
         SortPicker.ItemsSource = new[] { "Update Date", "Creation Date", "Vote Score", "Trending", "Subscriptions", "Title A-Z" };
         TagFilter.ItemsSource = new[] { "All", "Mod", "Map", "Tool", "Audio", "Texture" };
@@ -84,7 +93,7 @@ public partial class ModManagerPage : UserControl
         Loaded += (_, _) =>
         {
             _syncOrchestrator.Start();
-            _ = LoadStoreAsync();
+            SwitchToTab(TabGregStoreKey);
         };
     }
 
@@ -134,6 +143,8 @@ public partial class ModManagerPage : UserControl
     }
 
     private void OnTabStore(object? sender, RoutedEventArgs e) => SwitchToTab(TabStoreKey);
+    private void OnTabGregStore(object? sender, RoutedEventArgs e) => SwitchToTab(TabGregStoreKey);
+    private void OnTabUpdates(object? sender, RoutedEventArgs e) => SwitchToTab(TabUpdatesKey);
     private void OnTabInstalled(object? sender, RoutedEventArgs e) => SwitchToTab(TabInstalledKey);
     private void OnTabFavorites(object? sender, RoutedEventArgs e) => SwitchToTab(TabFavoritesKey);
     private void OnTabHealth(object? sender, RoutedEventArgs e) => SwitchToTab(TabHealthKey);
@@ -142,6 +153,8 @@ public partial class ModManagerPage : UserControl
     {
         switch (_currentTab)
         {
+            case TabGregStoreKey: _ = LoadGregStoreAsync(); break;
+            case TabUpdatesKey: _ = LoadModStoreUpdatesAsync(); break;
             case TabStoreKey: _ = LoadStoreAsync(); break;
             case TabInstalledKey: _ = LoadInstalledAsync(); break;
             case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
@@ -154,17 +167,23 @@ public partial class ModManagerPage : UserControl
     {
         _currentTab = tab;
         StorePanel.IsVisible = tab == TabStoreKey;
+        GregStorePanel.IsVisible = tab == TabGregStoreKey;
+        UpdatesPanel.IsVisible = tab == TabUpdatesKey;
         InstalledPanel.IsVisible = tab == TabInstalledKey;
         FavoritesPanel.IsVisible = tab == TabFavoritesKey;
         HealthPanel.IsVisible = tab == TabHealthKey;
 
         SetTabActive(TabStore, tab == TabStoreKey);
+        SetTabActive(TabGregStore, tab == TabGregStoreKey);
+        SetTabActive(TabUpdates, tab == TabUpdatesKey);
         SetTabActive(TabInstalled, tab == TabInstalledKey);
         SetTabActive(TabFavorites, tab == TabFavoritesKey);
         SetTabActive(TabHealth, tab == TabHealthKey);
 
         switch (tab)
         {
+            case TabGregStoreKey: _ = LoadGregStoreAsync(); break;
+            case TabUpdatesKey: _ = LoadModStoreUpdatesAsync(); break;
             case TabStoreKey: _ = LoadStoreAsync(); break;
             case TabInstalledKey: _ = LoadInstalledAsync(); break;
             case TabFavoritesKey: _ = LoadFavoritesAsync(); break;
@@ -175,16 +194,62 @@ public partial class ModManagerPage : UserControl
 
     private static void SetTabActive(Button btn, bool active)
     {
-        if (active)
+        btn.Classes.Set("active", active);
+    }
+
+    private async Task LoadGregStoreAsync()
+    {
+        GregStoreStatusLabel.Text = "Loading Mod Store…";
+        try
         {
-            btn.Background = new SolidColorBrush(Color.Parse("#61F4D8"));
-            btn.Foreground = new SolidColorBrush(Color.Parse("#001110"));
+            var catalog = await _modStore.GetCatalogAsync();
+            _gregStoreItems.Clear();
+            foreach (var item in catalog.Mods) _gregStoreItems.Add(item);
+            GregStoreStatusLabel.Text = catalog.Mods.Count == 0 ? "No released mods are available." : $"{catalog.Mods.Count} released mod(s)";
         }
-        else
+        catch (Exception ex)
         {
-            btn.Background = Brushes.Transparent;
-            btn.Foreground = new SolidColorBrush(Color.Parse("#61F4D8"));
+            GregStoreStatusLabel.Text = $"Mod Store unavailable: {ex.Message}";
         }
+    }
+
+    private async Task LoadModStoreUpdatesAsync()
+    {
+        UpdatesStatusLabel.Text = "Checking for updates…";
+        _modStoreUpdates.Clear();
+        try
+        {
+            var result = await _modStore.CheckForUpdatesAsync(AppSettings.GetGameRootPath());
+            foreach (var item in result.Updates) _modStoreUpdates.Add(item);
+            UpdatesStatusLabel.Text = result.Updates.Count == 0 ? "All Greg Store mods are up to date." : $"{result.Updates.Count} update(s) available";
+        }
+        catch (Exception ex)
+        {
+            UpdatesStatusLabel.Text = $"Update check failed: {ex.Message}";
+        }
+    }
+
+    private async void OnInstallGregStoreMod(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ModStoreCatalogItem item } button) return;
+        button.IsEnabled = false;
+        GregStoreStatusLabel.Text = $"Installing {item.Title}…";
+        var progress = new Progress<int>(value => GregStoreStatusLabel.Text = $"Installing {item.Title}… {value}%");
+        var result = await _modStore.InstallAsync(item, AppSettings.GetGameRootPath(), progress);
+        GregStoreStatusLabel.Text = result.Message;
+        button.IsEnabled = true;
+    }
+
+    private async void OnInstallModStoreUpdate(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ModStoreUpdate item } button) return;
+        button.IsEnabled = false;
+        UpdatesStatusLabel.Text = $"Updating {item.Title}…";
+        var progress = new Progress<int>(value => UpdatesStatusLabel.Text = $"Updating {item.Title}… {value}%");
+        var result = await _modStore.InstallUpdateAsync(item, AppSettings.GetGameRootPath(), progress);
+        UpdatesStatusLabel.Text = result.Message;
+        button.IsEnabled = true;
+        if (result.Success) await LoadModStoreUpdatesAsync();
     }
 
     private async Task LoadStoreAsync()

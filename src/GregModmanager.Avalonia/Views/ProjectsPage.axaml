@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="using:GregModmanager.Avalonia.Views"
+             xmlns:models="using:GregModmanager.Models"
              x:Class="GregModmanager.Avalonia.Views.ProjectsPage">
   <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="18">
     <StackPanel Spacing="4">
@@ -9,46 +10,97 @@
         <TextBlock Text="WORKSPACE" Classes="micro-label cyan" />
       </StackPanel>
       <TextBlock Text="Projects" Classes="headline" />
-      <TextBlock Text="Manage your local workshop projects." Classes="subtext" />
+      <TextBlock Text="Manage your local workshop projects and Steam uploads." Classes="subtext" />
     </StackPanel>
 
     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,8">
-      <TextBox x:Name="SearchBox" PlaceholderText="Search projects..." Width="300" Classes="input-terminal" TextChanged="OnSearchTextChanged" />
-      <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshProjects" />
+      <Button x:Name="TabBtnLocal" Classes="btn-primary" Click="OnTabLocal" />
+      <Button x:Name="TabBtnWorkshop" Classes="btn-secondary" Click="OnTabWorkshop" />
     </StackPanel>
 
-    <Border Grid.Row="2" Classes="panel">
-      <ScrollViewer>
-        <ItemsControl x:Name="ProjectList">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="views:ProjectItemVm">
-              <Border Width="320" Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,10,10" PointerPressed="OnProjectTapped">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel Spacing="2">
-                    <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Bold" />
-                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="11" />
-                    <TextBlock Text="{Binding Tags}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="10" IsVisible="{Binding HasTags}" />
-                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
-                      <TextBlock Text="{Binding ReadinessText}" FontSize="10" Foreground="{Binding ReadinessColor}" />
-                      <TextBlock Text="{Binding PublishedStatus}" FontSize="10" Foreground="{DynamicResource Primary}" IsVisible="{Binding IsPublished}" />
-                    </StackPanel>
-                  </StackPanel>
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
-    </Border>
+    <Grid Grid.Row="2">
+      <Grid x:Name="LocalPanel" RowDefinitions="Auto,*">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+          <TextBox x:Name="SearchBox" PlaceholderText="Search projects..." Width="300" Classes="input-terminal" TextChanged="OnSearchTextChanged" />
+          <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshProjects" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Classes="content-surface">
+          <ScrollViewer>
+            <ItemsControl x:Name="ProjectList">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="views:ProjectItemVm">
+                  <Border Width="320" Classes="card" Margin="0,0,10,10" PointerPressed="OnProjectTapped">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="Bold" />
+                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="11" />
+                        <TextBlock Text="{Binding Tags}" Foreground="{DynamicResource OnSurfaceVariant}" FontSize="10" IsVisible="{Binding HasTags}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,4,0,0">
+                          <TextBlock Text="{Binding ReadinessText}" FontSize="10" Foreground="{Binding ReadinessColor}" />
+                          <TextBlock Text="{Binding PublishedStatus}" FontSize="10" Foreground="{DynamicResource Primary}" IsVisible="{Binding IsPublished}" />
+                        </StackPanel>
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="{Binding EditLabel}" Classes="btn-primary" VerticalAlignment="Center" Margin="8,0,0,0" Click="OnEditProjectClicked" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+
+      <Grid x:Name="UploadsPanel" RowDefinitions="Auto,*,Auto" IsVisible="False">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+          <Button Content="Refresh" Classes="btn-primary" Click="OnRefreshUploads" />
+          <Button Content="Import Selected" Classes="btn-primary" Click="OnImportSelected" />
+          <TextBlock x:Name="SelectionCountLabel" VerticalAlignment="Center" Classes="subtext" />
+        </StackPanel>
+
+        <Border Grid.Row="1" Classes="content-surface">
+          <ScrollViewer>
+            <ListBox x:Name="UploadsList" SelectionMode="Multiple" SelectionChanged="OnUploadsSelectionChanged">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="models:WorkshopItemDetailVm">
+                  <Border Classes="card" Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontWeight="Bold" />
+                        <TextBlock Text="{Binding PublishedFileId}" FontSize="11" Foreground="{DynamicResource OnSurfaceVariant}" />
+                      </StackPanel>
+                      <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Button Content="Edit" Classes="btn-primary" Click="OnEditUploadClicked" />
+                          <Button Content="Add Update" Classes="btn-secondary" Click="OnAddUpdateClicked" />
+                          <Button Content="Download" Classes="btn-secondary" Click="OnDownloadClicked" />
+                          <Button Content="View on Steam" Classes="btn-secondary" Click="OnViewOnSteam" />
+                        </StackPanel>
+                      </ScrollViewer>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+          <Button x:Name="PrevBtn" Content="Prev" Classes="btn-secondary" Click="OnPrevUploads" />
+          <TextBlock x:Name="PageLabel" VerticalAlignment="Center" />
+          <Button x:Name="NextBtn" Content="Next" Classes="btn-secondary" Click="OnNextUploads" />
+        </StackPanel>
+      </Grid>
+    </Grid>
 
     <StackPanel Grid.Row="3" Margin="0,8,0,0" Spacing="4">
       <TextBlock x:Name="WorkspacePathLabel" Classes="mono-data" />
-      <Border x:Name="LogPanel" Background="#0D1C2D" BorderBrush="#1A3245" BorderThickness="1" CornerRadius="6" Padding="10" IsVisible="True">
+      <Border x:Name="LogPanel" Classes="card" IsVisible="True">
         <ScrollViewer MaxHeight="120">
           <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="10" Foreground="{DynamicResource OnSurfaceVariant}" TextWrapping="Wrap" />
         </ScrollViewer>

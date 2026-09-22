@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 #if WINDOWS
 using Microsoft.Win32;
 #endif
@@ -167,32 +168,49 @@ public static class SteamApiNativeLoader
 		if (!string.IsNullOrEmpty(envRoot))
 		{
 			var nativeSubPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
-			yield return Path.Combine(envRoot, nativeSubPath);
+			var envCandidate = Path.Combine(envRoot, nativeSubPath);
+			_attemptedPaths.Add(envCandidate);
+			yield return envCandidate;
 			if (DllFileNameFallback != DllFileName)
 			{
 				var fbPath = Path.Combine(UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
-				yield return Path.Combine(envRoot, fbPath);
+				var envFallback = Path.Combine(envRoot, fbPath);
+				_attemptedPaths.Add(envFallback);
+				yield return envFallback;
 			}
 		}
 
 		foreach (var path in EnumerateWalkingUpFrom(AppContext.BaseDirectory))
 		{
+			_attemptedPaths.Add(path);
 			yield return path;
 		}
 
 		foreach (var gameRoot in EnumerateHeuristicGameRoots())
 		{
-			yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
+			var heuristicCandidate = Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileName);
+			_attemptedPaths.Add(heuristicCandidate);
+			yield return heuristicCandidate;
 			if (DllFileNameFallback != DllFileName)
-				yield return Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+			{
+				var heuristicFallback = Path.Combine(gameRoot, UnityDataFolderName, PluginsFolderName, ArchFolderName, DllFileNameFallback);
+				_attemptedPaths.Add(heuristicFallback);
+				yield return heuristicFallback;
+			}
 		}
 
 		var baseDir = AppContext.BaseDirectory;
 		if (!string.IsNullOrEmpty(baseDir))
 		{
-			yield return Path.Combine(baseDir, DllFileName);
+			var baseCandidate = Path.Combine(baseDir, DllFileName);
+			_attemptedPaths.Add(baseCandidate);
+			yield return baseCandidate;
 			if (DllFileNameFallback != DllFileName)
-				yield return Path.Combine(baseDir, DllFileNameFallback);
+			{
+				var baseFallback = Path.Combine(baseDir, DllFileNameFallback);
+				_attemptedPaths.Add(baseFallback);
+				yield return baseFallback;
+			}
 		}
 	}
 
@@ -274,11 +292,12 @@ public static class SteamApiNativeLoader
 			var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
 			// Standard Steam library paths
-			var steamRoots = new[]
+		var steamRoots = new[]
 			{
 				Path.Combine(home, ".local", "share", SteamFolderName),
 				Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant()),
 				Path.Combine(home, ".steam", "root"),
+				Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", SteamFolderName),
 			};
 
 			foreach (var steamRoot in steamRoots)
@@ -323,6 +342,7 @@ public static class SteamApiNativeLoader
 			Path.Combine(home, ".local", "share", SteamFolderName, SteamAppsFolderName, "libraryfolders.vdf"),
 			Path.Combine(home, ".steam", SteamFolderName.ToLowerInvariant(), SteamAppsFolderName, "libraryfolders.vdf"),
 			Path.Combine(home, ".steam", "root", SteamAppsFolderName, "libraryfolders.vdf"),
+			Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", SteamFolderName, SteamAppsFolderName, "libraryfolders.vdf"),
 		};
 
 		foreach (var vdfPath in vdfPaths)
@@ -359,20 +379,10 @@ public static class SteamApiNativeLoader
 
 		foreach (var line in lines)
 		{
-			// Look for lines like: "path"		"/some/path"
-			var trimmed = line.Trim();
-			if (!trimmed.StartsWith("\"path\"", StringComparison.OrdinalIgnoreCase))
-			{
-				continue;
-			}
+			var match = Regex.Match(line, "\\\"path\\\"\\s+\\\"([^\\\"]+)\\\"", RegexOptions.IgnoreCase);
+			if (!match.Success) continue;
 
-			var parts = trimmed.Split('\t', StringSplitOptions.RemoveEmptyEntries);
-			if (parts.Length < 2)
-			{
-				continue;
-			}
-
-			var value = parts[^1].Trim().Trim('"');
+			var value = match.Groups[1].Value.Replace("\\\\", "\\", StringComparison.Ordinal);
 			if (!string.IsNullOrEmpty(value) && Directory.Exists(value))
 			{
 				yield return value;
