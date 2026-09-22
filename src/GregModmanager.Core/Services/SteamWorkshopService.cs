@@ -473,7 +473,9 @@ public sealed class SteamWorkshopService
 				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
 				log?.Report($"Workshop item {metadata.PublishedFileId} was created but the update failed; retry will reuse it.");
 			}
-			var detail = $"Steam publish failed: {result.Result} (content={absContent}, preview={absPreview})";
+			var detail = $"Steam publish failed: {result.Result} (item={metadata.PublishedFileId}, content={absContent}, preview={absPreview}). " +
+				"Note: FileNotFound here means the Workshop backend does not know the item (yet) — not that local files are missing. " +
+				"Check ~/.local/share/Steam/logs/workshop_log.txt for Steam's own reason.";
 			log?.Report(detail);
 			return PublishOutcome.Fail(detail);
 		}
