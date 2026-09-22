@@ -369,6 +369,8 @@
   <data name="UploadDialog_StatusFailed" xml:space="preserve"><value>Upload failed: {0}</value></data>
   <data name="UploadDialog_Cancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="UploadDialog_Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Editor_ConfirmSteamReloadTitle" xml:space="preserve"><value>Reload from Steam?</value></data>
+  <data name="Editor_ConfirmSteamReloadMsg" xml:space="preserve"><value>This replaces your local title, description, tags and visibility with the current Steam Workshop state. Local edits will be lost. Continue?</value></data>
 
 </root>
 

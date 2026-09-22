@@ -369,6 +369,8 @@
   <data name="UploadDialog_StatusFailed" xml:space="preserve"><value>Upload fehlgeschlagen: {0}</value></data>
   <data name="UploadDialog_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
   <data name="UploadDialog_Close" xml:space="preserve"><value>Schließen</value></data>
+  <data name="Editor_ConfirmSteamReloadTitle" xml:space="preserve"><value>Von Steam neu laden?</value></data>
+  <data name="Editor_ConfirmSteamReloadMsg" xml:space="preserve"><value>Dies ersetzt deinen lokalen Titel, Beschreibung, Tags und Sichtbarkeit durch den aktuellen Steam-Workshop-Stand. Lokale Änderungen gehen verloren. Fortfahren?</value></data>
 
 </root>
 

@@ -18,6 +18,7 @@
       <Button x:Name="TabBtnAssets" Content="Assets" Classes="btn-tab" Click="OnTabAssets" />
       <Button x:Name="TabBtnPublish" Content="Publish" Classes="btn-tab" Click="OnTabPublish" />
       <Button Content="Reload from Disk" Classes="btn-secondary" Click="OnReloadFromDisk" />
+      <Button Content="Reload from Steam" Classes="btn-secondary" Click="OnReloadFromSteam" />
       <Button Content="Open in Explorer" Classes="btn-secondary" Click="OnOpenInExplorer" />
     </StackPanel>
 

@@ -90,19 +90,36 @@ public partial class EditorPage : UserControl
 
         _metadata = _workspace.LoadMetadata(_projectRoot);
 
-        var localSnapshot = new WorkshopMetadata
-        {
-            Needsgreg = _metadata.Needsgreg,
-            NeedsMelonLoader = _metadata.NeedsMelonLoader,
-            NativeConfigProfile = _metadata.NativeConfigProfile,
-            ModType = _metadata.ModType,
-            PreviewImageRelativePath = _metadata.PreviewImageRelativePath,
-            AdditionalPreviews = new List<string>(_metadata.AdditionalPreviews),
-            WorkshopDependencyIds = new List<ulong>(_metadata.WorkshopDependencyIds),
-        };
-
+        // Local metadata.json is the source of truth. Steam data is NEVER
+        // pulled automatically on open — that silently destroyed local edits.
+        // Explicit sync lives in OnReloadFromSteam (button).
         if (_metadata.PublishedFileId != 0)
         {
+            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Format("Editor_FileId", _metadata.PublishedFileId));
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = "");
+        }
+
+        Dispatcher.UIThread.Post(BindEditorFromMetadata);
+    }
+
+    private async void OnReloadFromSteam(object? sender, RoutedEventArgs e)
+    {
+        if (_metadata.PublishedFileId == 0) return;
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+        try
+        {
+            // Confirm: this overwrites local edits with Steam state.
+            bool confirmed = await dialog.ShowConfirmAsync(
+                S.Get("Editor_ConfirmSteamReloadTitle"),
+                S.Get("Editor_ConfirmSteamReloadMsg"),
+                S.Get("OK"),
+                S.Get("Cancel"));
+            if (!confirmed) return;
+
+            ApplyMetadataFromUi();
             Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_LoadingFromSteam"));
 
             WorkshopItemDetailVm? steam = null;
@@ -112,11 +129,21 @@ public partial class EditorPage : UserControl
             }
             catch (Exception ex)
             {
-                _log.Append($"Steam refresh skipped while opening {_metadata.PublishedFileId}: {ex.Message}");
+                _log.Append($"Steam refresh failed for {_metadata.PublishedFileId}: {ex.Message}");
             }
 
             if (steam is not null)
             {
+                var localSnapshot = new WorkshopMetadata
+                {
+                    Needsgreg = _metadata.Needsgreg,
+                    NeedsMelonLoader = _metadata.NeedsMelonLoader,
+                    NativeConfigProfile = _metadata.NativeConfigProfile,
+                    ModType = _metadata.ModType,
+                    PreviewImageRelativePath = _metadata.PreviewImageRelativePath,
+                    AdditionalPreviews = new List<string>(_metadata.AdditionalPreviews),
+                    WorkshopDependencyIds = new List<ulong>(_metadata.WorkshopDependencyIds),
+                };
                 SteamWorkshopService.ApplySteamWorkshopToMetadata(steam, _metadata, localSnapshot, MaxWorkshopTags);
                 try
                 {
@@ -127,18 +154,17 @@ public partial class EditorPage : UserControl
                 {
                     Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Format("Editor_SteamSaveFailed", ex.Message));
                 }
+                Dispatcher.UIThread.Post(BindEditorFromMetadata);
             }
             else
             {
                 Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_SteamRefreshFailed"));
             }
         }
-        else
+        catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = "");
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_SteamRefreshFailed"), ex);
         }
-
-        Dispatcher.UIThread.Post(BindEditorFromMetadata);
     }
 
     private void BindEditorFromMetadata()
