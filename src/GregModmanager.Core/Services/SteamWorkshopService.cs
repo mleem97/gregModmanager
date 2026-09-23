@@ -218,6 +218,51 @@ public sealed class SteamWorkshopService
 
 	#region Publish / Update
 
+	/// <summary>
+	/// Finds the user's own Workshop item with an exactly matching title.
+	/// Returns 0 when none exists (or the lookup fails). Used to adopt an
+	/// existing item instead of creating a duplicate stub.
+	/// </summary>
+	public async Task<ulong> FindOwnItemByTitleAsync(string title, IProgress<string>? log, CancellationToken ct)
+	{
+		if (!EnsureInitialized(null) || string.IsNullOrWhiteSpace(title))
+			return 0;
+
+		try
+		{
+			var wanted = title.Trim();
+			int page = 1;
+			long seen = 0;
+			while (page <= 5) // up to ~250 own items, more than enough
+			{
+				ct.ThrowIfCancellationRequested();
+				var result = await Query.All
+					.WhereUserPublished(SteamClient.SteamId)
+					.GetPageAsync(page)
+					.ConfigureAwait(false);
+				if (!result.HasValue || result.Value.ResultCount == 0)
+					return 0;
+				foreach (var entry in result.Value.Entries)
+				{
+					if (string.Equals(entry.Title?.Trim(), wanted, StringComparison.OrdinalIgnoreCase))
+					{
+						log?.Report($"Found own workshop item {entry.Id.Value} with matching title \"{entry.Title}\".");
+						return entry.Id.Value;
+					}
+				}
+				seen += result.Value.Entries.Count();
+				if ((ulong)seen >= Convert.ToUInt64(result.Value.TotalCount))
+					return 0;
+				page++;
+			}
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			log?.Report($"Own-item lookup skipped: {ex.Message}");
+		}
+		return 0;
+	}
+
 	public async Task<PublishOutcome> PublishAsync(
 		string projectRoot,
 		WorkshopMetadata metadata,
@@ -292,6 +337,20 @@ public sealed class SteamWorkshopService
 		{
 			var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
+		}
+
+		// Adopt instead of duplicate: with no local id, check whether the user
+		// already owns an item with this exact title. Creating another stub for
+		// the same mod is the #1 source of workshop clutter and "wrong id" pain.
+		if (metadata.PublishedFileId == 0 && !string.IsNullOrWhiteSpace(title))
+		{
+			var adopted = await FindOwnItemByTitleAsync(title, log, cancellationToken).ConfigureAwait(false);
+			if (adopted != 0)
+			{
+				metadata.PublishedFileId = adopted;
+				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+				log?.Report($"Adopted existing workshop item {adopted} (same title) instead of creating a duplicate.");
+			}
 		}
 
 		// Stage the preview to a temp copy — the original may be locked by our
