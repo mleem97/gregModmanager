@@ -230,6 +230,45 @@ namespace GregModmanager.Services;
 	#region Publish / Update
 
 	/// <summary>
+	/// Lists all own Workshop item ids (paginated). Used to diff before/after
+	/// creation: a newly appearing id is the created item, no matter what the
+	/// CreateItem result struct claims.
+	/// </summary>
+	public async Task<HashSet<ulong>> FindOwnItemIdsAsync(IProgress<string>? log, CancellationToken ct)
+	{
+		var ids = new HashSet<ulong>();
+		if (!EnsureInitialized(null))
+			return ids;
+
+		try
+		{
+			int page = 1;
+			long seen = 0;
+			while (page <= 5) // up to ~250 own items, more than enough
+			{
+				ct.ThrowIfCancellationRequested();
+				var result = await Query.All
+					.WhereUserPublished(SteamClient.SteamId)
+					.GetPageAsync(page)
+					.ConfigureAwait(false);
+				if (!result.HasValue || result.Value.ResultCount == 0)
+					return ids;
+				foreach (var entry in result.Value.Entries)
+					ids.Add(entry.Id.Value);
+				seen += result.Value.Entries.Count();
+				if ((ulong)seen >= Convert.ToUInt64(result.Value.TotalCount))
+					return ids;
+				page++;
+			}
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			log?.Report($"Own-item listing skipped: {ex.Message}");
+		}
+		return ids;
+	}
+
+	/// <summary>
 	/// Finds the user's own Workshop item with an exactly matching title.
 	/// Returns 0 when none exists (or the lookup fails). Used to adopt an
 	/// existing item instead of creating a duplicate stub.
@@ -494,20 +533,118 @@ namespace GregModmanager.Services;
 
 		// Submit path and retry driver below share the pumper started above.
 
-		Steamworks.Ugc.PublishResult result;
-		try
+		// Steam sometimes returns OK with no usable file id (0 or overlong).
+		// Retry the creation a few times instead of failing immediately —
+		// each attempt is cheap (no content is uploaded before a good id).
+		static bool IsNoUsableIdError(Exception ex) =>
+			ex is InvalidOperationException && ex.Message.Contains("no usable file id");
+
+		// Snapshot own ids BEFORE any creation attempt: if the result struct
+		// drops the id, the genuinely allocated item shows up in the diff.
+		HashSet<ulong>? preCreateIds = null;
+		if (!IsUsableWorkshopId(metadata.PublishedFileId))
 		{
-			log?.Report(metadata.PublishedFileId == 0
-				? "Creating new workshop item..."
-				: $"Updating workshop item {metadata.PublishedFileId}...");
-			result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+			try
+			{
+				var listTask = FindOwnItemIdsAsync(log, cancellationToken);
+				var winner = await Task.WhenAny(listTask, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+				if (winner == listTask)
+					preCreateIds = await listTask.ConfigureAwait(false);
+				else
+					log?.Report("Pre-create item snapshot timed out — continuing without it.");
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex) { log?.Report($"Pre-create item snapshot skipped: {ex.Message}"); }
 		}
-		catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
-		catch (Exception ex)
+
+		// Recovers a genuinely allocated id the result struct dropped, by
+		// diffing own items before/after. Returns 0 when none (or ambiguous).
+		async Task<ulong> TryRecoverCreatedIdAsync(HashSet<ulong> before)
 		{
-			pumpCts.Cancel();
-			try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
-			return PublishOutcome.Fail(ex.Message);
+			HashSet<ulong> after;
+			try
+			{
+				var listTask = FindOwnItemIdsAsync(log, cancellationToken);
+				var winner = await Task.WhenAny(listTask, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+				if (winner != listTask)
+				{
+					log?.Report("Post-create item listing timed out.");
+					return 0;
+				}
+				after = await listTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex)
+			{
+				log?.Report($"Post-create item listing skipped: {ex.Message}");
+				return 0;
+			}
+			after.ExceptWith(before);
+			var candidates = after.Where(IsUsableWorkshopId).ToList();
+			if (candidates.Count == 1)
+			{
+				log?.Report($"Found newly created item {candidates[0]} via own-item diff.");
+				return candidates[0];
+			}
+			if (candidates.Count == 0)
+				log?.Report("Own-item diff found no new item.");
+			else
+				log?.Report($"Own-item diff ambiguous ({candidates.Count} new: {string.Join(",", candidates)}) — not adopting.");
+			return 0;
+		}
+
+		Steamworks.Ugc.PublishResult result;
+		int createAttempts = 0;
+		int loops = 0;
+		while (true)
+		{
+			if (++loops > 8)
+			{
+				pumpCts.Cancel();
+				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+				return PublishOutcome.Fail("Too many publish attempts without a usable item id — aborting. Check the log and retry later.");
+			}
+			try
+			{
+				log?.Report(!IsUsableWorkshopId(metadata.PublishedFileId)
+					? $"Creating new workshop item... (create attempt {createAttempts + 1}/3)"
+					: $"Updating workshop item {metadata.PublishedFileId}...");
+				result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+				break;
+			}
+			catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
+			catch (Exception ex) when (IsNoUsableIdError(ex) && !IsUsableWorkshopId(metadata.PublishedFileId))
+			{
+				// 1) Recover a genuinely allocated id via diff first.
+				if (preCreateIds is not null)
+				{
+					var recovered = await TryRecoverCreatedIdAsync(preCreateIds).ConfigureAwait(false);
+					if (recovered != 0)
+					{
+						metadata.PublishedFileId = recovered;
+						try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+						log?.Report($"Recovered created item id {recovered} — submitting update...");
+						continue;
+					}
+				}
+				// 2) Otherwise retry the creation (max 3 total attempts).
+				if (createAttempts >= 2)
+				{
+					pumpCts.Cancel();
+					try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+					return PublishOutcome.Fail(ex.Message);
+				}
+				createAttempts++;
+				log?.Report($"No usable id from Steam, retrying creation in 15s ({createAttempts}/2)...");
+				try { await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
+			}
+			catch (Exception ex)
+			{
+				pumpCts.Cancel();
+				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+				return PublishOutcome.Fail(ex.Message);
+			}
 		}
 
 		try
