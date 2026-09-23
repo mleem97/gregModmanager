@@ -101,6 +101,8 @@
   <data name="Editor_NeedsMelonLoader" xml:space="preserve"><value>Needs MelonLoader</value></data>
   <data name="Editor_NeedsMelonLoaderHint" xml:space="preserve"><value>Appends a MelonLoader requirements notice and download link to the Steam description if not already mentioned.</value></data>
   <data name="Editor_MelonLoaderNotice" xml:space="preserve"><value>[h2]Requirements[/h2][list][*] This Workshop item requires [url=https://melonwiki.xyz]MelonLoader[/url] for Data Center. Install MelonLoader before using this mod.[/list]</value></data>
+  <data name="Editor_gregNotice" xml:space="preserve"><value>[h2]Requirements[/h2][list][*] This Workshop item requires the [url=https://gregframework.eu]gregCore ModFramework[/url] for Data Center. Install gregCore before using this mod.[/list]</value></data>
+  <data name="Mod_Dep_greg" xml:space="preserve"><value>gregCore</value></data>
   <data name="Editor_WorkshopDependencies" xml:space="preserve"><value>Workshop dependencies</value></data>
   <data name="Editor_WorkshopDependenciesHint" xml:space="preserve"><value>Optional: Steam Workshop file IDs of other items this mod requires. Stored as workshop_dependency in metadata.json.</value></data>
   <data name="Editor_WorkshopDepIdPlaceholder" xml:space="preserve"><value>Workshop file ID…</value></data>
