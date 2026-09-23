@@ -350,21 +350,53 @@ namespace GregModmanager.Services;
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
 		}
 
+		// Facepunch only dispatches Steam callbacks while someone pumps
+		// SteamClient.RunCallbacks(). Start the pumper FIRST so every await
+		// below (adopt search, create, submit) can complete. It is cancelled
+		// + awaited in the finally at the end (never dispose while running).
+		var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var pumpTask = Task.Run(async () =>
+		{
+			while (!pumpCts.Token.IsCancellationRequested)
+			{
+				try { SteamClient.RunCallbacks(); } catch { /* never break the pump */ }
+				try { await Task.Delay(16, pumpCts.Token).ConfigureAwait(false); } catch { /* cancelled */ }
+			}
+		}, cancellationToken);
+		static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
+		{
+			var winner = await Task.WhenAny(task, Task.Delay(timeout, ct)).ConfigureAwait(false);
+			if (winner != task)
+				throw new TimeoutException($"Operation timed out after {(int)timeout.TotalSeconds}s with no result from Steam.");
+			return await task.ConfigureAwait(false);
+		}
+
 		// Adopt instead of duplicate: without a usable local id, check whether
 		// the user already owns an item with this exact title. Creating another
 		// stub for the same mod is the #1 source of workshop clutter and
 		// "wrong id" pain. Overlong (>32-bit) ids are treated as missing.
+		// Time-boxed: a hanging query must never block the publish.
 		if (!IsUsableWorkshopId(metadata.PublishedFileId) && !string.IsNullOrWhiteSpace(title))
 		{
 			if (metadata.PublishedFileId != 0)
 				log?.Report($"Stored id {metadata.PublishedFileId} is unusable (>32-bit) — looking for the right one by title...");
-			var adopted = await FindOwnItemByTitleAsync(title, log, cancellationToken).ConfigureAwait(false);
-			if (adopted != 0)
+			try
 			{
-				metadata.PublishedFileId = adopted;
-				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
-				log?.Report($"Adopted existing workshop item {adopted} (same title) instead of creating a duplicate.");
+				var adoptTask = FindOwnItemByTitleAsync(title, log, cancellationToken);
+				var adopted = await WithTimeout(adoptTask, TimeSpan.FromSeconds(45), cancellationToken).ConfigureAwait(false);
+				if (adopted != 0)
+				{
+					metadata.PublishedFileId = adopted;
+					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+					log?.Report($"Adopted existing workshop item {adopted} (same title) instead of creating a duplicate.");
+				}
+				else
+				{
+					log?.Report("No own item with this title — creating a new one.");
+				}
 			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex) { log?.Report($"Own-item lookup skipped: {ex.Message} — creating a new item."); }
 		}
 
 		// Stage the preview to a temp copy — the original may be locked by our
@@ -460,27 +492,7 @@ namespace GregModmanager.Services;
 			}).ConfigureAwait(false);
 		}
 
-		// Facepunch only dispatches Steam callbacks while someone pumps
-		// SteamClient.RunCallbacks(). Nothing else in the app does that during
-		// publish, so run a dedicated pumper for the whole operation.
-		// (The CTS is cancelled + awaited in the finally below — disposing it
-		// while the pump still runs crashed the app with ObjectDisposedException.)
-		var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		var pumpTask = Task.Run(async () =>
-		{
-			while (!pumpCts.Token.IsCancellationRequested)
-			{
-				try { SteamClient.RunCallbacks(); } catch { /* never break the pump */ }
-				try { await Task.Delay(16, pumpCts.Token).ConfigureAwait(false); } catch { /* cancelled */ }
-			}
-		}, cancellationToken);
-		static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
-		{
-			var winner = await Task.WhenAny(task, Task.Delay(timeout, ct)).ConfigureAwait(false);
-			if (winner != task)
-				throw new TimeoutException($"Submit timed out after {(int)timeout.TotalMinutes} min with no result from Steam.");
-			return await task.ConfigureAwait(false);
-		}
+		// Submit path and retry driver below share the pumper started above.
 
 		Steamworks.Ugc.PublishResult result;
 		try
