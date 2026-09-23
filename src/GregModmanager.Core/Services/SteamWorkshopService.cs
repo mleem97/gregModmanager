@@ -9,8 +9,19 @@ using GregModmanager.Steam;
 
 namespace GregModmanager.Services;
 
-public sealed class SteamWorkshopService
-{
+	public sealed class SteamWorkshopService
+	{
+	/// <summary>
+	/// Workshop file ids must fit 32 bits (max 10 digits). Steam sometimes
+	/// hands out longer ids that this game's Workshop backend never resolves
+	/// (uploader info lookup fails with FileNotFound forever). Such ids are
+	/// rejected — never submitted, never saved.
+	/// </summary>
+	public const ulong MaxWorkshopFileId = 4294967295UL;
+
+	/// <summary>True when the id is a usable Workshop file id (non-zero, 32-bit).</summary>
+	public static bool IsUsableWorkshopId(ulong fileId) => fileId != 0 && fileId <= MaxWorkshopFileId;
+
 	private static readonly object InitLock = new();
 
 	private bool _initialized;
@@ -339,11 +350,14 @@ public sealed class SteamWorkshopService
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
 		}
 
-		// Adopt instead of duplicate: with no local id, check whether the user
-		// already owns an item with this exact title. Creating another stub for
-		// the same mod is the #1 source of workshop clutter and "wrong id" pain.
-		if (metadata.PublishedFileId == 0 && !string.IsNullOrWhiteSpace(title))
+		// Adopt instead of duplicate: without a usable local id, check whether
+		// the user already owns an item with this exact title. Creating another
+		// stub for the same mod is the #1 source of workshop clutter and
+		// "wrong id" pain. Overlong (>32-bit) ids are treated as missing.
+		if (!IsUsableWorkshopId(metadata.PublishedFileId) && !string.IsNullOrWhiteSpace(title))
 		{
+			if (metadata.PublishedFileId != 0)
+				log?.Report($"Stored id {metadata.PublishedFileId} is unusable (>32-bit) — looking for the right one by title...");
 			var adopted = await FindOwnItemByTitleAsync(title, log, cancellationToken).ConfigureAwait(false);
 			if (adopted != 0)
 			{
@@ -424,7 +438,7 @@ public sealed class SteamWorkshopService
 				// Log EVERY creation result — a silent id 0 here used to cause
 				// a doomed StartItemUpdate(0) and a confusing FileNotFound.
 				log?.Report($"CreateItem result: id={r.FileId.Value}, result={r.Result}, agreement={r.NeedsWorkshopAgreement}");
-				if (r.FileId.Value != 0)
+				if (IsUsableWorkshopId(r.FileId.Value))
 				{
 					metadata.PublishedFileId = r.FileId.Value;
 					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
@@ -433,10 +447,11 @@ public sealed class SteamWorkshopService
 				}
 				if (justCreated)
 				{
-					// Steam returned OK but no file id (throttled/failed create).
-					// Abort before the doomed update instead of burning it.
+					// Steam returned no usable file id (0 or overlong id that this
+					// game's backend never resolves). Abort before the doomed
+					// update instead of burning it.
 					throw new InvalidOperationException(
-						"Steam created no file id for the new item (creation throttled or failed). " +
+						$"Steam returned no usable file id for the new item (got {r.FileId.Value}). " +
 						"Wait a few minutes and retry — your content is untouched.");
 				}
 				// NOTE: no blocking wait here — a replication check inside this
@@ -523,7 +538,7 @@ public sealed class SteamWorkshopService
 			}
 
 			bool retryable = !result.Success && result.Result == Steamworks.Result.FileNotFound
-				&& metadata.PublishedFileId != 0;
+				&& IsUsableWorkshopId(metadata.PublishedFileId);
 			if (!retryable)
 				break;
 			log?.Report($"Attempt {attempt + 1} failed with FileNotFound (backend flaky, files are fine)...");
@@ -538,9 +553,9 @@ public sealed class SteamWorkshopService
 
 		if (!result.Success)
 		{
-			// Steam may create the item before its content update fails. Preserve the ID
-			// so retrying updates the existing item instead of creating a duplicate.
-			if (result.FileId.Value != 0)
+			// Steam may create the item before its content update fails. Preserve a
+			// USABLE id so retrying updates the existing item instead of a duplicate.
+			if (IsUsableWorkshopId(result.FileId.Value))
 			{
 				metadata.PublishedFileId = result.FileId.Value;
 				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
@@ -554,7 +569,7 @@ public sealed class SteamWorkshopService
 		}
 
 		var id = result.FileId.Value;
-		if (id != 0)
+		if (IsUsableWorkshopId(id))
 		{
 			metadata.PublishedFileId = id;
 		}
