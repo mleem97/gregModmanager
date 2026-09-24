@@ -28,6 +28,7 @@
 
 ## Release context
 
-- Version source of truth: `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`.
+- Version source of truth: `VERSION` file (the `.csproj` `<Version>` is kept in
+  sync as a fallback for tooling that reads it).
 - Changelog source of truth: `CHANGELOG.md`.
 - Release promotion normally runs through `.forgejo/workflows/promote-changelog.yml`.

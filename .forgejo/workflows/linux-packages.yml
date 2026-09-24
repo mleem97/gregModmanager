@@ -37,7 +37,11 @@ jobs:
       - id: resolve
         shell: bash
         run: |
-          ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+          # VERSION file is the single source of truth, .csproj is the fallback.
+          ver="$(cat VERSION 2>/dev/null | tr -d '\r' | xargs)"
+          if [ -z "$ver" ]; then
+            ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+          fi
           [ -n "$ver" ] || ver='1.5.0'
           is_pre='false'
           [[ "$ver" == *-* || "$GITHUB_REF_NAME" != "main" ]] && is_pre='true'

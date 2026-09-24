@@ -46,7 +46,10 @@
                           <TextBlock Text="{Binding PublishedStatus}" FontSize="10" Foreground="{DynamicResource Primary}" IsVisible="{Binding IsPublished}" />
                         </StackPanel>
                       </StackPanel>
-                      <Button Grid.Column="1" Content="{Binding EditLabel}" Classes="btn-primary" VerticalAlignment="Center" Margin="8,0,0,0" Click="OnEditProjectClicked" />
+                      <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <Button Content="{Binding EditLabel}" Classes="btn-primary" HorizontalAlignment="Center" Click="OnEditProjectClicked" />
+                        <TextBlock Text="{Binding UpdatedLabel}" FontSize="10" FontWeight="Bold" Foreground="#D7A23B" HorizontalAlignment="Center" IsVisible="{Binding HasUpdates}" />
+                      </StackPanel>
                     </Grid>
                   </Border>
                 </DataTemplate>

@@ -54,6 +54,7 @@
   <data name="Projects_Refreshed" xml:space="preserve"><value>Projektliste aktualisiert.</value></data>
   <data name="Projects_Migrated" xml:space="preserve"><value>{0} Projekt(e) aus dem alten Ordner migriert.</value></data>
   <data name="Projects_Edit" xml:space="preserve"><value>Bearbeiten</value></data>
+  <data name="Projects_UpdatedBadge" xml:space="preserve"><value>UPDATED!</value></data>
   <data name="Projects_OpenFailed" xml:space="preserve"><value>Projekt konnte nicht geöffnet werden.</value></data>
   <data name="Projects_TabLocal" xml:space="preserve"><value>Lokale Projekte</value></data>
   <data name="Projects_TabWorkshop" xml:space="preserve"><value>Workshop-Uploads</value></data>
@@ -101,6 +102,8 @@
   <data name="Editor_NeedsMelonLoader" xml:space="preserve"><value>Benötigt MelonLoader</value></data>
   <data name="Editor_NeedsMelonLoaderHint" xml:space="preserve"><value>Hängt der Steam-Beschreibung einen MelonLoader-Hinweis mit Download-Link an, falls noch nicht erwähnt.</value></data>
   <data name="Editor_MelonLoaderNotice" xml:space="preserve"><value>[h2]Voraussetzungen[/h2][list][*] Dieses Workshop-Objekt benötigt [url=https://melonwiki.xyz]MelonLoader[/url] für Data Center. Bitte MelonLoader installieren, bevor Sie diesen Mod nutzen.[/list]</value></data>
+  <data name="Editor_gregNotice" xml:space="preserve"><value>[h2]Voraussetzungen[/h2][list][*] Dieses Workshop-Objekt benötigt das [url=https://gregframework.eu]gregCore ModFramework[/url] für Data Center. Bitte gregCore installieren, bevor Sie diesen Mod nutzen.[/list]</value></data>
+  <data name="Mod_Dep_greg" xml:space="preserve"><value>gregCore</value></data>
   <data name="Editor_WorkshopDependencies" xml:space="preserve"><value>Workshop-Abhängigkeiten</value></data>
   <data name="Editor_WorkshopDependenciesHint" xml:space="preserve"><value>Optional: Steam-Workshop-Datei-IDs anderer Objekte, die dieser Mod voraussetzt. Wird als workshop_dependency in metadata.json gespeichert.</value></data>
   <data name="Editor_WorkshopDepIdPlaceholder" xml:space="preserve"><value>Workshop-Datei-ID…</value></data>
@@ -361,6 +364,16 @@
   <data name="Settings_Telemetry" xml:space="preserve"><value>Gesundheitsstatus &amp; Telemetrie</value></data>
   <data name="Settings_EnableTelemetry" xml:space="preserve"><value>Anonyme Absturzberichte und Performance-Metriken aktivieren</value></data>
   <data name="Settings_TelemetryPrivacy" xml:space="preserve"><value>Datenschutz: Wir sammeln anonymisierte Daten, um die App zu verbessern. Es werden keine persönlichen Daten oder Mod-Dateien gesendet.</value></data>
+  <data name="UploadDialog_Title" xml:space="preserve"><value>Workshop-Upload</value></data>
+  <data name="UploadDialog_StatusStarting" xml:space="preserve"><value>Upload wird vorbereitet...</value></data>
+  <data name="UploadDialog_StatusCancelling" xml:space="preserve"><value>Wird abgebrochen... aktueller Schritt wird beendet.</value></data>
+  <data name="UploadDialog_StatusCancelled" xml:space="preserve"><value>Upload abgebrochen.</value></data>
+  <data name="UploadDialog_StatusSuccess" xml:space="preserve"><value>Upload erfolgreich abgeschlossen.</value></data>
+  <data name="UploadDialog_StatusFailed" xml:space="preserve"><value>Upload fehlgeschlagen: {0}</value></data>
+  <data name="UploadDialog_Cancel" xml:space="preserve"><value>Abbrechen</value></data>
+  <data name="UploadDialog_Close" xml:space="preserve"><value>Schließen</value></data>
+  <data name="Editor_ConfirmSteamReloadTitle" xml:space="preserve"><value>Von Steam neu laden?</value></data>
+  <data name="Editor_ConfirmSteamReloadMsg" xml:space="preserve"><value>Dies ersetzt deinen lokalen Titel, Beschreibung, Tags und Sichtbarkeit durch den aktuellen Steam-Workshop-Stand. Lokale Änderungen gehen verloren. Fortfahren?</value></data>
 
 </root>
 

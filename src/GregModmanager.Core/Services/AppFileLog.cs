@@ -8,6 +8,29 @@ public static class AppFileLog
 	private static string? _logPath;
 	private static int _sessionStarted;
 
+	/// <summary>When true, every log line is also mirrored to stdout (CLI `--verbose`).</summary>
+	public static bool MirrorToConsole { get; set; }
+
+	/// <summary>Overrides the log file location (CLI `--log-file`). Must be set before first write.</summary>
+	public static void SetLogPathOverride(string path)
+	{
+		if (string.IsNullOrWhiteSpace(path)) return;
+		lock (Gate)
+		{
+			if (_logPath is not null) return; // already resolved — too late
+			try
+			{
+				var dir = Path.GetDirectoryName(Path.GetFullPath(path));
+				if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+				_logPath = Path.GetFullPath(path);
+			}
+			catch
+			{
+				// fall back to default resolution
+			}
+		}
+	}
+
 	public static string LogPath
 	{
 		get
@@ -212,6 +235,11 @@ public static class AppFileLog
 				if (ex is not null && !string.IsNullOrWhiteSpace(ex.StackTrace))
 				{
 					File.AppendAllText(LogPath, ex.StackTrace + Environment.NewLine);
+				}
+
+				if (MirrorToConsole)
+				{
+					try { Console.WriteLine(line); } catch { /* no console attached */ }
 				}
 			}
 		}

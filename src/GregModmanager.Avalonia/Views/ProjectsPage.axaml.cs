@@ -394,6 +394,10 @@ public sealed class ProjectItemVm
             ReadinessColor = "#D7A23B";
         else
             ReadinessColor = "#61F4D8";
+
+        // Local changes since the last successful publish ("UPDATED!").
+        // Hash-based, no network. Only when a publish hash was recorded.
+        HasUpdates = workspace.GetSyncState(project.RootPath) == WorkspaceService.ProjectSyncState.Modified;
     }
 
     public string Name { get; }
@@ -406,4 +410,6 @@ public sealed class ProjectItemVm
     public string ReadinessText { get; }
     public string ReadinessColor { get; }
     public string EditLabel { get; } = S.Get("Projects_Edit");
+    public bool HasUpdates { get; }
+    public string UpdatedLabel { get; } = S.Get("Projects_UpdatedBadge");
 }

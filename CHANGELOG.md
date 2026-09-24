@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Unified open-source documentation layout (gregCore template): `LICENSE`
+  (Apache 2.0 — replaces the undocumented MIT claim), `VERSION` file as the
+  single source of truth (`.csproj` stays in sync as fallback, CI reads
+  `VERSION` first), `CONTRIBUTING.md`, `QUICKSTART.md`, and a rewritten
+  `README.md` with for-the-badge badges, links, compatibility, features,
+  installation, dependencies, credits, and team sections.
 - Forgejo Actions CI in `.forgejo/workflows/` (build, test, Linux packages,
   Forgejo releases, one Discord notification per run). Windows artifacts are
   cross-built on Linux runners; the Inno Setup EXE is best-effort under Wine.

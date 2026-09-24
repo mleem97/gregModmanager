@@ -4,13 +4,25 @@ using System.Runtime.InteropServices;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Steam;
 
 namespace GregModmanager.Services;
 
-public sealed class SteamWorkshopService
-{
+	public sealed class SteamWorkshopService
+	{
+	/// <summary>
+	/// Workshop file ids must fit 32 bits (max 10 digits). Steam sometimes
+	/// hands out longer ids that this game's Workshop backend never resolves
+	/// (uploader info lookup fails with FileNotFound forever). Such ids are
+	/// rejected — never submitted, never saved.
+	/// </summary>
+	public const ulong MaxWorkshopFileId = 4294967295UL;
+
+	/// <summary>True when the id is a usable Workshop file id (non-zero, 32-bit).</summary>
+	public static bool IsUsableWorkshopId(ulong fileId) => fileId != 0 && fileId <= MaxWorkshopFileId;
+
 	private static readonly object InitLock = new();
 
 	private bool _initialized;
@@ -218,6 +230,112 @@ public sealed class SteamWorkshopService
 
 	#region Publish / Update
 
+	/// <summary>
+	/// Builds the exact description string sent to Steam: the stored text plus
+	/// auto-appended requirement notices (MelonLoader/gregCore) when missing.
+	/// Single source of truth — used for upload AND for the publish hash, so
+	/// change detection never disagrees with what Steam received.
+	/// </summary>
+	public static string BuildUploadDescription(WorkshopMetadata meta)
+	{
+		var desc = meta.Description ?? "";
+		if (meta.NeedsMelonLoader && !desc.Contains("MelonLoader", StringComparison.OrdinalIgnoreCase))
+		{
+			desc += "\n\n---\n" + S.Get("Editor_MelonLoaderNotice");
+		}
+
+		if (meta.Needsgreg && !desc.Contains("gregCoreModFramework", StringComparison.OrdinalIgnoreCase))
+		{
+			desc += "\n\n---\n" + S.Get("Editor_gregNotice");
+		}
+
+		return desc;
+	}
+
+	/// <summary>
+	/// Lists all own Workshop item ids (paginated). Used to diff before/after
+	/// creation: a newly appearing id is the created item, no matter what the
+	/// CreateItem result struct claims.
+	/// </summary>
+	public async Task<HashSet<ulong>> FindOwnItemIdsAsync(IProgress<string>? log, CancellationToken ct)
+	{
+		var ids = new HashSet<ulong>();
+		if (!EnsureInitialized(null))
+			return ids;
+
+		try
+		{
+			int page = 1;
+			long seen = 0;
+			while (page <= 5) // up to ~250 own items, more than enough
+			{
+				ct.ThrowIfCancellationRequested();
+				var result = await Query.All
+					.WhereUserPublished(SteamClient.SteamId)
+					.GetPageAsync(page)
+					.ConfigureAwait(false);
+				if (!result.HasValue || result.Value.ResultCount == 0)
+					return ids;
+				foreach (var entry in result.Value.Entries)
+					ids.Add(entry.Id.Value);
+				seen += result.Value.Entries.Count();
+				if ((ulong)seen >= Convert.ToUInt64(result.Value.TotalCount))
+					return ids;
+				page++;
+			}
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			log?.Report($"Own-item listing skipped: {ex.Message}");
+		}
+		return ids;
+	}
+
+	/// <summary>
+	/// Finds the user's own Workshop item with an exactly matching title.
+	/// Returns 0 when none exists (or the lookup fails). Used to adopt an
+	/// existing item instead of creating a duplicate stub.
+	/// </summary>
+	public async Task<ulong> FindOwnItemByTitleAsync(string title, IProgress<string>? log, CancellationToken ct)
+	{
+		if (!EnsureInitialized(null) || string.IsNullOrWhiteSpace(title))
+			return 0;
+
+		try
+		{
+			var wanted = title.Trim();
+			int page = 1;
+			long seen = 0;
+			while (page <= 5) // up to ~250 own items, more than enough
+			{
+				ct.ThrowIfCancellationRequested();
+				var result = await Query.All
+					.WhereUserPublished(SteamClient.SteamId)
+					.GetPageAsync(page)
+					.ConfigureAwait(false);
+				if (!result.HasValue || result.Value.ResultCount == 0)
+					return 0;
+				foreach (var entry in result.Value.Entries)
+				{
+					if (string.Equals(entry.Title?.Trim(), wanted, StringComparison.OrdinalIgnoreCase))
+					{
+						log?.Report($"Found own workshop item {entry.Id.Value} with matching title \"{entry.Title}\".");
+						return entry.Id.Value;
+					}
+				}
+				seen += result.Value.Entries.Count();
+				if ((ulong)seen >= Convert.ToUInt64(result.Value.TotalCount))
+					return 0;
+				page++;
+			}
+		}
+		catch (Exception ex) when (ex is not OperationCanceledException)
+		{
+			log?.Report($"Own-item lookup skipped: {ex.Message}");
+		}
+		return 0;
+	}
+
 	public async Task<PublishOutcome> PublishAsync(
 		string projectRoot,
 		WorkshopMetadata metadata,
@@ -240,7 +358,7 @@ public sealed class SteamWorkshopService
 		}
 
 		var title = (metadata.Title ?? string.Empty).Trim();
-		var description = (metadata.Description ?? string.Empty).Trim();
+		var description = BuildUploadDescription(metadata).Trim();
 		if (string.IsNullOrEmpty(title))
 		{
 			return PublishOutcome.Fail("Title is required.");
@@ -294,12 +412,364 @@ public sealed class SteamWorkshopService
 			return PublishOutcome.Fail($"Steam publish cooldown active. Please wait {seconds}s before trying again.");
 		}
 
-		// Use native ISteamUGC calls — the Facepunch Editor wrapper is broken
-		// on Linux (SetItemContent/SetItemPreview return FileNotFound).
-		return await NativePublishAsync(
-			projectRoot, metadata, absContent, absPreview,
-			changeLog, tagList, uploadProgress, log, cancellationToken
-		).ConfigureAwait(false);
+		// Facepunch only dispatches Steam callbacks while someone pumps
+		// SteamClient.RunCallbacks(). Start the pumper FIRST so every await
+		// below (adopt search, create, submit) can complete. It is cancelled
+		// + awaited in the finally at the end (never dispose while running).
+		var pumpCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		var pumpTask = Task.Run(async () =>
+		{
+			while (!pumpCts.Token.IsCancellationRequested)
+			{
+				try { SteamClient.RunCallbacks(); } catch { /* never break the pump */ }
+				try { await Task.Delay(16, pumpCts.Token).ConfigureAwait(false); } catch { /* cancelled */ }
+			}
+		}, cancellationToken);
+		static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout, CancellationToken ct)
+		{
+			var winner = await Task.WhenAny(task, Task.Delay(timeout, ct)).ConfigureAwait(false);
+			if (winner != task)
+				throw new TimeoutException($"Operation timed out after {(int)timeout.TotalSeconds}s with no result from Steam.");
+			return await task.ConfigureAwait(false);
+		}
+
+		// Adopt instead of duplicate: without a usable local id, check whether
+		// the user already owns an item with this exact title. Creating another
+		// stub for the same mod is the #1 source of workshop clutter and
+		// "wrong id" pain. Overlong (>32-bit) ids are treated as missing.
+		// Time-boxed: a hanging query must never block the publish.
+		if (!IsUsableWorkshopId(metadata.PublishedFileId) && !string.IsNullOrWhiteSpace(title))
+		{
+			if (metadata.PublishedFileId != 0)
+				log?.Report($"Stored id {metadata.PublishedFileId} is unusable (>32-bit) — looking for the right one by title...");
+			try
+			{
+				var adoptTask = FindOwnItemByTitleAsync(title, log, cancellationToken);
+				var adopted = await WithTimeout(adoptTask, TimeSpan.FromSeconds(45), cancellationToken).ConfigureAwait(false);
+				if (adopted != 0)
+				{
+					metadata.PublishedFileId = adopted;
+					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+					log?.Report($"Adopted existing workshop item {adopted} (same title) instead of creating a duplicate.");
+				}
+				else
+				{
+					log?.Report("No own item with this title — creating a new one.");
+				}
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex) { log?.Report($"Own-item lookup skipped: {ex.Message} — creating a new item."); }
+		}
+
+		// Stage the preview to a temp copy — the original may be locked by our
+		// own UI or external processes. Read bytes first to avoid lock contention.
+		string? tempPreview = null;
+		string previewForSteam = absPreview;
+		try
+		{
+			var previewBytes = await File.ReadAllBytesAsync(absPreview, cancellationToken).ConfigureAwait(false);
+			tempPreview = Path.Combine(Path.GetTempPath(), $"gm_preview_{Guid.NewGuid():N}{Path.GetExtension(absPreview)}");
+			await File.WriteAllBytesAsync(tempPreview, previewBytes, cancellationToken).ConfigureAwait(false);
+			previewForSteam = tempPreview;
+		}
+		catch (Exception ex)
+		{
+			log?.Report($"Preview copy failed, trying original: {ex.Message}");
+		}
+
+		// Use Facepunch's Editor (proven create/update flow) — NOT raw native
+		// calls. A previous native reimplementation failed identically because
+		// the actual problem was never file access: new items need CreateItem
+		// first (the Editor does this), and the backend needs a moment to
+		// replicate the new item before Submit (handled below + retry).
+		Steamworks.Ugc.Editor BuildEditor(ulong fileId)
+		{
+			var ed = fileId == 0
+				? Steamworks.Ugc.Editor.NewCommunityFile
+				: new Steamworks.Ugc.Editor((PublishedFileId)fileId);
+			ed = ed
+				.ForAppId((AppId)SteamConstants.DataCenterAppId)
+				.WithTitle(title)
+				.WithDescription(description)
+				.WithContent(absContent)
+				.WithPreviewFile(previewForSteam);
+			ed = tagList.Aggregate(ed, (current, tag) => current.WithTag(tag));
+			if (!string.IsNullOrWhiteSpace(changeLog))
+				ed = ed.WithChangeLog(changeLog);
+			return ApplyVisibility(ed, metadata.Visibility);
+		}
+
+		// The backend must know a just-created item before Submit, or the
+		// uploader fails with FileNotFound (proven via workshop_log.txt).
+		async Task WaitForReplicationAsync(ulong fileId)
+		{
+			for (int i = 0; i < 24; i++)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				if (i > 0)
+					await Task.Delay(5000, cancellationToken).ConfigureAwait(false);
+				WorkshopItemDetailVm? detail = null;
+				try { detail = await GetItemDetailsAsync(fileId, cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { throw; }
+				catch { /* keep waiting */ }
+				if (detail is not null)
+				{
+					log?.Report($"Workshop backend knows item {fileId} — submitting...");
+					return;
+				}
+				log?.Report($"Waiting for Workshop backend to replicate item {fileId}...");
+			}
+			log?.Report($"Item {fileId} not yet visible; submitting anyway (retry follows on FileNotFound).");
+		}
+
+		bool justCreated = false;
+		async Task<Steamworks.Ugc.PublishResult> SubmitOnceAsync()
+		{
+			var ed = BuildEditor(metadata.PublishedFileId);
+			justCreated = metadata.PublishedFileId == 0;
+			return await ed.SubmitAsync(uploadProgress, onItemCreated: r =>
+			{
+				// Log EVERY creation result — a silent id 0 here used to cause
+				// a doomed StartItemUpdate(0) and a confusing FileNotFound.
+				log?.Report($"CreateItem result: id={r.FileId.Value}, result={r.Result}, agreement={r.NeedsWorkshopAgreement}");
+				if (IsUsableWorkshopId(r.FileId.Value))
+				{
+					metadata.PublishedFileId = r.FileId.Value;
+					try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+					log?.Report($"Created new workshop item {r.FileId.Value}.");
+					return;
+				}
+				if (justCreated)
+				{
+					// Steam returned no usable file id (0 or overlong id that this
+					// game's backend never resolves). Abort before the doomed
+					// update instead of burning it.
+					throw new InvalidOperationException(
+						$"Steam returned no usable file id for the new item (got {r.FileId.Value}). " +
+						"Wait a few minutes and retry — your content is untouched.");
+				}
+				// NOTE: no blocking wait here — a replication check inside this
+				// callback hung the whole submit (query await never returned).
+				// Replication is handled after submit via retry (see below).
+			}).ConfigureAwait(false);
+		}
+
+		// Submit path and retry driver below share the pumper started above.
+
+		// Steam sometimes returns OK with no usable file id (0 or overlong).
+		// Retry the creation a few times instead of failing immediately —
+		// each attempt is cheap (no content is uploaded before a good id).
+		static bool IsNoUsableIdError(Exception ex) =>
+			ex is InvalidOperationException && ex.Message.Contains("no usable file id");
+
+		// Snapshot own ids BEFORE any creation attempt: if the result struct
+		// drops the id, the genuinely allocated item shows up in the diff.
+		HashSet<ulong>? preCreateIds = null;
+		if (!IsUsableWorkshopId(metadata.PublishedFileId))
+		{
+			try
+			{
+				var listTask = FindOwnItemIdsAsync(log, cancellationToken);
+				var winner = await Task.WhenAny(listTask, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+				if (winner == listTask)
+					preCreateIds = await listTask.ConfigureAwait(false);
+				else
+					log?.Report("Pre-create item snapshot timed out — continuing without it.");
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex) { log?.Report($"Pre-create item snapshot skipped: {ex.Message}"); }
+		}
+
+		// Recovers a genuinely allocated id the result struct dropped, by
+		// diffing own items before/after. Returns 0 when none (or ambiguous).
+		async Task<ulong> TryRecoverCreatedIdAsync(HashSet<ulong> before)
+		{
+			HashSet<ulong> after;
+			try
+			{
+				var listTask = FindOwnItemIdsAsync(log, cancellationToken);
+				var winner = await Task.WhenAny(listTask, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+				if (winner != listTask)
+				{
+					log?.Report("Post-create item listing timed out.");
+					return 0;
+				}
+				after = await listTask.ConfigureAwait(false);
+			}
+			catch (OperationCanceledException) { throw; }
+			catch (Exception ex)
+			{
+				log?.Report($"Post-create item listing skipped: {ex.Message}");
+				return 0;
+			}
+			after.ExceptWith(before);
+			var candidates = after.Where(IsUsableWorkshopId).ToList();
+			if (candidates.Count == 1)
+			{
+				log?.Report($"Found newly created item {candidates[0]} via own-item diff.");
+				return candidates[0];
+			}
+			if (candidates.Count == 0)
+				log?.Report("Own-item diff found no new item.");
+			else
+				log?.Report($"Own-item diff ambiguous ({candidates.Count} new: {string.Join(",", candidates)}) — not adopting.");
+			return 0;
+		}
+
+		Steamworks.Ugc.PublishResult result;
+		int createAttempts = 0;
+		int loops = 0;
+		while (true)
+		{
+			if (++loops > 8)
+			{
+				pumpCts.Cancel();
+				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+				return PublishOutcome.Fail("Too many publish attempts without a usable item id — aborting. Check the log and retry later.");
+			}
+			try
+			{
+				log?.Report(!IsUsableWorkshopId(metadata.PublishedFileId)
+					? $"Creating new workshop item... (create attempt {createAttempts + 1}/3)"
+					: $"Updating workshop item {metadata.PublishedFileId}...");
+				result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+				break;
+			}
+			catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
+			catch (Exception ex) when (IsNoUsableIdError(ex) && !IsUsableWorkshopId(metadata.PublishedFileId))
+			{
+				// 1) Recover a genuinely allocated id via diff first.
+				if (preCreateIds is not null)
+				{
+					var recovered = await TryRecoverCreatedIdAsync(preCreateIds).ConfigureAwait(false);
+					if (recovered != 0)
+					{
+						metadata.PublishedFileId = recovered;
+						try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep going */ }
+						log?.Report($"Recovered created item id {recovered} — submitting update...");
+						continue;
+					}
+				}
+				// 2) Otherwise retry the creation (max 3 total attempts).
+				if (createAttempts >= 2)
+				{
+					pumpCts.Cancel();
+					try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+					return PublishOutcome.Fail(ex.Message);
+				}
+				createAttempts++;
+				log?.Report($"No usable id from Steam, retrying creation in 15s ({createAttempts}/2)...");
+				try { await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { pumpCts.Cancel(); throw; }
+			}
+			catch (Exception ex)
+			{
+				pumpCts.Cancel();
+				try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+				return PublishOutcome.Fail(ex.Message);
+			}
+		}
+
+		try
+		{
+		// Fresh items hit a flaky backend: the uploader's info lookup fails
+		// with FileNotFound in clusters (works 16:14-16:44, fails before and
+		// after — same items, same code, files proven fine). Retry with backoff
+		// over ~15 min; each attempt uses a fresh update handle and reuses the
+		// known id (never creates duplicates). Cancel anytime via dialog/CTRL+C.
+		// NOTE: FileNotFound from the uploader is virtually always the backend
+		// item lookup, never local files — so retry ANY such failure, not just
+		// just-created items.
+		int[] backoffSeconds = [0, 30, 90, 240, 480];
+		for (int attempt = 0; attempt < backoffSeconds.Length; attempt++)
+		{
+			if (attempt > 0)
+			{
+				log?.Report($"Retry attempt {attempt + 1}/{backoffSeconds.Length} after {backoffSeconds[attempt]}s...");
+				try { await Task.Delay(TimeSpan.FromSeconds(backoffSeconds[attempt]), cancellationToken).ConfigureAwait(false); }
+				catch (OperationCanceledException) { throw; }
+				try
+				{
+					var check = WaitForReplicationAsync(metadata.PublishedFileId);
+					var winner = await Task.WhenAny(check, Task.Delay(TimeSpan.FromSeconds(45), cancellationToken)).ConfigureAwait(false);
+					if (winner != check)
+						log?.Report("Replication check timed out — retrying submit anyway...");
+				}
+				catch (OperationCanceledException) { throw; }
+				catch (Exception ex) { log?.Report($"Replication check skipped: {ex.Message}"); }
+				try
+				{
+					result = await WithTimeout(SubmitOnceAsync(), TimeSpan.FromMinutes(4), cancellationToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) { throw; }
+				catch (Exception ex)
+				{
+					try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+					return PublishOutcome.Fail(ex.Message);
+				}
+			}
+
+			bool retryable = !result.Success && result.Result == Steamworks.Result.FileNotFound
+				&& IsUsableWorkshopId(metadata.PublishedFileId);
+			if (!retryable)
+				break;
+			log?.Report($"Attempt {attempt + 1} failed with FileNotFound (backend flaky, files are fine)...");
+		}
+
+		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
+
+		if (result.NeedsWorkshopAgreement)
+		{
+			return PublishOutcome.Fail("Workshop legal agreement must be accepted in the Steam client.");
+		}
+
+		if (!result.Success)
+		{
+			// Steam may create the item before its content update fails. Preserve a
+			// USABLE id so retrying updates the existing item instead of a duplicate.
+			if (IsUsableWorkshopId(result.FileId.Value))
+			{
+				metadata.PublishedFileId = result.FileId.Value;
+				try { WorkspaceService.SaveMetadata(projectRoot, metadata); } catch { /* keep Steam error */ }
+				log?.Report($"Workshop item {metadata.PublishedFileId} update failed; the id is saved — retry will reuse it.");
+			}
+			var detail = $"Steam publish failed: {result.Result} (item={metadata.PublishedFileId}, content={absContent}, preview={absPreview}). " +
+				"Note: FileNotFound here means the Workshop backend does not know the item (yet) — not that local files are missing. " +
+				"Check ~/.local/share/Steam/logs/workshop_log.txt for Steam's own reason.";
+			log?.Report(detail);
+			return PublishOutcome.Fail(detail);
+		}
+
+		var id = result.FileId.Value;
+		if (IsUsableWorkshopId(id))
+		{
+			metadata.PublishedFileId = id;
+		}
+
+		// Record what Steam received so change detection ("UPDATED!") compares
+		// against the uploaded state, not the stored text.
+		try
+		{
+			metadata.LastPublishedHash = WorkspaceService.ComputePublishHash(projectRoot, metadata, description);
+			WorkspaceService.SaveMetadata(projectRoot, metadata);
+		}
+		catch (Exception ex)
+		{
+			log?.Report($"Publish succeeded but the sync hash could not be saved: {ex.Message}");
+		}
+
+		return PublishOutcome.Ok(metadata.PublishedFileId);
+		}
+		finally
+		{
+			// Stop the pumper cleanly: cancel first, THEN dispose (never while
+			// the loop still runs — that crashed with ObjectDisposedException).
+			// Await briefly so no unobserved pump exception escapes.
+			try { pumpCts.Cancel(); } catch { /* already gone */ }
+			try { await pumpTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
+			catch { /* pump stopped or timed out — not fatal */ }
+			try { pumpCts.Dispose(); } catch { /* already gone */ }
+		}
 	}
 
 	/// <summary>Completes local post-publish bookkeeping without replacing the editable local project from Steam.</summary>
@@ -1016,191 +1486,6 @@ public sealed class SteamWorkshopService
 	/// The Editor's WithContent/WithPreviewFile calls are broken on Linux (return
 	/// FileNotFound even when files exist). This method calls ISteamUGC directly.
 	/// </summary>
-	private async Task<PublishOutcome> NativePublishAsync(
-		string projectRoot,
-		WorkshopMetadata metadata,
-		string absContent,
-		string absPreview,
-		string? changeLog,
-		List<string> tags,
-		IProgress<float>? uploadProgress,
-		IProgress<string>? log,
-		CancellationToken ct)
-	{
-		// Resolve ISteamUGC internal object via reflection
-		var ugcType = typeof(SteamUGC);
-		var internalProp = ugcType.GetProperty("Internal", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
-		var ugcInternal = internalProp?.GetValue(null);
-		if (ugcInternal is null)
-			return PublishOutcome.Fail("SteamUGC.Internal is null — Steam not initialized?");
-
-		var internalType = ugcInternal.GetType();
-		const BindingFlags bf = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy;
-
-		// Use GetMethods + LINQ — the .NET trimmer strips method metadata that
-		// GetMethod relies on, but GetMethods preserves them.
-		MethodInfo? FindMethod(string name) =>
-			internalType.GetMethods(bf).FirstOrDefault(m => m.Name == name);
-
-		var startItemUpdate = FindMethod("StartItemUpdate");
-		if (startItemUpdate is null)
-		{
-			var methods = string.Join(", ", internalType.GetMethods(bf).Select(m => m.Name).Distinct().Order());
-			return PublishOutcome.Fail($"StartItemUpdate not found on {internalType.FullName}. Methods: {methods}");
-		}
-		var setItemTitle = FindMethod("SetItemTitle");
-		var setItemDescription = FindMethod("SetItemDescription");
-		var setItemContent = FindMethod("SetItemContent");
-		var setItemPreview = FindMethod("SetItemPreview");
-		var setItemVisibility = FindMethod("SetItemVisibility");
-		var setItemTags = FindMethod("SetItemTags");
-		var submitItemUpdate = FindMethod("SubmitItemUpdate");
-		if (submitItemUpdate is null)
-			return PublishOutcome.Fail("SubmitItemUpdate not found");
-		var getUpdateProgress = FindMethod("GetItemUpdateProgress");
-
-		// StartItemUpdate(appId, publishedFileId) -> UGCUpdateHandle_t
-		var handle = startItemUpdate.Invoke(ugcInternal, [(AppId)SteamConstants.DataCenterAppId, (PublishedFileId)metadata.PublishedFileId]);
-		if (handle is null)
-			return PublishOutcome.Fail("StartItemUpdate returned null handle");
-
-		// Set fields
-		setItemTitle?.Invoke(ugcInternal, [handle, metadata.Title ?? ""]);
-		setItemDescription?.Invoke(ugcInternal, [handle, metadata.Description ?? ""]);
-		setItemContent?.Invoke(ugcInternal, [handle, absContent]);
-
-		// Copy preview to temp file — the original may be locked by our own app
-		// (Image controls, metadata scan, etc.) or by external processes.
-		// Read bytes first to avoid any file-lock contention.
-		string? tempPreview = null;
-		try
-		{
-			var previewBytes = await File.ReadAllBytesAsync(absPreview, ct).ConfigureAwait(false);
-			tempPreview = Path.Combine(Path.GetTempPath(), $"gm_preview_{Guid.NewGuid():N}{Path.GetExtension(absPreview)}");
-			await File.WriteAllBytesAsync(tempPreview, previewBytes, ct).ConfigureAwait(false);
-			setItemPreview?.Invoke(ugcInternal, [handle, tempPreview]);
-		}
-		catch (Exception ex)
-		{
-			log?.Report($"Preview copy failed, trying original: {ex.Message}");
-			setItemPreview?.Invoke(ugcInternal, [handle, absPreview]);
-		}
-
-		// Visibility
-		var visibilityValue = metadata.Visibility switch
-		{
-			"Private" => 2,    // RemoteStoragePublishedFileVisibility.Private
-			"FriendsOnly" => 1, // RemoteStoragePublishedFileVisibility.FriendsOnly
-			"Unlisted" => 3,    // RemoteStoragePublishedFileVisibility.Unlisted
-			_ => 0              // RemoteStoragePublishedFileVisibility.Public
-		};
-		setItemVisibility?.Invoke(ugcInternal, [handle, visibilityValue]);
-
-		// Tags via SteamParamStringArray_t
-		if (tags.Count > 0 && setItemTags is not null)
-		{
-			try
-			{
-				var ssaType = typeof(SteamUGC).Assembly.GetType("Steamworks.Data.SteamParamStringArray_t");
-				var ssaManagedType = typeof(SteamUGC).Assembly.GetType("Steamworks.Ugc.SteamParamStringArray");
-				if (ssaType is not null && ssaManagedType is not null)
-				{
-					var nativeStrings = new IntPtr[tags.Count];
-					var gcHandles = new GCHandle[tags.Count];
-					for (int i = 0; i < tags.Count; i++)
-					{
-						gcHandles[i] = GCHandle.Alloc(System.Text.Encoding.UTF8.GetBytes(tags[i] + '\0'), GCHandleType.Pinned);
-						nativeStrings[i] = gcHandles[i].AddrOfPinnedObject();
-					}
-
-					var nativeArray = Marshal.AllocHGlobal(tags.Count * IntPtr.Size);
-					Marshal.Copy(nativeStrings, 0, nativeArray, tags.Count);
-
-					var ssa = Activator.CreateInstance(ssaType)!;
-					ssaType.GetField("Strings")!.SetValue(ssa, nativeArray);
-					ssaType.GetField("NumStrings")!.SetValue(ssa, tags.Count);
-
-					setItemTags.Invoke(ugcInternal, [handle, ssa, false]);
-
-					Marshal.FreeHGlobal(nativeArray);
-					foreach (var h in gcHandles) h.Free();
-				}
-			}
-			catch (Exception ex)
-			{
-				log?.Report($"Tag upload failed (non-fatal): {ex.Message}");
-			}
-		}
-
-		// SubmitItemUpdate(handle, changeNote)
-		log?.Report(metadata.PublishedFileId == 0
-			? "Creating new workshop item (native)..."
-			: $"Updating workshop item {metadata.PublishedFileId} (native)...");
-
-		var callResult = submitItemUpdate.Invoke(ugcInternal, [handle, changeLog ?? ""]);
-
-		// Wait for completion by pumping callbacks — same pattern as SteamUgcPreviews.
-		// GetItemUpdateProgress returns a boxed ItemUpdateStatus enum (NOT int —
-		// `is int` never matches). Use Convert.ToInt32 on the boxed enum.
-		// Status: 0=Invalid, 1=PreparingConfig, 2=PreparingContent,
-		// 3=UploadingContent, 4=UploadingPreviewFile, 5=CommittingChanges.
-		const int maxWaitIntervals = 600; // 5 minutes max
-		var finished = false;
-		for (int i = 0; i < maxWaitIntervals && !finished; i++)
-		{
-			ct.ThrowIfCancellationRequested();
-			await Task.Delay(500, ct).ConfigureAwait(false);
-			SteamClient.RunCallbacks();
-
-			if (getUpdateProgress is not null)
-			{
-				try
-				{
-					var progressArgs = new object?[] { handle, (ulong)0, (ulong)0 };
-					var statusObj = getUpdateProgress.Invoke(ugcInternal, progressArgs);
-					if (statusObj is not null)
-					{
-						int updateStatus = Convert.ToInt32(statusObj);
-						var bytesProcessed = (ulong)(progressArgs[1] ?? 0UL);
-						var bytesTotal = (ulong)(progressArgs[2] ?? 0UL);
-						if (bytesTotal > 0)
-						{
-							float pct = (float)bytesProcessed / bytesTotal;
-							uploadProgress?.Report(pct);
-							if (i % 4 == 0) // log every 2s, not every tick
-								log?.Report($"Uploading... {pct:P0} ({bytesProcessed}/{bytesTotal} bytes)");
-						}
-						else if (i % 2 == 0) // every 1s when no byte counts yet
-						{
-							log?.Report($"Uploading... ({(i / 2) + 1}s elapsed, status={updateStatus})");
-						}
-
-						if (updateStatus >= 5) // CommittingChanges — done, finalize
-						{
-							finished = true;
-							await Task.Delay(1000, ct).ConfigureAwait(false);
-							SteamClient.RunCallbacks();
-						}
-					}
-				}
-				catch { /* best-effort progress */ }
-			}
-			else if (i % 2 == 0) // no progress API at all
-			{
-				log?.Report($"Uploading... ({(i / 2) + 1}s elapsed)");
-			}
-		}
-
-		// Give Steam a moment to finalize
-		await Task.Delay(2000, ct).ConfigureAwait(false);
-		SteamClient.RunCallbacks();
-
-		// Clean up temp preview file
-		try { if (tempPreview is not null && File.Exists(tempPreview)) File.Delete(tempPreview); } catch { }
-
-		log?.Report("Publish completed via native API.");
-		return PublishOutcome.Ok(metadata.PublishedFileId);
-	}
 }
 
 public readonly record struct PublishOutcome(bool Success, ulong PublishedFileId, string Message)

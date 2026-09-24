@@ -53,5 +53,14 @@ public sealed class WorkshopMetadata
 	/// </summary>
 	[JsonPropertyName("modType")]
 	public string ModType { get; set; } = "PlacableObject";
+
+	/// <summary>
+	/// SHA-256 over everything the last successful publish sent to Steam
+	/// (content files, preview, title, description, tags, visibility, version).
+	/// Empty when never published. Compared to detect local changes ("UPDATED!").
+	/// Local-only, never uploaded.
+	/// </summary>
+	[JsonPropertyName("lastPublishedHash")]
+	public string LastPublishedHash { get; set; } = "";
 }
 

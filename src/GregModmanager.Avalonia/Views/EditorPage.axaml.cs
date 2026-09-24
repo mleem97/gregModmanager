@@ -90,19 +90,36 @@ public partial class EditorPage : UserControl
 
         _metadata = _workspace.LoadMetadata(_projectRoot);
 
-        var localSnapshot = new WorkshopMetadata
-        {
-            Needsgreg = _metadata.Needsgreg,
-            NeedsMelonLoader = _metadata.NeedsMelonLoader,
-            NativeConfigProfile = _metadata.NativeConfigProfile,
-            ModType = _metadata.ModType,
-            PreviewImageRelativePath = _metadata.PreviewImageRelativePath,
-            AdditionalPreviews = new List<string>(_metadata.AdditionalPreviews),
-            WorkshopDependencyIds = new List<ulong>(_metadata.WorkshopDependencyIds),
-        };
-
+        // Local metadata.json is the source of truth. Steam data is NEVER
+        // pulled automatically on open — that silently destroyed local edits.
+        // Explicit sync lives in OnReloadFromSteam (button).
         if (_metadata.PublishedFileId != 0)
         {
+            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Format("Editor_FileId", _metadata.PublishedFileId));
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = "");
+        }
+
+        Dispatcher.UIThread.Post(BindEditorFromMetadata);
+    }
+
+    private async void OnReloadFromSteam(object? sender, RoutedEventArgs e)
+    {
+        if (_metadata.PublishedFileId == 0) return;
+        var dialog = App.Services.GetRequiredService<Services.IDialogService>();
+        try
+        {
+            // Confirm: this overwrites local edits with Steam state.
+            bool confirmed = await dialog.ShowConfirmAsync(
+                S.Get("Editor_ConfirmSteamReloadTitle"),
+                S.Get("Editor_ConfirmSteamReloadMsg"),
+                S.Get("OK"),
+                S.Get("Cancel"));
+            if (!confirmed) return;
+
+            ApplyMetadataFromUi();
             Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_LoadingFromSteam"));
 
             WorkshopItemDetailVm? steam = null;
@@ -112,11 +129,21 @@ public partial class EditorPage : UserControl
             }
             catch (Exception ex)
             {
-                _log.Append($"Steam refresh skipped while opening {_metadata.PublishedFileId}: {ex.Message}");
+                _log.Append($"Steam refresh failed for {_metadata.PublishedFileId}: {ex.Message}");
             }
 
             if (steam is not null)
             {
+                var localSnapshot = new WorkshopMetadata
+                {
+                    Needsgreg = _metadata.Needsgreg,
+                    NeedsMelonLoader = _metadata.NeedsMelonLoader,
+                    NativeConfigProfile = _metadata.NativeConfigProfile,
+                    ModType = _metadata.ModType,
+                    PreviewImageRelativePath = _metadata.PreviewImageRelativePath,
+                    AdditionalPreviews = new List<string>(_metadata.AdditionalPreviews),
+                    WorkshopDependencyIds = new List<ulong>(_metadata.WorkshopDependencyIds),
+                };
                 SteamWorkshopService.ApplySteamWorkshopToMetadata(steam, _metadata, localSnapshot, MaxWorkshopTags);
                 try
                 {
@@ -127,18 +154,17 @@ public partial class EditorPage : UserControl
                 {
                     Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Format("Editor_SteamSaveFailed", ex.Message));
                 }
+                Dispatcher.UIThread.Post(BindEditorFromMetadata);
             }
             else
             {
                 Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = S.Get("Editor_SteamRefreshFailed"));
             }
         }
-        else
+        catch (Exception ex)
         {
-            Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = "");
+            await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_SteamRefreshFailed"), ex);
         }
-
-        Dispatcher.UIThread.Post(BindEditorFromMetadata);
     }
 
     private void BindEditorFromMetadata()
@@ -846,22 +872,6 @@ public partial class EditorPage : UserControl
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
     }
 
-    private static string BuildUploadDescription(WorkshopMetadata meta)
-    {
-        var desc = meta.Description ?? "";
-        if (meta.NeedsMelonLoader && !desc.Contains("MelonLoader", StringComparison.OrdinalIgnoreCase))
-        {
-            desc += "\n\n---\n" + S.Get("Editor_MelonLoaderNotice");
-        }
-
-        if (meta.Needsgreg && !desc.Contains("gregCoreModFramework", StringComparison.OrdinalIgnoreCase))
-        {
-            desc += "\n\n---\n" + S.Get("Editor_gregNotice");
-        }
-
-        return desc;
-    }
-
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
         var dialog = App.Services.GetRequiredService<Services.IDialogService>();
@@ -889,89 +899,125 @@ public partial class EditorPage : UserControl
             var checks = UploadDependencyChecker.Check(_projectRoot, _metadata, ChangeLogEditor.Text);
             if (!UploadDependencyChecker.IsReadyToUpload(checks))
             {
-                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-                await dialog.ShowMessageAsync(S.Get("Editor_NotReady"), S.Get("Editor_NotReadyMsg"));
+                var notReadyDialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await notReadyDialog.ShowMessageAsync(S.Get("Editor_NotReady"), S.Get("Editor_NotReadyMsg"));
                 return;
             }
 
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
 
             var content = Path.GetFullPath(Path.Combine(_projectRoot, "content"));
-            SyncStatusLabel.Text = S.Get("Editor_Uploading");
             var changeLogText = (ChangeLogEditor.Text ?? "").Trim();
             var changeLog = string.IsNullOrWhiteSpace(changeLogText)
                 ? $"v{_metadata.Version}"
                 : $"v{_metadata.Version}: {changeLogText}";
 
-            var originalDesc = _metadata.Description;
-            _metadata.Description = BuildUploadDescription(_metadata);
-
-            var upload = new Progress<float>(p =>
+            var owner = TopLevel.GetTopLevel(this) as Window
+                ?? App.Services.GetService<MainWindow>() as Window;
+            if (owner is null)
             {
-                Dispatcher.UIThread.Post(() =>
-                    SyncStatusLabel.Text = S.Format("Editor_UploadProgress", p));
-            });
-            var log = new Progress<string>(s =>
-            {
-                _log.Append(s);
-                // Show upload status in the label too
-                if (s.StartsWith("Uploading"))
-                    Dispatcher.UIThread.Post(() => SyncStatusLabel.Text = s);
-            });
-
-            var outcome = await _steam.PublishAsync(
-                _projectRoot, _metadata, content, changeLog,
-                upload, log, CancellationToken.None);
-
-            _metadata.Description = originalDesc;
-
-            if (!outcome.Success)
-            {
-                SyncStatusLabel.Text = S.Format("Editor_PublishFailed", outcome.Message);
-                var dialog = App.Services.GetRequiredService<Services.IDialogService>();
-                await dialog.ShowMessageAsync(S.Get(ErrorKey), outcome.Message);
+                var noOwnerDialog = App.Services.GetRequiredService<Services.IDialogService>();
+                await noOwnerDialog.ShowMessageAsync(S.Get(ErrorKey), S.Get("Editor_ProjectOpenFailed"));
                 return;
             }
+
+            var dialog = new UploadDialog(S.Get("UploadDialog_Title"));
+            var uploadTask = RunUploadFlowAsync(dialog, content, changeLog);
+            await dialog.ShowDialog(owner);
+            var outcome = await uploadTask;
+
+            SyncStatusLabel.Text = outcome.Success
+                ? S.Get("Editor_SyncComplete")
+                : S.Format("Editor_PublishFailed", outcome.Message);
+
+            if (!outcome.Success)
+                return;
 
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
             PublishedIdLabel.Text = S.Format("Editor_FileId", _metadata.PublishedFileId);
             ChangeLogHintLabel.Text = S.Get("Editor_ChangeNotesHint");
             ViewOnSteamBtn.IsVisible = true;
-
-            if (_metadata.AdditionalPreviews.Count > 0 && SteamUgcPreviews.IsAvailable)
-            {
-                SyncStatusLabel.Text = S.Get("Editor_UploadingScreenshots");
-                var absPaths = _metadata.AdditionalPreviews
-                    .Select(p => Path.GetFullPath(Path.Combine(_projectRoot, p)))
-                    .ToList();
-                await SteamUgcPreviews.UploadAdditionalPreviewsAsync(
-                    _metadata.PublishedFileId, absPaths, log, CancellationToken.None);
-            }
-
-            SyncStatusLabel.Text = S.Get("Editor_PublishedSyncing");
-
-            var synced = await _steam.SyncAfterPublishAsync(
-                _metadata.PublishedFileId, _projectRoot, _metadata, _workspace, log, CancellationToken.None);
-
-            SyncStatusLabel.Text = synced
-                ? S.Get("Editor_SyncComplete")
-                : S.Get("Editor_SyncIncomplete");
-
             PreviewPathLabel.Text = Path.GetFullPath(Path.Combine(_projectRoot, _metadata.PreviewImageRelativePath));
             RebuildScreenshotGallery();
             UpdateContentSizeUi();
             RunUploadCheck();
-
-            var dialog2 = App.Services.GetRequiredService<Services.IDialogService>();
-            await dialog2.ShowMessageAsync(S.Get("Editor_Publish"),
-                S.Format("Editor_FileId", _metadata.PublishedFileId) + "\n\n" +
-                (synced ? S.Get("Editor_SyncComplete") : S.Get("Editor_SyncIncomplete")));
         }
         catch (Exception ex)
         {
             SyncStatusLabel.Text = "";
             var dialog = App.Services.GetRequiredService<Services.IDialogService>();
             await dialog.ShowErrorAsync(S.Get(ErrorKey), S.Get("Editor_PublishException"), ex);
+        }
+    }
+
+    /// <summary>Runs publish + screenshots + sync inside the upload modal.
+    /// Cancellation comes from the dialog's Cancel button (or closing it).</summary>
+    private async Task<PublishOutcome> RunUploadFlowAsync(UploadDialog dialog, string content, string changeLog)
+    {
+        var ct = dialog.Token;
+        var upload = new Progress<float>(p =>
+        {
+            dialog.ReportProgress(p);
+            dialog.ReportStatus(S.Format("Editor_UploadProgress", p));
+        });
+        var log = new Progress<string>(s =>
+        {
+            _log.Append(s);
+            dialog.ReportLog(s);
+            if (s.StartsWith("Uploading", StringComparison.Ordinal))
+                dialog.ReportStatus(s);
+        });
+
+        try
+        {
+            // NOTE: no description swapping here — PublishAsync builds the
+            // effective upload description itself (single source of truth).
+            PublishOutcome outcome;
+            try
+            {
+                outcome = await _steam.PublishAsync(
+                    _projectRoot, _metadata, content, changeLog,
+                    upload, log, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                outcome = PublishOutcome.Fail(S.Get("UploadDialog_StatusCancelled"));
+            }
+
+            if (!outcome.Success)
+            {
+                dialog.SetFinished(false, S.Format("UploadDialog_StatusFailed", outcome.Message));
+                return outcome;
+            }
+
+            if (_metadata.AdditionalPreviews.Count > 0 && SteamUgcPreviews.IsAvailable)
+            {
+                dialog.ReportStatus(S.Get("Editor_UploadingScreenshots"));
+                var absPaths = _metadata.AdditionalPreviews
+                    .Select(p => Path.GetFullPath(Path.Combine(_projectRoot, p)))
+                    .ToList();
+                await SteamUgcPreviews.UploadAdditionalPreviewsAsync(
+                    _metadata.PublishedFileId, absPaths, log, ct);
+            }
+
+            dialog.ReportStatus(S.Get("Editor_PublishedSyncing"));
+            var synced = await _steam.SyncAfterPublishAsync(
+                _metadata.PublishedFileId, _projectRoot, _metadata, _workspace, log, ct);
+
+            dialog.SetFinished(true, synced
+                ? S.Get("Editor_SyncComplete")
+                : S.Get("Editor_SyncIncomplete"));
+            return PublishOutcome.Ok(_metadata.PublishedFileId);
+        }
+        catch (OperationCanceledException)
+        {
+            dialog.SetFinished(false, S.Get("UploadDialog_StatusCancelled"));
+            return PublishOutcome.Fail(S.Get("UploadDialog_StatusCancelled"));
+        }
+        catch (Exception ex)
+        {
+            dialog.SetFinished(false, S.Format("UploadDialog_StatusFailed", ex.Message));
+            return PublishOutcome.Fail(ex.Message);
         }
     }
 
