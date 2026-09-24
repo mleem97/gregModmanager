@@ -54,6 +54,7 @@
   <data name="Projects_Refreshed" xml:space="preserve"><value>Project list refreshed.</value></data>
   <data name="Projects_Migrated" xml:space="preserve"><value>Migrated {0} project(s) from legacy folder.</value></data>
   <data name="Projects_Edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="Projects_UpdatedBadge" xml:space="preserve"><value>UPDATED!</value></data>
   <data name="Projects_OpenFailed" xml:space="preserve"><value>Could not open project.</value></data>
   <data name="Projects_TabLocal" xml:space="preserve"><value>Local projects</value></data>
   <data name="Projects_TabWorkshop" xml:space="preserve"><value>Workshop uploads</value></data>

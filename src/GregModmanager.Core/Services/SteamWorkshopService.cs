@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Steamworks;
 using Steamworks.Data;
 using Steamworks.Ugc;
+using GregModmanager.Localization;
 using GregModmanager.Models;
 using GregModmanager.Steam;
 
@@ -230,6 +231,28 @@ namespace GregModmanager.Services;
 	#region Publish / Update
 
 	/// <summary>
+	/// Builds the exact description string sent to Steam: the stored text plus
+	/// auto-appended requirement notices (MelonLoader/gregCore) when missing.
+	/// Single source of truth — used for upload AND for the publish hash, so
+	/// change detection never disagrees with what Steam received.
+	/// </summary>
+	public static string BuildUploadDescription(WorkshopMetadata meta)
+	{
+		var desc = meta.Description ?? "";
+		if (meta.NeedsMelonLoader && !desc.Contains("MelonLoader", StringComparison.OrdinalIgnoreCase))
+		{
+			desc += "\n\n---\n" + S.Get("Editor_MelonLoaderNotice");
+		}
+
+		if (meta.Needsgreg && !desc.Contains("gregCoreModFramework", StringComparison.OrdinalIgnoreCase))
+		{
+			desc += "\n\n---\n" + S.Get("Editor_gregNotice");
+		}
+
+		return desc;
+	}
+
+	/// <summary>
 	/// Lists all own Workshop item ids (paginated). Used to diff before/after
 	/// creation: a newly appearing id is the created item, no matter what the
 	/// CreateItem result struct claims.
@@ -335,7 +358,7 @@ namespace GregModmanager.Services;
 		}
 
 		var title = (metadata.Title ?? string.Empty).Trim();
-		var description = (metadata.Description ?? string.Empty).Trim();
+		var description = BuildUploadDescription(metadata).Trim();
 		if (string.IsNullOrEmpty(title))
 		{
 			return PublishOutcome.Fail("Title is required.");
@@ -721,6 +744,18 @@ namespace GregModmanager.Services;
 		if (IsUsableWorkshopId(id))
 		{
 			metadata.PublishedFileId = id;
+		}
+
+		// Record what Steam received so change detection ("UPDATED!") compares
+		// against the uploaded state, not the stored text.
+		try
+		{
+			metadata.LastPublishedHash = WorkspaceService.ComputePublishHash(projectRoot, metadata, description);
+			WorkspaceService.SaveMetadata(projectRoot, metadata);
+		}
+		catch (Exception ex)
+		{
+			log?.Report($"Publish succeeded but the sync hash could not be saved: {ex.Message}");
 		}
 
 		return PublishOutcome.Ok(metadata.PublishedFileId);

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Steamworks;
 using GregModmanager.Localization;
@@ -760,6 +762,93 @@ foreach (var file in Directory.EnumerateFiles(sourceDir, "*", new EnumerationOpt
 			TotalBytes = total,
 			TopEntries = top,
 		};
+	}
+
+	/// <summary>Local-vs-Steam sync state of a project (hash comparison, no network).</summary>
+	public enum ProjectSyncState
+	{
+		/// <summary>No published id — nothing to compare.</summary>
+		Unpublished,
+		/// <summary>Has an id but no hash recorded yet (legacy project).</summary>
+		Unknown,
+		/// <summary>Local state matches the last successful publish.</summary>
+		Synced,
+		/// <summary>Local content/metadata changed since the last publish.</summary>
+		Modified,
+	}
+
+	/// <summary>Compares the current project state against the recorded publish hash.</summary>
+	public ProjectSyncState GetSyncState(string projectRoot)
+	{
+		var meta = LoadMetadata(projectRoot);
+		if (meta.PublishedFileId == 0 || !SteamWorkshopService.IsUsableWorkshopId(meta.PublishedFileId))
+			return ProjectSyncState.Unpublished;
+		if (string.IsNullOrEmpty(meta.LastPublishedHash))
+			return ProjectSyncState.Unknown;
+		// Same effective description as PublishAsync uses (notices included).
+		var current = ComputePublishHash(projectRoot, meta, SteamWorkshopService.BuildUploadDescription(meta).Trim());
+		if (string.IsNullOrEmpty(current))
+			return ProjectSyncState.Unknown;
+		return string.Equals(current, meta.LastPublishedHash, StringComparison.Ordinal)
+			? ProjectSyncState.Synced
+			: ProjectSyncState.Modified;
+	}
+
+	/// <summary>
+	/// SHA-256 over everything a publish sends to Steam: content files
+	/// (relative paths + bytes, sorted), preview bytes, and the metadata
+	/// fields that get uploaded (title, description, tags, visibility, version).
+	/// Pass the EFFECTIVE description (with auto-appended notices) so the hash
+	/// matches what Steam received. Returns "" when content/ is missing.
+	/// </summary>
+	public static string ComputePublishHash(string projectRoot, WorkshopMetadata meta, string effectiveDescription)
+	{
+		try
+		{
+			var content = Path.Combine(projectRoot, "content");
+			if (!Directory.Exists(content))
+				return "";
+			using var sha = SHA256.Create();
+			var files = Directory.EnumerateFiles(content, "*", SearchOption.AllDirectories)
+				.Select(f => Path.GetRelativePath(content, f))
+				.OrderBy(r => r, StringComparer.Ordinal)
+				.ToList();
+			foreach (var rel in files)
+			{
+				var full = Path.Combine(content, rel);
+				byte[] bytes;
+				try { bytes = File.ReadAllBytes(full); }
+				catch { return ""; }
+				var relBytes = Encoding.UTF8.GetBytes(rel + "\0" + bytes.Length + "\0");
+				sha.TransformBlock(relBytes, 0, relBytes.Length, null, 0);
+				sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
+			}
+			if (!string.IsNullOrWhiteSpace(meta.PreviewImageRelativePath))
+			{
+				var preview = Path.Combine(projectRoot, meta.PreviewImageRelativePath);
+				if (File.Exists(preview))
+				{
+					try
+					{
+						var pb = File.ReadAllBytes(preview);
+						sha.TransformBlock(pb, 0, pb.Length, null, 0);
+					}
+					catch { return ""; }
+				}
+			}
+			var metaLine = string.Join("\n",
+				(meta.Title ?? "").Trim(), effectiveDescription ?? "",
+				string.Join(",", meta.Tags ?? new List<string>()),
+				meta.Visibility ?? "", meta.Version ?? "");
+			var metaBytes = Encoding.UTF8.GetBytes(metaLine);
+			sha.TransformFinalBlock(metaBytes, 0, metaBytes.Length);
+			var hash = sha.Hash;
+			return hash is null ? "" : Convert.ToHexString(hash);
+		}
+		catch
+		{
+			return "";
+		}
 	}
 
 	private static long GetDirectorySizeRecursive(string dir)

@@ -872,22 +872,6 @@ public partial class EditorPage : UserControl
         _metadata.WorkshopDependencyIds = _metadata.WorkshopDependencyIds.Where(x => x > 0).Distinct().ToList();
     }
 
-    private static string BuildUploadDescription(WorkshopMetadata meta)
-    {
-        var desc = meta.Description ?? "";
-        if (meta.NeedsMelonLoader && !desc.Contains("MelonLoader", StringComparison.OrdinalIgnoreCase))
-        {
-            desc += "\n\n---\n" + S.Get("Editor_MelonLoaderNotice");
-        }
-
-        if (meta.Needsgreg && !desc.Contains("gregCoreModFramework", StringComparison.OrdinalIgnoreCase))
-        {
-            desc += "\n\n---\n" + S.Get("Editor_gregNotice");
-        }
-
-        return desc;
-    }
-
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
         var dialog = App.Services.GetRequiredService<Services.IDialogService>();
@@ -966,8 +950,6 @@ public partial class EditorPage : UserControl
         }
     }
 
-    private string _originalDescription = "";
-
     /// <summary>Runs publish + screenshots + sync inside the upload modal.
     /// Cancellation comes from the dialog's Cancel button (or closing it).</summary>
     private async Task<PublishOutcome> RunUploadFlowAsync(UploadDialog dialog, string content, string changeLog)
@@ -988,9 +970,8 @@ public partial class EditorPage : UserControl
 
         try
         {
-            _originalDescription = _metadata.Description;
-            _metadata.Description = BuildUploadDescription(_metadata);
-
+            // NOTE: no description swapping here — PublishAsync builds the
+            // effective upload description itself (single source of truth).
             PublishOutcome outcome;
             try
             {
@@ -1037,10 +1018,6 @@ public partial class EditorPage : UserControl
         {
             dialog.SetFinished(false, S.Format("UploadDialog_StatusFailed", ex.Message));
             return PublishOutcome.Fail(ex.Message);
-        }
-        finally
-        {
-            _metadata.Description = _originalDescription;
         }
     }
 
