@@ -429,7 +429,7 @@ if ($isWindowsHost -and -not $SkipWindows) {
     $msiPath = Join-Path $installerOutDir ("gregModmanager-{0}{1}-Windows.msi" -f $ver, $verInfo.PreSuffix)
     if (Test-Path -LiteralPath $msiPath) { Remove-Item -LiteralPath $msiPath -Force }
     Write-Host "[build] WiX MSI: $msiPath"
-    & $wix.Source build -arch x64 $wxs "-dPublishDir=$winPublishDir" "-dProductVersion=$numericVer" "-dProductDisplayVersion=$ver" -o $msiPath
+    & $wix.Source build -arch x64 $wxs -d "PublishDir=$winPublishDir" -d "ProductVersion=$numericVer" -d "ProductDisplayVersion=$ver" -o $msiPath
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $msiPath)) { throw 'WiX MSI build failed.' }
     if ($wantSign) {
         Invoke-BuildSign -TargetPath $msiPath
