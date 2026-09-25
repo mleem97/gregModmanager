@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [1.6.1] - 2026-09-25
+
+### Added
+
 - Unified open-source documentation layout (gregCore template): `LICENSE`
   (Apache 2.0 — replaces the undocumented MIT claim), `VERSION` file as the
   single source of truth (`.csproj` stays in sync as fallback, CI reads
