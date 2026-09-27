@@ -52,3 +52,14 @@ export struct LocalRow {
     // Opaque index into the Rust cache (paths never cross into Slint).
     index: int,
 }
+
+export struct ProblemRow {
+    // "error" | "warning" | "info".
+    severity: string,
+    source: string,
+    message: string,
+    has-action: bool,
+    action-label: string,
+    // Opaque index into the Rust cache.
+    index: int,
+}

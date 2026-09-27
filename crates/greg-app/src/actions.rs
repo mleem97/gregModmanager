@@ -13,7 +13,9 @@ use crate::state::{
     AppState, UiEvent, ICON_MODMANAGER, ICON_MODSTORE, ICON_SETTINGS, ICON_WORKSHOP,
 };
 use crate::worker::{JobHandle, JobMessage, JobOutcome};
-use crate::{BrowseRow, CheckRow, HealthRow, LocalRow, ProjectRow, StoreRow, UpdateRow};
+use crate::{
+    BrowseRow, CheckRow, HealthRow, LocalRow, ProblemRow, ProjectRow, StoreRow, UpdateRow,
+};
 
 // ---------------------------------------------------------------------------
 // Tick: drain events + background jobs (runs on the UI thread).
@@ -115,8 +117,29 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
     }
 }
 
-/// Handles navigation clicks (page ids).
+/// New-issue URL for bug reports (Forgejo main repo).
+pub const BUG_REPORT_URL: &str =
+    "https://git.datacentermods.com/teamGreg/gregModmanager/issues/new";
+
+/// Handles navigation clicks (page ids + the report action).
 pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
+    if id == "report-bug" {
+        // Action row, not a page: open the tracker, stay where we are.
+        if greg_platform::process::open_url(BUG_REPORT_URL).is_err() {
+            AppState::append_log(state, "Report a Bug: could not open the browser.");
+        } else {
+            AppState::append_log(state, "Report a Bug: opened the issue tracker.");
+        }
+        return;
+    }
+    if id == "problems" {
+        {
+            let guard = state.lock().expect("state");
+            guard.ui().set_current_page("problems".into());
+        }
+        refresh_problems(state);
+        return;
+    }
     if matches!(id, "mymods" | "myplugins" | "mylibs") {
         {
             let guard = state.lock().expect("state");
@@ -238,13 +261,12 @@ pub fn profile_clicked(state: &Arc<std::sync::Mutex<AppState>>) {
 }
 
 // ---------------------------------------------------------------------------
-// Custom window chrome (no native frame — everything handled here).
+// Custom window chrome (no native frame).
+//
+// Dragging uses the native `WindowMoveArea` element and resizing the native
+// border handling (`resize-border-width`) — both compositor-side, hence
+// Wayland-safe. Only min/max/close need Rust.
 // ---------------------------------------------------------------------------
-
-/// Minimum window size (logical px, mirrors the Slint minimums).
-const MIN_WIDTH: f32 = 1024.0;
-/// Minimum window height (logical px).
-const MIN_HEIGHT: f32 = 640.0;
 
 /// Minimize the window.
 pub fn window_minimize(state: &Arc<std::sync::Mutex<AppState>>) {
@@ -266,59 +288,6 @@ pub fn window_close(state: &Arc<std::sync::Mutex<AppState>>) {
     let guard = state.lock().expect("state");
     guard.file_log.end_session();
     std::process::exit(0);
-}
-
-/// Moves the window by a logical-pixel delta (titlebar drag).
-pub fn window_drag_move(state: &Arc<std::sync::Mutex<AppState>>, dx: f32, dy: f32) {
-    let guard = state.lock().expect("state");
-    let ui = guard.ui();
-    let win = ui.window();
-    if win.is_maximized() {
-        return;
-    }
-    let scale = win.scale_factor().max(0.1);
-    let pos = win.position();
-    win.set_position(slint::PhysicalPosition::new(
-        pos.x + (dx * scale) as i32,
-        pos.y + (dy * scale) as i32,
-    ));
-}
-
-/// Resizes the window by a logical-pixel delta from the given edge.
-pub fn window_resize_move(state: &Arc<std::sync::Mutex<AppState>>, edge: &str, dx: f32, dy: f32) {
-    let guard = state.lock().expect("state");
-    let ui = guard.ui();
-    let win = ui.window();
-    if win.is_maximized() {
-        return;
-    }
-    let scale = win.scale_factor().max(0.1);
-    let pos = win.position();
-    let size = win.size();
-    let (mut x, mut y) = (pos.x, pos.y);
-    let (mut w, mut h) = (size.width as i32, size.height as i32);
-    let dxp = (dx * scale) as i32;
-    let dyp = (dy * scale) as i32;
-    let min_w = (MIN_WIDTH * scale) as i32;
-    let min_h = (MIN_HEIGHT * scale) as i32;
-    if edge.contains('w') {
-        let clamped = dxp.min(w - min_w);
-        x += clamped;
-        w -= clamped;
-    }
-    if edge.contains('e') {
-        w = (w + dxp).max(min_w);
-    }
-    if edge.contains('n') {
-        let clamped = dyp.min(h - min_h);
-        y += clamped;
-        h -= clamped;
-    }
-    if edge.contains('s') {
-        h = (h + dyp).max(min_h);
-    }
-    win.set_position(slint::PhysicalPosition::new(x, y));
-    win.set_size(slint::PhysicalSize::new(w.max(1) as u32, h.max(1) as u32));
 }
 
 // ---------------------------------------------------------------------------
@@ -1478,6 +1447,183 @@ pub fn confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
     let mut guard = state.lock().expect("state");
     guard.pending_remove = None;
     guard.ui().set_show_confirm(false);
+}
+
+// ---------------------------------------------------------------------------
+// Problems inbox.
+// ---------------------------------------------------------------------------
+
+/// One aggregated problem with an optional jump action.
+struct Problem {
+    severity: &'static str,
+    source: String,
+    message: String,
+    action: Option<(String, String, String)>,
+}
+
+/// Recomputes the problems inbox for the current state.
+pub fn refresh_problems(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let mut problems: Vec<Problem> = Vec::new();
+
+    // Game root.
+    let game_root = game_root_of(&guard);
+    if !game_root.is_dir() {
+        problems.push(Problem {
+            severity: "error",
+            source: "Game".into(),
+            message: "Game folder not found — set the game root in Settings.".into(),
+            action: Some(("settings".into(), String::new(), "Open Settings".into())),
+        });
+    }
+
+    // Steam + GregApi status.
+    let steam_hint = match guard.backend.status() {
+        greg_steam::backend::BackendStatus::Available { .. } => None,
+        greg_steam::backend::BackendStatus::Unavailable { hint } => Some(hint),
+    };
+    if let Some(hint) = steam_hint {
+        problems.push(Problem {
+            severity: "warning",
+            source: "Steam".into(),
+            message: if hint.is_empty() {
+                "Steam is disconnected — Workshop features are limited.".into()
+            } else {
+                format!("Steam is disconnected ({hint}) — Workshop features are limited.")
+            },
+            action: None,
+        });
+    }
+    if !guard.ui().get_gregapi_ok() {
+        problems.push(Problem {
+            severity: "warning",
+            source: "GregApi".into(),
+            message: "gregAPI is offline — Modstore and login are unavailable.".into(),
+            action: None,
+        });
+    }
+
+    // Health checks (only with a game root; without one the game error above covers it).
+    if game_root.is_dir() {
+        let service = greg_loader::health::ModDependencyService::new(Some(game_root.clone()));
+        if let Ok(checks) = service.run_checks() {
+            for check in checks {
+                match check.status {
+                    greg_loader::content::DependencyStatus::Ok => {}
+                    greg_loader::content::DependencyStatus::Warning => problems.push(Problem {
+                        severity: "warning",
+                        source: check.label,
+                        message: check.detail,
+                        action: None,
+                    }),
+                    greg_loader::content::DependencyStatus::Missing => problems.push(Problem {
+                        severity: "error",
+                        source: check.label,
+                        message: check.detail,
+                        action: None,
+                    }),
+                }
+            }
+        }
+    }
+
+    // Projects with unpublished changes.
+    if let Ok(projects) = guard.workspace.scan_projects() {
+        for project in projects {
+            let meta =
+                greg_platform::workspace::load_metadata(&project.root_path).unwrap_or_default();
+            let desc = guard
+                .steam
+                .build_upload_description(&project.root_path, &meta);
+            let sync = guard
+                .workspace
+                .sync_state(&project.root_path, &desc)
+                .unwrap_or(ProjectSyncState::Unknown);
+            let name = if meta.title.trim().is_empty() {
+                project.name.clone()
+            } else {
+                meta.title.clone()
+            };
+            match sync {
+                ProjectSyncState::Modified => problems.push(Problem {
+                    severity: "warning",
+                    source: "Projects".into(),
+                    message: format!("{name}: local changes not published yet."),
+                    action: Some((
+                        "editor".into(),
+                        project.root_path.to_string_lossy().to_string(),
+                        "Open editor".into(),
+                    )),
+                }),
+                ProjectSyncState::Unpublished => problems.push(Problem {
+                    severity: "info",
+                    source: "Projects".into(),
+                    message: format!("{name}: never published."),
+                    action: Some((
+                        "editor".into(),
+                        project.root_path.to_string_lossy().to_string(),
+                        "Open editor".into(),
+                    )),
+                }),
+                ProjectSyncState::Synced | ProjectSyncState::Unknown => {}
+            }
+        }
+    }
+
+    let status = if problems.is_empty() {
+        "All clear — no problems found.".to_string()
+    } else {
+        let (errors, warnings) = problems.iter().fold((0, 0), |(e, w), p| {
+            (
+                e + usize::from(p.severity == "error"),
+                w + usize::from(p.severity == "warning"),
+            )
+        });
+        format!("{errors} errors, {warnings} warnings")
+    };
+    let rows: Vec<ProblemRow> = problems
+        .iter()
+        .enumerate()
+        .map(|(i, p)| ProblemRow {
+            severity: p.severity.into(),
+            source: p.source.clone().into(),
+            message: p.message.clone().into(),
+            has_action: p.action.is_some(),
+            action_label: p
+                .action
+                .as_ref()
+                .map(|(_, _, label)| label.clone().into())
+                .unwrap_or_default(),
+            index: i as i32,
+        })
+        .collect();
+    guard.problem_actions = problems
+        .into_iter()
+        .map(|p| {
+            p.action
+                .map(|(id, target, _)| (id, target))
+                .unwrap_or_default()
+        })
+        .collect();
+    guard.ui().set_problem_rows(model_of_rows(rows));
+    guard.ui().set_problem_status(status.into());
+}
+
+/// Executes a problem-row action by list index.
+pub fn problems_act(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let action = {
+        let guard = state.lock().expect("state");
+        guard
+            .problem_actions
+            .get(index as usize)
+            .cloned()
+            .unwrap_or_default()
+    };
+    match action.0.as_str() {
+        "settings" => on_icon(state, crate::state::ICON_SETTINGS),
+        "editor" if !action.1.is_empty() => open_project(state, &action.1),
+        _ => {}
+    }
 }
 
 // ---------------------------------------------------------------------------

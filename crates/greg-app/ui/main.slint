@@ -1,20 +1,21 @@
 import { Button } from "std-widgets.slint";
 import { Palette, IconButton, NavButton, StatusLed, WinBtn } from "theme.slint";
-import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow } from "models.slint";
+import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow } from "models.slint";
 import { LocalPage } from "page-local.slint";
+import { ProblemsPage } from "page-problems.slint";
 import { ProjectsPage } from "page-projects.slint";
 import { EditorPage } from "page-editor.slint";
 import { BrowsePage } from "page-browse.slint";
 import { StorePage } from "page-store.slint";
 import { SettingsPage } from "page-settings.slint";
 
-// Main window: icon bar | navigation (per icon) | content, status bar below.
+// Main window: full-height icon bar | header + navigation + content,
+// status bar below. 100% custom chrome (no native frame).
 // Grounded in the old Avalonia MainWindow: TerminalCore palette, header with
 // game-start buttons, login/profile card, Steam + GregApi status.
 
 export component MainWindow inherits Window {
     title: "gregModmanager";
-    // 100% custom chrome: no native frame, everything styled in Slint.
     no-frame: true;
     preferred-width: 1400px;
     preferred-height: 900px;
@@ -22,11 +23,14 @@ export component MainWindow inherits Window {
     min-height: 640px;
     background: Palette.surface;
     icon: @image-url("../../../G.svg");
+    // Native border-drag resize for frameless windows (compositor-side,
+    // Wayland-safe). Manual resize handles are intentionally gone.
+    resize-border-width: 6px;
 
     // --- shell state (Rust <-> Slint) ---
     in-out property <string> app-version;
-    in-out property <string> current-icon: "projects";
-    in-out property <string> current-page: "projects";
+    in-out property <string> current-icon: "modmanager";
+    in-out property <string> current-page: "mymods";
     in-out property <bool> nav-visible: true;
     in-out property <string> nav-title: "MODMANAGER";
     in-out property <[NavItem]> nav-items;
@@ -112,6 +116,10 @@ export component MainWindow inherits Window {
     in-out property <[LocalRow]> local-rows;
     in-out property <string> local-status;
 
+    // --- problems page state ---
+    in-out property <[ProblemRow]> problem-rows;
+    in-out property <string> problem-status;
+
     // --- confirm dialog ---
     in-out property <bool> show-confirm: false;
     in-out property <string> confirm-text;
@@ -135,18 +143,6 @@ export component MainWindow inherits Window {
     callback window-minimize();
     callback window-maximize();
     callback window-close();
-    callback window-drag-move(float, float);
-    callback window-resize-move(string, float, float);
-
-    // --- custom-chrome drag state ---
-    // Note: `maximized` is a builtin Window property (bound both ways).
-    in-out property <bool> dragging: false;
-    in-out property <length> drag-last-x;
-    in-out property <length> drag-last-y;
-    in-out property <bool> resizing: false;
-    in-out property <string> resize-edge;
-    in-out property <length> resize-last-x;
-    in-out property <length> resize-last-y;
 
     // --- local content callbacks ---
     callback local-refresh();
@@ -155,6 +151,10 @@ export component MainWindow inherits Window {
     callback local-open-folder();
     callback confirm-yes();
     callback confirm-no();
+
+    // --- problems callbacks ---
+    callback problems-refresh();
+    callback problems-act(int);
 
     // --- projects callbacks ---
     callback project-refresh();
@@ -203,7 +203,8 @@ export component MainWindow inherits Window {
     callback se-make-bundle();
     callback se-register-protocol();
 
-    // Full-window frame: 1px outline + overlay resize handles.
+    // Full-window frame: 1px outline. The icon bar takes the complete left
+    // height; header, content and status bar live in the right column.
     Rectangle {
         width: parent.width;
         height: parent.height;
@@ -211,139 +212,35 @@ export component MainWindow inherits Window {
         border-width: 1px;
         border-color: Palette.outline;
 
-        VerticalLayout {
+        HorizontalLayout {
             width: parent.width;
             height: parent.height;
             spacing: 0px;
 
-        // Header: logo + game start + login/profile + window buttons.
-        // Custom chrome: the drag area sits behind everything else.
-        Rectangle {
-            height: 42px;
-            background: Palette.container-low;
-            drag-touch := TouchArea {
-                width: parent.width;
-                height: parent.height;
-                pointer-event(e) => {
-                    if (e.kind == PointerEventKind.down) {
-                        root.dragging = true;
-                        root.drag-last-x = drag-touch.mouse-x;
-                        root.drag-last-y = drag-touch.mouse-y;
-                    } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                        root.dragging = false;
-                    }
-                }
-                moved => {
-                    if (root.dragging) {
-                        root.window-drag-move((drag-touch.mouse-x - root.drag-last-x) / 1px, (drag-touch.mouse-y - root.drag-last-y) / 1px);
-                        root.drag-last-x = drag-touch.mouse-x;
-                        root.drag-last-y = drag-touch.mouse-y;
-                    }
-                }
-            }
-            HorizontalLayout {
-                padding-left: 14px;
-                padding-right: 6px;
-                spacing: 8px;
-                Image {
-                    source: @image-url("../../../G.svg");
-                    width: 26px;
-                    height: 26px;
-                    y: (parent.height - self.height) / 2;
-                }
-                Text {
-                    text: "GREGMODMANAGER // TERMINAL CORE";
-                    font-size: 11px;
-                    font-weight: 700;
-                    letter-spacing: 1px;
-                    color: Palette.on-variant;
-                    vertical-alignment: center;
-                }
-                Rectangle { horizontal-stretch: 1; }
-                Button { text: "Start Game"; clicked => { root.start-game("steam"); } }
-                Button { text: "With Mods"; clicked => { root.start-game("mods"); } }
-                Button { text: "No Mods"; clicked => { root.start-game("vanilla"); } }
-                if root.login-visible: Button {
-                    text: "Login";
-                    clicked => { root.login-clicked(); }
-                }
-                if root.profile-visible: Rectangle {
-                    height: 34px;
-                    min-width: 180px;
-                    background: Palette.container;
-                    border-radius: Palette.radius;
-                    border-width: 1px;
-                    border-color: Palette.outline;
-                    touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.profile-clicked(); }
-                    }
-                    HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 10px;
-                        spacing: 8px;
-                        Rectangle {
-                            width: 24px;
-                            height: 24px;
-                            y: (parent.height - self.height) / 2;
-                            background: Palette.avatar-bg;
-                            border-radius: 12px;
-                            Text {
-                                text: "●";
-                                font-size: 12px;
-                                color: Palette.primary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
-                        VerticalLayout {
-                            alignment: center;
-                            Text {
-                                text: root.profile-name;
-                                font-size: 12px;
-                                font-weight: 700;
-                                color: Palette.on-surface;
-                            }
-                            Text {
-                                text: root.profile-hint;
-                                font-size: 10px;
-                                color: Palette.on-variant;
-                            }
-                        }
-                    }
-                }
-                HorizontalLayout {
-                    spacing: 0px;
-                    WinBtn {
-                        glyph: "—";
-                        clicked => { root.window-minimize(); }
-                    }
-                    WinBtn {
-                        glyph: root.maximized ? "❐" : "□";
-                        clicked => { root.window-maximize(); }
-                    }
-                    WinBtn {
-                        glyph: "✕";
-                        danger: true;
-                        clicked => { root.window-close(); }
-                    }
-                }
-            }
-        }
-
-        // Main row: icon bar | navigation | content.
-        HorizontalLayout {
-            spacing: 0px;
-            vertical-stretch: 1;
-
-            // Far-left icon bar, fixed 64px.
+            // Far-left icon bar, full height. Logo first.
             Rectangle {
                 width: 64px;
                 background: Palette.container-low;
                 VerticalLayout {
-                    padding-top: 10px;
+                    width: parent.width;
+                    height: parent.height;
+                    padding-top: 8px;
+                    padding-bottom: 8px;
                     spacing: 4px;
-                    alignment: start;
+                    logo-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.icon-clicked("modmanager"); }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        Image {
+                            source: @image-url("../../../G.svg");
+                            width: 40px;
+                            height: 36px;
+                            image-fit: contain;
+                        }
+                    }
+                    Rectangle { height: 6px; }
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
@@ -384,209 +281,318 @@ export component MainWindow inherits Window {
                 }
             }
 
-            // Conditional navigation beside the icon bar.
-            if root.nav-visible: Rectangle {
-                width: 200px;
-                background: Palette.surface;
-                VerticalLayout {
-                    padding: 14px;
-                    spacing: 6px;
-                    alignment: start;
-                    Text {
-                        text: root.nav-title;
-                        font-size: 11px;
-                        font-weight: 700;
-                        letter-spacing: 2px;
-                        color: Palette.primary;
-                    }
-                    for item in root.nav-items: NavButton {
-                        label: item.label;
-                        active: root.current-page == item.id;
-                        clicked => { root.nav-clicked(item.id); }
-                    }
-                }
-            }
-
-            // Content pages (single visible page stretches to fill).
-            Rectangle {
+            // Right column: header, main row, status bar.
+            VerticalLayout {
                 horizontal-stretch: 1;
-                background: Palette.surface;
-                VerticalLayout {
-                    width: parent.width;
-                    height: parent.height;
-                    if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
-                    vertical-stretch: 1;
-                    title <=> root.local-title;
-                    search <=> root.local-search;
-                    rows <=> root.local-rows;
-                    status <=> root.local-status;
-                    refresh => { root.local-refresh(); }
-                    toggle(idx) => { root.local-toggle(idx); }
-                    remove(idx) => { root.local-remove(idx); }
-                    open-folder => { root.local-open-folder(); }
-                }
-                if root.current-page == "projects": ProjectsPage {
-                    vertical-stretch: 1;
-                    search <=> root.project-search;
-                    rows <=> root.projects;
-                    new-folder <=> root.new-folder;
-                    new-template <=> root.new-template;
-                    templates <=> root.new-templates;
-                    refresh => { root.project-refresh(); }
-                    open-project(path) => { root.project-open(path); }
-                    open-folder => { root.project-open-folder(); }
-                    create-project => { root.project-create(); }
-                    view-on-steam(id) => { root.project-view-steam(id); }
-                }
-                if root.current-page == "new": ProjectsPage {
-                    vertical-stretch: 1;
-                    // New projects live inside the projects page section.
-                    search <=> root.project-search;
-                    rows <=> root.projects;
-                    new-folder <=> root.new-folder;
-                    new-template <=> root.new-template;
-                    templates <=> root.new-templates;
-                    refresh => { root.project-refresh(); }
-                    open-project(path) => { root.project-open(path); }
-                    open-folder => { root.project-open-folder(); }
-                    create-project => { root.project-create(); }
-                    view-on-steam(id) => { root.project-view-steam(id); }
-                }
-                if root.current-page == "editor": EditorPage {
-                    vertical-stretch: 1;
-                    title <=> root.ed-title;
-                    version <=> root.ed-version;
-                    desc <=> root.ed-desc;
-                    tags <=> root.ed-tags;
-                    visibility <=> root.ed-visibility;
-                    visibilities <=> root.ed-visibilities;
-                    profile <=> root.ed-profile;
-                    profiles <=> root.ed-profiles;
-                    modtype <=> root.ed-modtype;
-                    modtypes <=> root.ed-modtypes;
-                    needs-greg <=> root.ed-needsgreg;
-                    needs-ml <=> root.ed-needsml;
-                    changelog <=> root.ed-changelog;
-                    changelog-hint <=> root.ed-changelog-hint;
-                    desc-hint <=> root.ed-desc-hint;
-                    fileid-text <=> root.ed-fileid-text;
-                    project-name <=> root.ed-project-name;
-                    checks <=> root.ed-checks;
-                    ready <=> root.ed-ready;
-                    readiness-text <=> root.ed-readiness-text;
-                    deps <=> root.ed-deps;
-                    dep-add-text <=> root.ed-dep-add-text;
-                    preview-text <=> root.ed-preview-text;
-                    shots <=> root.ed-shots;
-                    progress <=> root.ed-progress;
-                    publishing <=> root.ed-publishing;
-                    status <=> root.ed-status;
-                    log <=> root.ed-log;
-                    changed => { root.ed-changed(); }
-                    save => { root.ed-save(); }
-                    publish => { root.ed-publish(); }
-                    cancel-publish => { root.ed-cancel-publish(); }
-                    pick-preview => { root.ed-pick-preview(); }
-                    add-shot => { root.ed-add-shot(); }
-                    remove-shot(idx) => { root.ed-remove-shot(idx); }
-                    dep-add => { root.ed-dep-add(); }
-                    dep-remove(idx) => { root.ed-dep-remove(idx); }
-                    view-on-steam => { root.ed-view-steam(); }
-                }
-                if root.current-page == "browse": BrowsePage {
-                    vertical-stretch: 1;
-                    list <=> root.br-list;
-                    lists <=> root.br-lists;
-                    sort <=> root.br-sort;
-                    sorts <=> root.br-sorts;
-                    search <=> root.br-search;
-                    tag <=> root.br-tag;
-                    page <=> root.br-page;
-                    total <=> root.br-total;
-                    items <=> root.br-items;
-                    selected <=> root.br-selected;
-                    has-detail <=> root.br-has-detail;
-                    d-title <=> root.br-d-title;
-                    d-meta <=> root.br-d-meta;
-                    d-tags <=> root.br-d-tags;
-                    d-desc <=> root.br-d-desc;
-                    d-deps <=> root.br-d-deps;
-                    d-subscribed <=> root.br-d-subscribed;
-                    status <=> root.br-status;
-                    busy <=> root.br-busy;
-                    refresh => { root.br-go(); }
-                    search-go => { root.br-go(); }
-                    cancel => { root.br-cancel(); }
-                    select(id) => { root.br-select(id); }
-                    prev-page => { root.br-prev(); }
-                    next-page => { root.br-next(); }
-                    subscribe-toggle => { root.br-subscribe-toggle(); }
-                    import-item => { root.br-import(); }
-                    view-on-steam => { root.br-view-steam(); }
-                }
-                if root.current-page == "modstore": StorePage {
-                    vertical-stretch: 1;
-                    search <=> root.st-search;
-                    items <=> root.st-items;
-                    updates <=> root.st-updates;
-                    progress <=> root.st-progress;
-                    busy <=> root.st-busy;
-                    status <=> root.st-status;
-                    refresh => { root.st-refresh(); }
-                    check-updates => { root.st-check-updates(); }
-                    cancel => { root.st-cancel(); }
-                    install(idx) => { root.st-install(idx); }
-                    install-update(idx) => { root.st-install-update(idx); }
-                }
-                if root.current-page == "settings": SettingsPage {
-                    vertical-stretch: 1;
-                    workspace <=> root.se-workspace;
-                    gameroot <=> root.se-gameroot;
-                    lang <=> root.se-lang;
-                    langs <=> root.se-langs;
-                    modstore-url <=> root.se-modstore-url;
-                    telemetry-text <=> root.se-telemetry-text;
-                    health <=> root.se-health;
-                    log <=> root.se-log;
-                    apply-workspace => { root.se-apply-workspace(); }
-                    browse-workspace => { root.se-browse-workspace(); }
-                    apply-gameroot => { root.se-apply-gameroot(); }
-                    browse-gameroot => { root.se-browse-gameroot(); }
-                    apply-modstore-url => { root.se-apply-modstore-url(); }
-                    run-checks => { root.se-run-checks(); }
-                    open-logs => { root.se-open-logs(); }
-                    make-bundle => { root.se-make-bundle(); }
-                    register-protocol => { root.se-register-protocol(); }
-                }
-                }
-            }
-        }
+                spacing: 0px;
 
-        // Bottom status bar: Steam + GregApi LEDs.
-        Rectangle {
-            height: 30px;
-            background: Palette.container-low;
-            HorizontalLayout {
-                padding-left: 12px;
-                padding-right: 12px;
-                spacing: 18px;
-                StatusLed {
-                    ok: root.steam-ok;
-                    text: root.steam-text;
+                // Header with native window-move area behind the controls.
+                Rectangle {
+                    height: 42px;
+                    background: Palette.container-low;
+                    WindowMoveArea {
+                        width: parent.width;
+                        height: parent.height;
+                    }
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 6px;
+                        spacing: 8px;
+                        Text {
+                            text: "GREGMODMANAGER // TERMINAL CORE";
+                            font-size: 11px;
+                            font-weight: 700;
+                            letter-spacing: 1px;
+                            color: Palette.on-variant;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button { text: "Start Game"; clicked => { root.start-game("steam"); } }
+                        Button { text: "With Mods"; clicked => { root.start-game("mods"); } }
+                        Button { text: "No Mods"; clicked => { root.start-game("vanilla"); } }
+                        if root.login-visible: Button {
+                            text: "Login";
+                            clicked => { root.login-clicked(); }
+                        }
+                        if root.profile-visible: Rectangle {
+                            height: 34px;
+                            min-width: 180px;
+                            background: Palette.container;
+                            border-radius: Palette.radius;
+                            border-width: 1px;
+                            border-color: Palette.outline;
+                            touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.profile-clicked(); }
+                            }
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 10px;
+                                spacing: 8px;
+                                Rectangle {
+                                    width: 24px;
+                                    height: 24px;
+                                    y: (parent.height - self.height) / 2;
+                                    background: Palette.avatar-bg;
+                                    border-radius: 12px;
+                                    Text {
+                                        text: "●";
+                                        font-size: 12px;
+                                        color: Palette.primary;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Text {
+                                        text: root.profile-name;
+                                        font-size: 12px;
+                                        font-weight: 700;
+                                        color: Palette.on-surface;
+                                    }
+                                    Text {
+                                        text: root.profile-hint;
+                                        font-size: 10px;
+                                        color: Palette.on-variant;
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 0px;
+                            WinBtn {
+                                glyph: "—";
+                                clicked => { root.window-minimize(); }
+                            }
+                            WinBtn {
+                                glyph: root.maximized ? "❐" : "□";
+                                clicked => { root.window-maximize(); }
+                            }
+                            WinBtn {
+                                glyph: "✕";
+                                danger: true;
+                                clicked => { root.window-close(); }
+                            }
+                        }
+                    }
                 }
-                StatusLed {
-                    ok: root.gregapi-ok;
-                    text: root.gregapi-text;
+
+                // Main row: navigation beside the icon bar + content.
+                HorizontalLayout {
+                    spacing: 0px;
+                    vertical-stretch: 1;
+
+                    // Conditional navigation.
+                    if root.nav-visible: Rectangle {
+                        width: 200px;
+                        background: Palette.surface;
+                        VerticalLayout {
+                            padding: 14px;
+                            spacing: 6px;
+                            alignment: start;
+                            Text {
+                                text: root.nav-title;
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 2px;
+                                color: Palette.primary;
+                            }
+                            for item in root.nav-items: NavButton {
+                                label: item.label;
+                                active: root.current-page == item.id;
+                                clicked => { root.nav-clicked(item.id); }
+                            }
+                        }
+                    }
+
+                    // Content pages (single visible page stretches to fill).
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: Palette.surface;
+                        VerticalLayout {
+                            width: parent.width;
+                            height: parent.height;
+                            if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
+                                vertical-stretch: 1;
+                                title <=> root.local-title;
+                                search <=> root.local-search;
+                                rows <=> root.local-rows;
+                                status <=> root.local-status;
+                                refresh => { root.local-refresh(); }
+                                toggle(idx) => { root.local-toggle(idx); }
+                                remove(idx) => { root.local-remove(idx); }
+                                open-folder => { root.local-open-folder(); }
+                            }
+                            if root.current-page == "problems": ProblemsPage {
+                                vertical-stretch: 1;
+                                rows <=> root.problem-rows;
+                                status <=> root.problem-status;
+                                refresh => { root.problems-refresh(); }
+                                act(idx) => { root.problems-act(idx); }
+                            }
+                            if root.current-page == "projects": ProjectsPage {
+                                vertical-stretch: 1;
+                                search <=> root.project-search;
+                                rows <=> root.projects;
+                                new-folder <=> root.new-folder;
+                                new-template <=> root.new-template;
+                                templates <=> root.new-templates;
+                                refresh => { root.project-refresh(); }
+                                open-project(path) => { root.project-open(path); }
+                                open-folder => { root.project-open-folder(); }
+                                create-project => { root.project-create(); }
+                                view-on-steam(id) => { root.project-view-steam(id); }
+                            }
+                            if root.current-page == "new": ProjectsPage {
+                                vertical-stretch: 1;
+                                search <=> root.project-search;
+                                rows <=> root.projects;
+                                new-folder <=> root.new-folder;
+                                new-template <=> root.new-template;
+                                templates <=> root.new-templates;
+                                refresh => { root.project-refresh(); }
+                                open-project(path) => { root.project-open(path); }
+                                open-folder => { root.project-open-folder(); }
+                                create-project => { root.project-create(); }
+                                view-on-steam(id) => { root.project-view-steam(id); }
+                            }
+                            if root.current-page == "editor": EditorPage {
+                                vertical-stretch: 1;
+                                title <=> root.ed-title;
+                                version <=> root.ed-version;
+                                desc <=> root.ed-desc;
+                                tags <=> root.ed-tags;
+                                visibility <=> root.ed-visibility;
+                                visibilities <=> root.ed-visibilities;
+                                profile <=> root.ed-profile;
+                                profiles <=> root.ed-profiles;
+                                modtype <=> root.ed-modtype;
+                                modtypes <=> root.ed-modtypes;
+                                needs-greg <=> root.ed-needsgreg;
+                                needs-ml <=> root.ed-needsml;
+                                changelog <=> root.ed-changelog;
+                                changelog-hint <=> root.ed-changelog-hint;
+                                desc-hint <=> root.ed-desc-hint;
+                                fileid-text <=> root.ed-fileid-text;
+                                project-name <=> root.ed-project-name;
+                                checks <=> root.ed-checks;
+                                ready <=> root.ed-ready;
+                                readiness-text <=> root.ed-readiness-text;
+                                deps <=> root.ed-deps;
+                                dep-add-text <=> root.ed-dep-add-text;
+                                preview-text <=> root.ed-preview-text;
+                                shots <=> root.ed-shots;
+                                progress <=> root.ed-progress;
+                                publishing <=> root.ed-publishing;
+                                status <=> root.ed-status;
+                                log <=> root.ed-log;
+                                changed => { root.ed-changed(); }
+                                save => { root.ed-save(); }
+                                publish => { root.ed-publish(); }
+                                cancel-publish => { root.ed-cancel-publish(); }
+                                pick-preview => { root.ed-pick-preview(); }
+                                add-shot => { root.ed-add-shot(); }
+                                remove-shot(idx) => { root.ed-remove-shot(idx); }
+                                dep-add => { root.ed-dep-add(); }
+                                dep-remove(idx) => { root.ed-dep-remove(idx); }
+                                view-on-steam => { root.ed-view-steam(); }
+                            }
+                            if root.current-page == "browse": BrowsePage {
+                                vertical-stretch: 1;
+                                list <=> root.br-list;
+                                lists <=> root.br-lists;
+                                sort <=> root.br-sort;
+                                sorts <=> root.br-sorts;
+                                search <=> root.br-search;
+                                tag <=> root.br-tag;
+                                page <=> root.br-page;
+                                total <=> root.br-total;
+                                items <=> root.br-items;
+                                selected <=> root.br-selected;
+                                has-detail <=> root.br-has-detail;
+                                d-title <=> root.br-d-title;
+                                d-meta <=> root.br-d-meta;
+                                d-tags <=> root.br-d-tags;
+                                d-desc <=> root.br-d-desc;
+                                d-deps <=> root.br-d-deps;
+                                d-subscribed <=> root.br-d-subscribed;
+                                status <=> root.br-status;
+                                busy <=> root.br-busy;
+                                refresh => { root.br-go(); }
+                                search-go => { root.br-go(); }
+                                cancel => { root.br-cancel(); }
+                                select(id) => { root.br-select(id); }
+                                prev-page => { root.br-prev(); }
+                                next-page => { root.br-next(); }
+                                subscribe-toggle => { root.br-subscribe-toggle(); }
+                                import-item => { root.br-import(); }
+                                view-on-steam => { root.br-view-steam(); }
+                            }
+                            if root.current-page == "modstore": StorePage {
+                                vertical-stretch: 1;
+                                search <=> root.st-search;
+                                items <=> root.st-items;
+                                updates <=> root.st-updates;
+                                progress <=> root.st-progress;
+                                busy <=> root.st-busy;
+                                status <=> root.st-status;
+                                refresh => { root.st-refresh(); }
+                                check-updates => { root.st-check-updates(); }
+                                cancel => { root.st-cancel(); }
+                                install(idx) => { root.st-install(idx); }
+                                install-update(idx) => { root.st-install-update(idx); }
+                            }
+                            if root.current-page == "settings": SettingsPage {
+                                vertical-stretch: 1;
+                                workspace <=> root.se-workspace;
+                                gameroot <=> root.se-gameroot;
+                                lang <=> root.se-lang;
+                                langs <=> root.se-langs;
+                                modstore-url <=> root.se-modstore-url;
+                                telemetry-text <=> root.se-telemetry-text;
+                                health <=> root.se-health;
+                                log <=> root.se-log;
+                                apply-workspace => { root.se-apply-workspace(); }
+                                browse-workspace => { root.se-browse-workspace(); }
+                                apply-gameroot => { root.se-apply-gameroot(); }
+                                browse-gameroot => { root.se-browse-gameroot(); }
+                                apply-modstore-url => { root.se-apply-modstore-url(); }
+                                run-checks => { root.se-run-checks(); }
+                                open-logs => { root.se-open-logs(); }
+                                make-bundle => { root.se-make-bundle(); }
+                                register-protocol => { root.se-register-protocol(); }
+                            }
+                        }
+                    }
                 }
-                Rectangle { horizontal-stretch: 1; }
-                Text {
-                    text: "v" + root.app-version;
-                    font-size: 11px;
-                    color: Palette.on-variant;
-                    vertical-alignment: center;
+
+                // Bottom status bar: Steam + GregApi LEDs.
+                Rectangle {
+                    height: 30px;
+                    background: Palette.container-low;
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        spacing: 18px;
+                        StatusLed {
+                            ok: root.steam-ok;
+                            text: root.steam-text;
+                        }
+                        StatusLed {
+                            ok: root.gregapi-ok;
+                            text: root.gregapi-text;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: "v" + root.app-version;
+                            font-size: 11px;
+                            color: Palette.on-variant;
+                            vertical-alignment: center;
+                        }
+                    }
                 }
             }
-        }
         }
 
         // Modal confirm dialog (e.g. local file removal).
@@ -627,161 +633,6 @@ export component MainWindow inherits Window {
                             clicked => { root.confirm-no(); }
                         }
                     }
-                }
-            }
-        }
-
-        // Overlay resize handles (custom chrome, disabled when maximized).
-        // Each reports pressed position deltas; Rust applies them to the window.
-        TouchArea {
-            x: 0px; y: 8px; width: 6px; height: parent.height - 16px;
-            mouse-cursor: ew-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "left";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "left") {
-                    root.window-resize-move("left", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: parent.width - 6px; y: 8px; width: 6px; height: parent.height - 16px;
-            mouse-cursor: ew-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "right";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "right") {
-                    root.window-resize-move("right", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: 8px; y: 0px; width: parent.width - 16px; height: 6px;
-            mouse-cursor: ns-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "top";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "top") {
-                    root.window-resize-move("top", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: 8px; y: parent.height - 6px; width: parent.width - 16px; height: 6px;
-            mouse-cursor: ns-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "bottom";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "bottom") {
-                    root.window-resize-move("bottom", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: 0px; y: 0px; width: 10px; height: 10px;
-            mouse-cursor: nwse-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "nw";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "nw") {
-                    root.window-resize-move("nw", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: parent.width - 10px; y: 0px; width: 10px; height: 10px;
-            mouse-cursor: nesw-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "ne";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "ne") {
-                    root.window-resize-move("ne", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: 0px; y: parent.height - 10px; width: 10px; height: 10px;
-            mouse-cursor: nesw-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "sw";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "sw") {
-                    root.window-resize-move("sw", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                }
-            }
-        }
-        TouchArea {
-            x: parent.width - 10px; y: parent.height - 10px; width: 10px; height: 10px;
-            mouse-cursor: nwse-resize;
-            enabled: !root.maximized;
-            pointer-event(e) => {
-                if (e.kind == PointerEventKind.down) {
-                    root.resizing = true; root.resize-edge = "se";
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
-                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
-                    root.resizing = false;
-                }
-            }
-            moved => {
-                if (root.resizing && root.resize-edge == "se") {
-                    root.window-resize-move("se", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
-                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
                 }
             }
         }

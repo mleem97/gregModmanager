@@ -133,10 +133,13 @@ them in Rust.
 
 Shell layout in `crates/greg-app/ui/main.slint`, grounded in the old Avalonia
 `MainWindow`: TerminalCore palette, header with game-start buttons and
-login/profile card, far-left 64 px icon bar (Projects ▤, Workshop ◉,
-Modstore ◈, Settings ⚙), conditional navigation beside it (Modstore and
-Settings need none — tabs / single page suffice), content pages, and a bottom
-status bar with Steam + GregApi LEDs.
+login/profile card, full-height 64 px icon bar on the far left with the G logo
+as first icon (Modmanager ▤, Workshop Upload ⬆, Modstore ◈, Settings ⚙),
+conditional navigation beside it (MODMANAGER: My Mods, My Plugins, My Libs,
+Problems, Report a Bug; WORKSHOP UPLOAD: Projects, New Project, Browse,
+Subscribed, Favorited, My Uploads; Modstore and Settings need none — tabs /
+single page suffice), content pages, and a bottom status bar with Steam +
+GregApi LEDs.
 
 Gating (enforced in Rust, `AppState::apply_probe`): GregApi red
 (unreachable) hides the login button and disables Modstore — only Steam
@@ -148,7 +151,10 @@ are fixed 56×56 with centered glyphs and a 3 px active bar; text buttons use
 std-widgets `Button` (auto-sizing — custom rectangles collapse to zero width
 in layouts); pages stretch to fill via an explicit fill layout; `Rectangle`
 uses `background:` (not deprecated `color:`); Workshop u64 ids travel as
-strings (Slint `int` is 32-bit).
+strings (Slint `int` is 32-bit). Window dragging uses the native
+`WindowMoveArea` element and resizing the native border handling
+(`resize-border-width`) — both compositor-side and Wayland-safe; manual
+`set_position`/`set_size` dragging does not work on Wayland.
 
 ## Next steps
 

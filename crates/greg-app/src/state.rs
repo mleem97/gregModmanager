@@ -77,6 +77,9 @@ pub struct AppState {
     pub local_entries: Vec<greg_loader::local_content::LocalContentEntry>,
     pub pending_remove: Option<std::path::PathBuf>,
 
+    /// Problem actions cache: (action id, target) parallel to the rows.
+    pub problem_actions: Vec<(String, String)>,
+
     /// Last applied settings language index (watch for changes).
     pub settings_lang_index: i32,
 
@@ -152,6 +155,7 @@ impl AppState {
             store_job: None,
             local_entries: Vec::new(),
             pending_remove: None,
+            problem_actions: Vec::new(),
             settings_lang_index: -1,
             events_tx,
             events_rx,
@@ -235,6 +239,8 @@ impl AppState {
                     ("mymods", "My Mods"),
                     ("myplugins", "My Plugins"),
                     ("mylibs", "My Libs"),
+                    ("problems", "Problems"),
+                    ("report-bug", "Report a Bug"),
                 ]));
             }
             ICON_WORKSHOP => {

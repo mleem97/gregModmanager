@@ -80,16 +80,7 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         let state = Arc::clone(state);
         ui.on_window_close(move || actions::window_close(&state));
     }
-    {
-        let state = Arc::clone(state);
-        ui.on_window_drag_move(move |dx, dy| actions::window_drag_move(&state, dx, dy));
-    }
-    {
-        let state = Arc::clone(state);
-        ui.on_window_resize_move(move |edge, dx, dy| {
-            actions::window_resize_move(&state, &edge, dx, dy)
-        });
-    }
+
     // Local content.
     {
         let state = Arc::clone(state);
@@ -114,6 +105,15 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_confirm_no(move || actions::confirm_no(&state));
+    }
+    // Problems.
+    {
+        let state = Arc::clone(state);
+        ui.on_problems_refresh(move || actions::refresh_problems(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_problems_act(move |idx| actions::problems_act(&state, idx));
     }
     // Projects.
     {
