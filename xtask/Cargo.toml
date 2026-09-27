@@ -8,3 +8,8 @@ description = "Build orchestration tasks for gregModmanager"
 
 [dependencies]
 anyhow.workspace = true
+zip.workspace = true
+tar.workspace = true
+flate2.workspace = true
+sha2.workspace = true
+hex.workspace = true

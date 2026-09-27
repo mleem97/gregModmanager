@@ -7011,6 +7011,11 @@ name = "xtask"
 version = "1.6.1"
 dependencies = [
  "anyhow",
+ "flate2",
+ "hex",
+ "sha2",
+ "tar",
+ "zip",
 ]
 
 [[package]]

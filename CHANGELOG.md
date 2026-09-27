@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `cargo xtask dist`: portable release packages with native Steam libraries
+  staged next to the binaries — Windows `steam_api64.dll` (`.zip`),
+  Linux `libsteam_api.so` (`.tar.gz`), macOS `libsteam_api.dylib` (`.tar.gz`),
+  plus `steam_appid.txt`, docs, and SHA-256 sidecars. Cross-builds via
+  `--target` (win-x64 verified with mingw).
 - Rust workspace restart (`feat/rust-workspace`): `greg-core` (models, Keep a
   Changelog/SemVer, Markdown→Steam-BBCode, upload checks, l10n en/de),
   `greg-platform` (workspace, prefs, logs, protocol, repro bundles, telemetry),

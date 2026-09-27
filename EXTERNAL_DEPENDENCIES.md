@@ -20,6 +20,7 @@ a release.
 | --- | --- | --- |
 | Steam native library (Windows `steam_api64.dll`) | Windows x64 publish output | governed by Valve Steamworks terms; do not present it as open source |
 | Steam native library (Linux `libsteam_api.so` / `libsteam_api64.so`, Steamworks SDK 1.61 interface set: `SteamApps_v008`/`SteamFriends_v017`) | Linux x64 publish output, sourced from the `Facepunch.Steamworks.Dll 1.61.0` NuGet redistributable (`runtimes/linux-x64/native/libsteam_api.so`) to match `Cherry.Facepunch.Steamworks 2.5.0` | governed by Valve Steamworks terms; do not present it as open source. Newer SDK builds (e.g. 1.62.0 with `SteamApps_v009`) are **not** compatible with the managed wrapper and break `SteamClient.Init` on Linux |
+| Steam native libraries via `steamworks-sys` (Rust restart): Windows `steam_api64.dll`, Linux `libsteam_api.so`, macOS `libsteam_api.dylib` | staged next to the binaries by `cargo xtask dist` (rpath/`$ORIGIN` on Unix, DLL search on Windows) | governed by Valve Steamworks terms; do not present them as open source. `steam_appid.txt` (`4170200`) ships alongside |
 | `steam_appid.txt` | platform publish output where configured | project configuration, not a library |
 | bundled fonts | desktop resources | see the licence files beside the vendored fonts |
 | Visual C++ Redistributable | Windows when required by the installed runtime/components | governed by Microsoft terms |

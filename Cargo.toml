@@ -46,6 +46,8 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5.8"
 walkdir = "2.5.0"
 zip = "2"
+tar = "0.4"
+flate2 = "1"
 
 [profile.release]
 opt-level = 3

@@ -224,23 +224,30 @@ export component MainWindow inherits Window {
                 VerticalLayout {
                     width: parent.width;
                     height: parent.height;
-                    padding-top: 8px;
                     padding-bottom: 8px;
                     spacing: 4px;
-                    logo-touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.icon-clicked("modmanager"); }
-                    }
-                    HorizontalLayout {
-                        alignment: center;
-                        Image {
-                            source: @image-url("../../../G.svg");
-                            width: 40px;
-                            height: 36px;
-                            image-fit: contain;
+                    // Logo pinned flush to the very top — always first.
+                    Rectangle {
+                        height: 52px;
+                        logo-touch := TouchArea {
+                            width: parent.width;
+                            height: parent.height;
+                            mouse-cursor: pointer;
+                            clicked => { root.icon-clicked("modmanager"); }
+                        }
+                        HorizontalLayout {
+                            width: parent.width;
+                            height: parent.height;
+                            alignment: center;
+                            Image {
+                                source: @image-url("../../../G.svg");
+                                width: 40px;
+                                height: 36px;
+                                image-fit: contain;
+                            }
                         }
                     }
-                    Rectangle { height: 6px; }
+                    Rectangle { height: 2px; }
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
