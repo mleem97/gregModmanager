@@ -1,0 +1,151 @@
+import { LineEdit, Button, ComboBox } from "std-widgets.slint";
+import { Palette, SectionTitle } from "theme.slint";
+import { ProjectRow } from "models.slint";
+
+export component ProjectsPage inherits VerticalLayout {
+    in-out property <string> search;
+    in-out property <[ProjectRow]> rows;
+    in-out property <string> new-folder;
+    in-out property <int> new-template;
+    in-out property <[string]> templates;
+
+    callback refresh();
+    callback open-project(string);
+    callback open-folder();
+    callback create-project();
+    callback view-on-steam(string);
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: "PROJECTS"; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        Text {
+            text: "Search";
+            font-size: 12px;
+            color: Palette.on-variant;
+            vertical-alignment: center;
+        }
+        search-box := LineEdit {
+            text <=> root.search;
+            placeholder-text: "name or title…";
+            horizontal-stretch: 1;
+        }
+        Button {
+            text: "Refresh";
+            clicked => { root.refresh(); }
+        }
+        Button {
+            text: "Open folder";
+            clicked => { root.open-folder(); }
+        }
+    }
+
+    Rectangle {
+        vertical-stretch: 1;
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+
+        Flickable {
+            VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+                for row[idx] in root.rows: Rectangle {
+                    height: 52px;
+                    background: Palette.container;
+                    border-radius: Palette.radius;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 10px;
+                        Text {
+                            width: 72px;
+                            text: row.state;
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: row.state-ok ? Palette.secondary : Palette.on-variant;
+                            vertical-alignment: center;
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            Text {
+                                text: row.title;
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.meta;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                                overflow: elide;
+                            }
+                        }
+                        if row.fileid != "": Button {
+                            text: "Steam";
+                            clicked => { root.view-on-steam(row.fileid); }
+                        }
+                        Button {
+                            text: "Edit";
+                            clicked => { root.open-project(row.root); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        VerticalLayout {
+            padding: 10px;
+            spacing: 6px;
+            SectionTitle { text: "NEW PROJECT"; }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    width: 130px;
+                    text: "Folder name";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                LineEdit {
+                    text <=> root.new-folder;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    width: 130px;
+                    text: "Template";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                ComboBox {
+                    model: root.templates;
+                    current-index <=> root.new-template;
+                    horizontal-stretch: 1;
+                }
+            }
+            HorizontalLayout {
+                alignment: end;
+                Button {
+                    text: "Create & open";
+                    clicked => { root.create-project(); }
+                }
+            }
+        }
+    }
+}

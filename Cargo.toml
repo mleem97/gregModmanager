@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/greg-core",
+    "crates/greg-platform",
+    "crates/greg-steam",
+    "crates/greg-modstore",
+    "crates/greg-loader",
+    "crates/greg-app",
+    "crates/greg-cli",
+    "xtask",
+]
+
+[workspace.package]
+version = "1.6.1"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://git.datacentermods.com/teamGreg/gregModmanager"
+
+[workspace.dependencies]
+greg-core = { path = "crates/greg-core" }
+greg-platform = { path = "crates/greg-platform" }
+greg-steam = { path = "crates/greg-steam" }
+greg-modstore = { path = "crates/greg-modstore" }
+greg-loader = { path = "crates/greg-loader" }
+
+anyhow = "1.0.104"
+async-trait = "0.1"
+clap = { version = "4.6.7", features = ["derive"] }
+dirs = "7.0.0"
+slint = "1.18.1"
+slint-build = "1.18.1"
+hex = "0.4.3"
+open = "5.4.4"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "json", "stream", "blocking"] }
+rfd = "0.17.2"
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+steamworks = "0.13.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "fs", "process", "time", "sync", "io-util"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+url = "2.5.8"
+walkdir = "2.5.0"
+zip = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true

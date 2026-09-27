@@ -1,0 +1,10 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Build orchestration tasks for gregModmanager"
+
+[dependencies]
+anyhow.workspace = true

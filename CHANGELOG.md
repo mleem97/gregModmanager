@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rust workspace restart (`feat/rust-workspace`): `greg-core` (models, Keep a
+  Changelog/SemVer, Markdown→Steam-BBCode, upload checks, l10n en/de),
+  `greg-platform` (workspace, prefs, logs, protocol, repro bundles, telemetry),
+  `greg-steam` (`steamworks` crate backend with publish/browse/subscribe/
+  download), `greg-modstore` (catalog, updates, atomic installs, intents,
+  auth), `greg-loader` (game adapters, health checks, sync, channels,
+  installers, templates), `greg-cli` headless publish/status/list, `greg-app`
+  Slint main window (icon bar, conditional navigation, Steam/GregApi status
+  bar with Modstore gating), and `xtask`. C# sources moved to
+  `.reference/modmanager-old/`.
+
 - Dual CI: `.gitea/workflows/` added as byte-identical copy of
   `.forgejo/workflows/` (Gitea Actions alongside Forgejo Actions, guarded by a
   `parity` job). GitHub has no workflows directory and runs no automation —

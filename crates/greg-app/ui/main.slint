@@ -1,0 +1,497 @@
+import { Button } from "std-widgets.slint";
+import { Palette, IconButton, NavButton, StatusLed } from "theme.slint";
+import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow } from "models.slint";
+import { ProjectsPage } from "page-projects.slint";
+import { EditorPage } from "page-editor.slint";
+import { BrowsePage } from "page-browse.slint";
+import { StorePage } from "page-store.slint";
+import { SettingsPage } from "page-settings.slint";
+
+// Main window: icon bar | navigation (per icon) | content, status bar below.
+// Grounded in the old Avalonia MainWindow: TerminalCore palette, header with
+// game-start buttons, login/profile card, Steam + GregApi status.
+
+export component MainWindow inherits Window {
+    title: "gregModmanager";
+    preferred-width: 1400px;
+    preferred-height: 900px;
+    min-width: 1024px;
+    min-height: 640px;
+    background: Palette.surface;
+
+    // --- shell state (Rust <-> Slint) ---
+    in-out property <string> app-version;
+    in-out property <string> current-icon: "projects";
+    in-out property <string> current-page: "projects";
+    in-out property <bool> nav-visible: true;
+    in-out property <string> nav-title: "MODMANAGER";
+    in-out property <[NavItem]> nav-items;
+    in-out property <bool> steam-ok: false;
+    in-out property <string> steam-text: "Steam Disconnected";
+    in-out property <bool> gregapi-ok: false;
+    in-out property <string> gregapi-text: "gregAPI Offline";
+    in-out property <bool> modstore-available: false;
+    in-out property <bool> login-visible: false;
+    in-out property <bool> profile-visible: false;
+    in-out property <string> profile-name: "";
+    in-out property <string> profile-hint: "";
+
+    // --- projects page state ---
+    in-out property <string> project-search;
+    in-out property <[ProjectRow]> projects;
+    in-out property <string> new-folder;
+    in-out property <int> new-template;
+    in-out property <[string]> new-templates;
+
+    // --- editor page state ---
+    in-out property <string> ed-title;
+    in-out property <string> ed-version;
+    in-out property <string> ed-desc;
+    in-out property <string> ed-tags;
+    in-out property <int> ed-visibility;
+    in-out property <[string]> ed-visibilities;
+    in-out property <int> ed-profile;
+    in-out property <[string]> ed-profiles;
+    in-out property <int> ed-modtype;
+    in-out property <[string]> ed-modtypes;
+    in-out property <bool> ed-needsgreg;
+    in-out property <bool> ed-needsml;
+    in-out property <string> ed-changelog;
+    in-out property <string> ed-changelog-hint;
+    in-out property <string> ed-desc-hint;
+    in-out property <string> ed-fileid-text;
+    in-out property <string> ed-project-name;
+    in-out property <[CheckRow]> ed-checks;
+    in-out property <bool> ed-ready;
+    in-out property <string> ed-readiness-text;
+    in-out property <[string]> ed-deps;
+    in-out property <string> ed-dep-add-text;
+    in-out property <string> ed-preview-text;
+    in-out property <[string]> ed-shots;
+    in-out property <float> ed-progress;
+    in-out property <bool> ed-publishing;
+    in-out property <string> ed-status;
+    in-out property <[string]> ed-log;
+
+    // --- browse page state ---
+    in-out property <int> br-list;
+    in-out property <[string]> br-lists;
+    in-out property <int> br-sort;
+    in-out property <[string]> br-sorts;
+    in-out property <string> br-search;
+    in-out property <string> br-tag;
+    in-out property <int> br-page;
+    in-out property <int> br-total;
+    in-out property <[BrowseRow]> br-items;
+    in-out property <string> br-selected;
+    in-out property <bool> br-has-detail;
+    in-out property <string> br-d-title;
+    in-out property <string> br-d-meta;
+    in-out property <string> br-d-tags;
+    in-out property <string> br-d-desc;
+    in-out property <string> br-d-deps;
+    in-out property <bool> br-d-subscribed;
+    in-out property <string> br-status;
+    in-out property <bool> br-busy;
+
+    // --- modstore page state ---
+    in-out property <string> st-search;
+    in-out property <[StoreRow]> st-items;
+    in-out property <[UpdateRow]> st-updates;
+    in-out property <float> st-progress;
+    in-out property <bool> st-busy;
+    in-out property <string> st-status;
+
+    // --- settings page state ---
+    in-out property <string> se-workspace;
+    in-out property <string> se-gameroot;
+    in-out property <int> se-lang;
+    in-out property <[string]> se-langs;
+    in-out property <string> se-modstore-url;
+    in-out property <string> se-telemetry-text;
+    in-out property <[HealthRow]> se-health;
+    in-out property <[string]> se-log;
+
+    // --- shell callbacks ---
+    callback icon-clicked(string);
+    callback nav-clicked(string);
+    callback start-game(string);
+    callback login-clicked();
+    callback profile-clicked();
+
+    // --- projects callbacks ---
+    callback project-refresh();
+    callback project-open(string);
+    callback project-open-folder();
+    callback project-create();
+    callback project-view-steam(string);
+
+    // --- editor callbacks ---
+    callback ed-changed();
+    callback ed-save();
+    callback ed-publish();
+    callback ed-cancel-publish();
+    callback ed-pick-preview();
+    callback ed-add-shot();
+    callback ed-remove-shot(int);
+    callback ed-dep-add();
+    callback ed-dep-remove(int);
+    callback ed-view-steam();
+
+    // --- browse callbacks ---
+    callback br-go();
+    callback br-cancel();
+    callback br-select(string);
+    callback br-prev();
+    callback br-next();
+    callback br-subscribe-toggle();
+    callback br-import();
+    callback br-view-steam();
+
+    // --- modstore callbacks ---
+    callback st-refresh();
+    callback st-check-updates();
+    callback st-cancel();
+    callback st-install(int);
+    callback st-install-update(int);
+
+    // --- settings callbacks ---
+    callback se-apply-workspace();
+    callback se-browse-workspace();
+    callback se-apply-gameroot();
+    callback se-browse-gameroot();
+    callback se-apply-modstore-url();
+    callback se-run-checks();
+    callback se-open-logs();
+    callback se-make-bundle();
+    callback se-register-protocol();
+
+    VerticalLayout {
+        spacing: 0px;
+
+        // Header: logo + game start + login/profile.
+        Rectangle {
+            height: 42px;
+            background: Palette.container-low;
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 6px;
+                spacing: 8px;
+                Rectangle {
+                    width: 18px;
+                    height: 18px;
+                    y: (parent.height - self.height) / 2;
+                    background: Palette.primary;
+                    border-radius: 2px;
+                }
+                Text {
+                    text: "GREGMODMANAGER // TERMINAL CORE";
+                    font-size: 11px;
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button { text: "Start Game"; clicked => { root.start-game("steam"); } }
+                Button { text: "With Mods"; clicked => { root.start-game("mods"); } }
+                Button { text: "No Mods"; clicked => { root.start-game("vanilla"); } }
+                if root.login-visible: Button {
+                    text: "Login";
+                    clicked => { root.login-clicked(); }
+                }
+                if root.profile-visible: Rectangle {
+                    height: 34px;
+                    min-width: 180px;
+                    background: Palette.container;
+                    border-radius: Palette.radius;
+                    border-width: 1px;
+                    border-color: Palette.outline;
+                    touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.profile-clicked(); }
+                    }
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 10px;
+                        spacing: 8px;
+                        Rectangle {
+                            width: 24px;
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            background: Palette.avatar-bg;
+                            border-radius: 12px;
+                            Text {
+                                text: "●";
+                                font-size: 12px;
+                                color: Palette.primary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: root.profile-name;
+                                font-size: 12px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                            }
+                            Text {
+                                text: root.profile-hint;
+                                font-size: 10px;
+                                color: Palette.on-variant;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Main row: icon bar | navigation | content.
+        HorizontalLayout {
+            spacing: 0px;
+            vertical-stretch: 1;
+
+            // Far-left icon bar, fixed 64px.
+            Rectangle {
+                width: 64px;
+                background: Palette.container-low;
+                VerticalLayout {
+                    padding-top: 10px;
+                    spacing: 4px;
+                    alignment: start;
+                    HorizontalLayout {
+                        alignment: center;
+                        IconButton {
+                            glyph: "▤";
+                            tip: "Projects";
+                            active: root.current-icon == "projects";
+                            clicked => { root.icon-clicked("projects"); }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        IconButton {
+                            glyph: "◉";
+                            tip: "Workshop";
+                            active: root.current-icon == "workshop";
+                            clicked => { root.icon-clicked("workshop"); }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        IconButton {
+                            glyph: "◈";
+                            tip: "Modstore";
+                            active: root.current-icon == "modstore";
+                            enabled: root.modstore-available;
+                            clicked => { root.icon-clicked("modstore"); }
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        IconButton {
+                            glyph: "⚙";
+                            tip: "Settings";
+                            active: root.current-icon == "settings";
+                            clicked => { root.icon-clicked("settings"); }
+                        }
+                    }
+                }
+            }
+
+            // Conditional navigation beside the icon bar.
+            if root.nav-visible: Rectangle {
+                width: 200px;
+                background: Palette.surface;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 6px;
+                    alignment: start;
+                    Text {
+                        text: root.nav-title;
+                        font-size: 11px;
+                        font-weight: 700;
+                        letter-spacing: 2px;
+                        color: Palette.primary;
+                    }
+                    for item in root.nav-items: NavButton {
+                        label: item.label;
+                        active: root.current-page == item.id;
+                        clicked => { root.nav-clicked(item.id); }
+                    }
+                }
+            }
+
+            // Content pages (single visible page stretches to fill).
+            Rectangle {
+                horizontal-stretch: 1;
+                background: Palette.surface;
+                VerticalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    if root.current-page == "projects": ProjectsPage {
+                    vertical-stretch: 1;
+                    search <=> root.project-search;
+                    rows <=> root.projects;
+                    new-folder <=> root.new-folder;
+                    new-template <=> root.new-template;
+                    templates <=> root.new-templates;
+                    refresh => { root.project-refresh(); }
+                    open-project(path) => { root.project-open(path); }
+                    open-folder => { root.project-open-folder(); }
+                    create-project => { root.project-create(); }
+                    view-on-steam(id) => { root.project-view-steam(id); }
+                }
+                if root.current-page == "new": ProjectsPage {
+                    vertical-stretch: 1;
+                    // New projects live inside the projects page section.
+                    search <=> root.project-search;
+                    rows <=> root.projects;
+                    new-folder <=> root.new-folder;
+                    new-template <=> root.new-template;
+                    templates <=> root.new-templates;
+                    refresh => { root.project-refresh(); }
+                    open-project(path) => { root.project-open(path); }
+                    open-folder => { root.project-open-folder(); }
+                    create-project => { root.project-create(); }
+                    view-on-steam(id) => { root.project-view-steam(id); }
+                }
+                if root.current-page == "editor": EditorPage {
+                    vertical-stretch: 1;
+                    title <=> root.ed-title;
+                    version <=> root.ed-version;
+                    desc <=> root.ed-desc;
+                    tags <=> root.ed-tags;
+                    visibility <=> root.ed-visibility;
+                    visibilities <=> root.ed-visibilities;
+                    profile <=> root.ed-profile;
+                    profiles <=> root.ed-profiles;
+                    modtype <=> root.ed-modtype;
+                    modtypes <=> root.ed-modtypes;
+                    needs-greg <=> root.ed-needsgreg;
+                    needs-ml <=> root.ed-needsml;
+                    changelog <=> root.ed-changelog;
+                    changelog-hint <=> root.ed-changelog-hint;
+                    desc-hint <=> root.ed-desc-hint;
+                    fileid-text <=> root.ed-fileid-text;
+                    project-name <=> root.ed-project-name;
+                    checks <=> root.ed-checks;
+                    ready <=> root.ed-ready;
+                    readiness-text <=> root.ed-readiness-text;
+                    deps <=> root.ed-deps;
+                    dep-add-text <=> root.ed-dep-add-text;
+                    preview-text <=> root.ed-preview-text;
+                    shots <=> root.ed-shots;
+                    progress <=> root.ed-progress;
+                    publishing <=> root.ed-publishing;
+                    status <=> root.ed-status;
+                    log <=> root.ed-log;
+                    changed => { root.ed-changed(); }
+                    save => { root.ed-save(); }
+                    publish => { root.ed-publish(); }
+                    cancel-publish => { root.ed-cancel-publish(); }
+                    pick-preview => { root.ed-pick-preview(); }
+                    add-shot => { root.ed-add-shot(); }
+                    remove-shot(idx) => { root.ed-remove-shot(idx); }
+                    dep-add => { root.ed-dep-add(); }
+                    dep-remove(idx) => { root.ed-dep-remove(idx); }
+                    view-on-steam => { root.ed-view-steam(); }
+                }
+                if root.current-page == "browse": BrowsePage {
+                    vertical-stretch: 1;
+                    list <=> root.br-list;
+                    lists <=> root.br-lists;
+                    sort <=> root.br-sort;
+                    sorts <=> root.br-sorts;
+                    search <=> root.br-search;
+                    tag <=> root.br-tag;
+                    page <=> root.br-page;
+                    total <=> root.br-total;
+                    items <=> root.br-items;
+                    selected <=> root.br-selected;
+                    has-detail <=> root.br-has-detail;
+                    d-title <=> root.br-d-title;
+                    d-meta <=> root.br-d-meta;
+                    d-tags <=> root.br-d-tags;
+                    d-desc <=> root.br-d-desc;
+                    d-deps <=> root.br-d-deps;
+                    d-subscribed <=> root.br-d-subscribed;
+                    status <=> root.br-status;
+                    busy <=> root.br-busy;
+                    refresh => { root.br-go(); }
+                    search-go => { root.br-go(); }
+                    cancel => { root.br-cancel(); }
+                    select(id) => { root.br-select(id); }
+                    prev-page => { root.br-prev(); }
+                    next-page => { root.br-next(); }
+                    subscribe-toggle => { root.br-subscribe-toggle(); }
+                    import-item => { root.br-import(); }
+                    view-on-steam => { root.br-view-steam(); }
+                }
+                if root.current-page == "modstore": StorePage {
+                    vertical-stretch: 1;
+                    search <=> root.st-search;
+                    items <=> root.st-items;
+                    updates <=> root.st-updates;
+                    progress <=> root.st-progress;
+                    busy <=> root.st-busy;
+                    status <=> root.st-status;
+                    refresh => { root.st-refresh(); }
+                    check-updates => { root.st-check-updates(); }
+                    cancel => { root.st-cancel(); }
+                    install(idx) => { root.st-install(idx); }
+                    install-update(idx) => { root.st-install-update(idx); }
+                }
+                if root.current-page == "settings": SettingsPage {
+                    vertical-stretch: 1;
+                    workspace <=> root.se-workspace;
+                    gameroot <=> root.se-gameroot;
+                    lang <=> root.se-lang;
+                    langs <=> root.se-langs;
+                    modstore-url <=> root.se-modstore-url;
+                    telemetry-text <=> root.se-telemetry-text;
+                    health <=> root.se-health;
+                    log <=> root.se-log;
+                    apply-workspace => { root.se-apply-workspace(); }
+                    browse-workspace => { root.se-browse-workspace(); }
+                    apply-gameroot => { root.se-apply-gameroot(); }
+                    browse-gameroot => { root.se-browse-gameroot(); }
+                    apply-modstore-url => { root.se-apply-modstore-url(); }
+                    run-checks => { root.se-run-checks(); }
+                    open-logs => { root.se-open-logs(); }
+                    make-bundle => { root.se-make-bundle(); }
+                    register-protocol => { root.se-register-protocol(); }
+                }
+                }
+            }
+        }
+
+        // Bottom status bar: Steam + GregApi LEDs.
+        Rectangle {
+            height: 30px;
+            background: Palette.container-low;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 18px;
+                StatusLed {
+                    ok: root.steam-ok;
+                    text: root.steam-text;
+                }
+                StatusLed {
+                    ok: root.gregapi-ok;
+                    text: root.gregapi-text;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    text: "v" + root.app-version;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}

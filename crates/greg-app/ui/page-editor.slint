@@ -1,0 +1,326 @@
+import { LineEdit, TextEdit, ComboBox, CheckBox, Button, ProgressIndicator } from "std-widgets.slint";
+import { Palette, SectionTitle, FieldRow } from "theme.slint";
+import { CheckRow } from "models.slint";
+
+export component EditorPage inherits VerticalLayout {
+    in-out property <string> title;
+    in-out property <string> version;
+    in-out property <string> desc;
+    in-out property <string> tags;
+    in-out property <int> visibility;
+    in-out property <[string]> visibilities;
+    in-out property <int> profile;
+    in-out property <[string]> profiles;
+    in-out property <int> modtype;
+    in-out property <[string]> modtypes;
+    in-out property <bool> needs-greg;
+    in-out property <bool> needs-ml;
+    in-out property <string> changelog;
+    in-out property <string> changelog-hint;
+    in-out property <string> desc-hint;
+    in-out property <string> fileid-text;
+    in property <string> project-name;
+    in-out property <[CheckRow]> checks;
+    in-out property <bool> ready;
+    in-out property <string> readiness-text;
+    in-out property <[string]> deps;
+    in-out property <string> dep-add-text;
+    in-out property <string> preview-text;
+    in-out property <[string]> shots;
+    in-out property <float> progress;
+    in-out property <bool> publishing;
+    in-out property <string> status;
+    in-out property <[string]> log;
+
+    callback changed();
+    callback save();
+    callback publish();
+    callback cancel-publish();
+    callback pick-preview();
+    callback add-shot();
+    callback remove-shot(int);
+    callback dep-add();
+    callback dep-remove(int);
+    callback view-on-steam();
+
+    spacing: 8px;
+    padding: 18px;
+
+    Flickable {
+        vertical-stretch: 1;
+        VerticalLayout {
+            spacing: 8px;
+
+            SectionTitle { text: "DETAILS"; }
+
+            FieldRow {
+                label: "Title";
+                title-box := LineEdit {
+                    text <=> root.title;
+                    horizontal-stretch: 1;
+                    edited(_) => { root.changed(); }
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    width: 130px;
+                    text: "Version";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                LineEdit {
+                    text <=> root.version;
+                    edited(_) => { root.changed(); }
+                }
+                Text {
+                    text: root.fileid-text;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+                if root.fileid-text != "": Button {
+                    text: "View on Steam";
+                    clicked => { root.view-on-steam(); }
+                }
+            }
+
+            Text {
+                text: "Description";
+                font-size: 12px;
+                color: Palette.on-variant;
+            }
+            TextEdit {
+                text <=> root.desc;
+                height: 120px;
+                edited(_) => { root.changed(); }
+            }
+            Text {
+                text: root.desc-hint;
+                font-size: 11px;
+                color: Palette.on-variant;
+            }
+
+            FieldRow {
+                label: "Tags (, separated)";
+                LineEdit {
+                    text <=> root.tags;
+                    horizontal-stretch: 1;
+                    edited(_) => { root.changed(); }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    width: 130px;
+                    text: "Visibility";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                ComboBox {
+                    model: root.visibilities;
+                    current-index <=> root.visibility;
+                }
+                Text {
+                    text: "Profile";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                ComboBox {
+                    model: root.profiles;
+                    current-index <=> root.profile;
+                }
+                Text {
+                    text: "Mod type";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                ComboBox {
+                    model: root.modtypes;
+                    current-index <=> root.modtype;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 16px;
+                CheckBox {
+                    text: "Needs gregCoreModFramework";
+                    checked <=> root.needs-greg;
+                    toggled => { root.changed(); }
+                }
+                CheckBox {
+                    text: "Needs MelonLoader";
+                    checked <=> root.needs-ml;
+                    toggled => { root.changed(); }
+                }
+            }
+
+            SectionTitle { text: "DEPENDENCIES"; }
+            for dep[idx] in root.deps: HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: dep;
+                    font-size: 12px;
+                    color: Palette.on-surface;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                }
+                Button {
+                    text: "Remove";
+                    clicked => { root.dep-remove(idx); }
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                LineEdit {
+                    text <=> root.dep-add-text;
+                    placeholder-text: "Workshop ID…";
+                    horizontal-stretch: 1;
+                }
+                Button {
+                    text: "Add by ID";
+                    clicked => { root.dep-add(); }
+                }
+            }
+
+            SectionTitle { text: "ASSETS"; }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: "Preview:";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.preview-text;
+                    font-size: 11px;
+                    color: Palette.on-surface;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Button {
+                    text: "Pick preview";
+                    clicked => { root.pick-preview(); }
+                }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: "Screenshots:";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    vertical-alignment: center;
+                }
+                Button {
+                    text: "Add screenshot";
+                    clicked => { root.add-shot(); }
+                }
+            }
+            for shot[idx] in root.shots: HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: shot;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    horizontal-stretch: 1;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Button {
+                    text: "Remove";
+                    clicked => { root.remove-shot(idx); }
+                }
+            }
+
+            SectionTitle { text: "CHANGELOG"; }
+            TextEdit {
+                text <=> root.changelog;
+                height: 90px;
+                edited(_) => { root.changed(); }
+            }
+            Text {
+                text: root.changelog-hint;
+                font-size: 11px;
+                color: Palette.on-variant;
+                wrap: word-wrap;
+            }
+
+            SectionTitle { text: "UPLOAD CHECKS"; }
+            Text {
+                text: root.readiness-text;
+                font-size: 12px;
+                font-weight: 700;
+                color: root.ready ? Palette.secondary : Palette.error;
+            }
+            for check in root.checks: VerticalLayout {
+                spacing: 0px;
+                Text {
+                    text: (check.ok ? "✓ " : "✗ ") + check.label;
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: check.ok ? Palette.secondary : Palette.error;
+                }
+                Text {
+                    text: check.detail;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    wrap: word-wrap;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                Button {
+                    text: "Save";
+                    clicked => { root.save(); }
+                }
+                Button {
+                    text: "Save & Upload";
+                    enabled: !root.publishing;
+                    clicked => { root.publish(); }
+                }
+                if root.publishing: Button {
+                    text: "Cancel";
+                    clicked => { root.cancel-publish(); }
+                }
+            }
+
+            if root.publishing || root.status != "": VerticalLayout {
+                spacing: 4px;
+                if root.publishing: ProgressIndicator {
+                    progress: root.progress;
+                }
+                Text {
+                    text: root.status;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                }
+                Rectangle {
+                    height: 110px;
+                    background: Palette.container-low;
+                    border-radius: Palette.radius;
+                    Flickable {
+                        VerticalLayout {
+                            padding: 6px;
+                            for line in root.log: Text {
+                                text: line;
+                                font-size: 10px;
+                                font-family: "monospace";
+                                color: Palette.on-variant;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

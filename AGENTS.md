@@ -4,12 +4,12 @@ This file is the short entry point for agent-oriented repository instructions. R
 
 ## Important Note
 
-- The C# / Avalonia implementation is frozen under `./archive/modmanager-old/` (buildable via `GregModmanager.sln`). Do not extend it; the active app is Rust.
+- The C# / Avalonia implementation is frozen under `./.reference/modmanager-old/` (buildable via `GregModmanager.sln`). Do not extend it; the active app is Rust.
 - The active workspace plan (crates, dependencies, C# → Rust mapping) lives in `./RUST_GRAPH.md`. Consult it before adding crates or dependencies.
 - All Linux/Unix relevant changes that cannot be mixed with the other OS go behind `cfg(target_os = "linux")` in `crates/greg-platform` (or a `#[cfg(unix)]` module).
 - All Windows relevant changes that cannot be mixed with the other OS go behind `cfg(target_os = "windows")` in `crates/greg-platform`.
 - All macOS related changes that cannot be mixed with the other OS go behind `cfg(target_os = "macos")` in `crates/greg-platform`.
-- MelonLoader plugins (`SubDirectoryFixer`, `gregPlugin.ModmanagerCompanion`) stay .NET 6 — they load inside MelonLoader and are never rewritten in Rust. Frozen sources: `./archive/modmanager-old/src/GregModmanager.Melons/`. If the Rust app must build them, shell out to the `dotnet` CLI via `xtask`.
+- MelonLoader plugins (`SubDirectoryFixer`, `gregPlugin.ModmanagerCompanion`) stay .NET 6 — they load inside MelonLoader and are never rewritten in Rust. Frozen sources: `./.reference/modmanager-old/src/GregModmanager.Melons/`. If the Rust app must build them, shell out to the `dotnet` CLI via `xtask`.
 - There will be/is a Companion Plugin for Melonloader to integrate the Modmanager into the game. (Maybe with overlays? Plan with atomic tasks)
 - Always use Orchestration of several Agents if possible to
 

@@ -1,4 +1,6 @@
-# archive/
+# .reference/
+
+Reference material for the Rust rewrite. Not built, not extended.
 
 ## modmanager-old/
 

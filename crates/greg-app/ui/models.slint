@@ -1,0 +1,46 @@
+// Shared row models between the shell and the pages.
+
+export struct NavItem {
+    id: string,
+    label: string,
+}
+
+export struct ProjectRow {
+    name: string,
+    title: string,
+    meta: string,
+    state: string,
+    state-ok: bool,
+    root: string,
+    fileid: string,
+}
+
+export struct CheckRow {
+    label: string,
+    detail: string,
+    ok: bool,
+}
+
+export struct BrowseRow {
+    // Workshop file id as string (u64 does not fit Slint int).
+    id: string,
+    title: string,
+    score: string,
+}
+
+export struct StoreRow {
+    title: string,
+    meta: string,
+    slug: string,
+}
+
+export struct UpdateRow {
+    title: string,
+    versions: string,
+}
+
+export struct HealthRow {
+    label: string,
+    detail: string,
+    ok: bool,
+}

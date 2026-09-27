@@ -1,0 +1,20 @@
+[package]
+name = "greg-steam"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Steam Workshop integration for gregModmanager"
+
+[features]
+default = ["steam"]
+steam = ["dep:steamworks"]
+
+[dependencies]
+greg-core.workspace = true
+greg-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+steamworks = { workspace = true, optional = true }

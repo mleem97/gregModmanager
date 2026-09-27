@@ -1,8 +1,9 @@
 # RUST_GRAPH.md — Rust restart: workspace graph
 
-> **Status:** Planning only, no code yet. The C# / Avalonia implementation is
-> frozen under `archive/modmanager-old/`. Docs, changelog, and infomaterial at
-> repo root are untouched; only the app language changes (C# → Rust).
+> **Status:** Workspace implemented on `feat/rust-workspace` (all crates compile,
+> `cargo test` green). The C# / Avalonia implementation is frozen under
+> `.reference/modmanager-old/`. UI is Slint (`crates/greg-app/ui/`); see
+> "Main window" below for the shell layout.
 
 ## Target tree
 
@@ -111,7 +112,7 @@ ported as small internal modules in `greg-core` (logic owned, no dependency).
 
 ## C# → Rust mapping
 
-| Archived (C#) | New (Rust) |
+| Archived (C#, `.reference/modmanager-old/`) | New (Rust) |
 | --- | --- |
 | `GregModmanager.Core` (models + services) | `greg-core` (+ `greg-steam`, `greg-modstore`, `greg-loader`) |
 | `GregModmanager.Avalonia` (views, VMs, styles) | `greg-app` (`eframe`/`egui`) |
@@ -124,14 +125,37 @@ ported as small internal modules in `greg-core` (logic owned, no dependency).
 
 MelonLoader plugins must stay .NET 6 (they load inside MelonLoader):
 `SubDirectoryFixer` and `gregPlugin.ModmanagerCompanion` remain frozen in
-`archive/modmanager-old/src/GregModmanager.Melons/`. If the Rust app must
+`.reference/modmanager-old/src/GregModmanager.Melons/`. If the Rust app must
 build them, it shells out to the `dotnet` CLI via `xtask` — never rewrite
 them in Rust.
 
-## Next steps (not started)
+## Main window (Slint)
 
-1. `cargo new` workspace + `greg-core` with ported pure-logic modules + tests.
-2. `greg-cli` headless publish against a fixture workspace.
-3. `greg-steam` (`steamworks` crate) publish/browse behind rate limiter.
-4. `greg-app` (`eframe`) editor + upload flow.
-5. Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.
+Shell layout in `crates/greg-app/ui/main.slint`, grounded in the old Avalonia
+`MainWindow`: TerminalCore palette, header with game-start buttons and
+login/profile card, far-left 64 px icon bar (Projects ▤, Workshop ◉,
+Modstore ◈, Settings ⚙), conditional navigation beside it (Modstore and
+Settings need none — tabs / single page suffice), content pages, and a bottom
+status bar with Steam + GregApi LEDs.
+
+Gating (enforced in Rust, `AppState::apply_probe`): GregApi red
+(unreachable) hides the login button and disables Modstore — only Steam
+Workshop remains. Reachability is probed in the background every 60 s; any
+HTTP answer from the Modstore API base counts as online.
+
+Fixed-geometry rules (the old "misplaced icons" class of bug): icon buttons
+are fixed 56×56 with centered glyphs and a 3 px active bar; text buttons use
+std-widgets `Button` (auto-sizing — custom rectangles collapse to zero width
+in layouts); pages stretch to fill via an explicit fill layout; `Rectangle`
+uses `background:` (not deprecated `color:`); Workshop u64 ids travel as
+strings (Slint `int` is 32-bit).
+
+## Next steps
+
+- [x] Workspace + `greg-core` with ported pure-logic modules + tests.
+- [x] `greg-cli` headless publish against a fixture workspace.
+- [x] `greg-steam` (`steamworks` crate) publish/browse behind rate limiter.
+- [x] `greg-app` (Slint) shell + editor + upload flow.
+- [ ] OAuth session flow (`greg://auth/callback` handling, profile menu).
+- [ ] Gallery screenshots up/download via Steam (out of `steamworks` scope).
+- [ ] Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.

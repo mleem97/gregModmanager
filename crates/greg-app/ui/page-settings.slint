@@ -1,0 +1,169 @@
+import { LineEdit, ComboBox, Button } from "std-widgets.slint";
+import { Palette, SectionTitle, FieldRow } from "theme.slint";
+import { HealthRow } from "models.slint";
+
+export component SettingsPage inherits VerticalLayout {
+    in-out property <string> workspace;
+    in-out property <string> gameroot;
+    in-out property <int> lang;
+    in-out property <[string]> langs;
+    in-out property <string> modstore-url;
+    in-out property <string> telemetry-text;
+    in-out property <[HealthRow]> health;
+    in-out property <[string]> log;
+
+    callback apply-workspace();
+    callback browse-workspace();
+    callback apply-gameroot();
+    callback browse-gameroot();
+    callback apply-modstore-url();
+    callback run-checks();
+    callback open-logs();
+    callback make-bundle();
+    callback register-protocol();
+
+    spacing: 8px;
+    padding: 18px;
+
+    Flickable {
+        vertical-stretch: 1;
+        VerticalLayout {
+            spacing: 8px;
+
+            SectionTitle { text: "GENERAL"; }
+
+            FieldRow {
+                label: "Language";
+                ComboBox {
+                    model: root.langs;
+                    current-index <=> root.lang;
+                    horizontal-stretch: 1;
+                }
+            }
+            FieldRow {
+                label: "Workspace";
+                HorizontalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    LineEdit {
+                        text <=> root.workspace;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "…";
+                        clicked => { root.browse-workspace(); }
+                    }
+                    Button {
+                        text: "Apply";
+                        clicked => { root.apply-workspace(); }
+                    }
+                }
+            }
+            FieldRow {
+                label: "Game root";
+                HorizontalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    LineEdit {
+                        text <=> root.gameroot;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "…";
+                        clicked => { root.browse-gameroot(); }
+                    }
+                    Button {
+                        text: "Apply";
+                        clicked => { root.apply-gameroot(); }
+                    }
+                }
+            }
+            FieldRow {
+                label: "Modstore API";
+                HorizontalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    LineEdit {
+                        text <=> root.modstore-url;
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Apply";
+                        clicked => { root.apply-modstore-url(); }
+                    }
+                }
+            }
+            Text {
+                text: root.telemetry-text;
+                font-size: 11px;
+                color: Palette.on-variant;
+            }
+
+            SectionTitle { text: "DIAGNOSTICS"; }
+            Button {
+                text: "Run checks";
+                clicked => { root.run-checks(); }
+            }
+            for check in root.health: HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: check.ok ? "✓" : "✗";
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: check.ok ? Palette.secondary : Palette.error;
+                    vertical-alignment: center;
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text {
+                        text: check.label;
+                        font-size: 12px;
+                        font-weight: 700;
+                        color: Palette.on-surface;
+                    }
+                    Text {
+                        text: check.detail;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            SectionTitle { text: "SUPPORT"; }
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: "Open log folder";
+                    clicked => { root.open-logs(); }
+                }
+                Button {
+                    text: "Support bundle";
+                    clicked => { root.make-bundle(); }
+                }
+                Button {
+                    text: "Register greg://";
+                    clicked => { root.register-protocol(); }
+                }
+            }
+            Rectangle {
+                height: 120px;
+                background: Palette.container-low;
+                border-radius: Palette.radius;
+                border-width: 1px;
+                border-color: Palette.outline;
+                Flickable {
+                    VerticalLayout {
+                        padding: 6px;
+                        for line in root.log: Text {
+                            text: line;
+                            font-size: 10px;
+                            font-family: "monospace";
+                            color: Palette.on-variant;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

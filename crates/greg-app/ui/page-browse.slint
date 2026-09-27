@@ -1,0 +1,215 @@
+import { LineEdit, ComboBox, Button } from "std-widgets.slint";
+import { Palette, SectionTitle } from "theme.slint";
+import { BrowseRow } from "models.slint";
+
+export component BrowsePage inherits VerticalLayout {
+    in-out property <int> list;
+    in-out property <[string]> lists;
+    in-out property <int> sort;
+    in-out property <[string]> sorts;
+    in-out property <string> search;
+    in-out property <string> tag;
+    in-out property <int> page;
+    in-out property <int> total;
+    in-out property <[BrowseRow]> items;
+    in-out property <string> selected;
+    in-out property <bool> has-detail;
+    in-out property <string> d-title;
+    in-out property <string> d-meta;
+    in-out property <string> d-tags;
+    in-out property <string> d-desc;
+    in-out property <string> d-deps;
+    in-out property <bool> d-subscribed;
+    in-out property <string> status;
+    in-out property <bool> busy;
+
+    callback refresh();
+    callback search-go();
+    callback cancel();
+    callback select(string);
+    callback prev-page();
+    callback next-page();
+    callback subscribe-toggle();
+    callback import-item();
+    callback view-on-steam();
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: "WORKSHOP"; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        ComboBox {
+            model: root.lists;
+            current-index <=> root.list;
+        }
+        ComboBox {
+            model: root.sorts;
+            current-index <=> root.sort;
+        }
+        Text {
+            text: "Tag";
+            font-size: 12px;
+            color: Palette.on-variant;
+            vertical-alignment: center;
+        }
+        LineEdit {
+            text <=> root.tag;
+        }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        LineEdit {
+            text <=> root.search;
+            placeholder-text: "Search Workshop…";
+            horizontal-stretch: 1;
+            accepted => { root.search-go(); }
+        }
+        Button {
+            text: "Search";
+            enabled: !root.busy;
+            clicked => { root.search-go(); }
+        }
+        if root.busy: Button {
+            text: "Cancel";
+            clicked => { root.cancel(); }
+        }
+    }
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        vertical-stretch: 1;
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Palette.container-low;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.outline;
+            Flickable {
+                VerticalLayout {
+                    padding: 6px;
+                    spacing: 2px;
+                    for item in root.items: Rectangle {
+                        height: 40px;
+                        background: item.id == root.selected ? Palette.container-high : transparent;
+                        border-radius: Palette.radius;
+                        touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.select(item.id); }
+                        }
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 8px;
+                            spacing: 8px;
+                            Text {
+                                text: item.title;
+                                font-size: 12px;
+                                color: Palette.on-surface;
+                                horizontal-stretch: 1;
+                                vertical-alignment: center;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: item.score;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Palette.container-low;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.outline;
+            Flickable {
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 6px;
+                    if !root.has-detail: Text {
+                        text: "Select an item to see details.";
+                        font-size: 12px;
+                        color: Palette.on-variant;
+                    }
+                    if root.has-detail: Text {
+                        text: root.d-title;
+                        font-size: 15px;
+                        font-weight: 700;
+                        color: Palette.on-surface;
+                        wrap: word-wrap;
+                    }
+                    if root.has-detail: Text {
+                        text: root.d-meta;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        wrap: word-wrap;
+                    }
+                    if root.has-detail && root.d-tags != "": Text {
+                        text: root.d-tags;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        wrap: word-wrap;
+                    }
+                    if root.has-detail: Text {
+                        text: root.d-desc;
+                        font-size: 12px;
+                        color: Palette.on-surface;
+                        wrap: word-wrap;
+                    }
+                    if root.has-detail && root.d-deps != "": Text {
+                        text: root.d-deps;
+                        font-size: 11px;
+                        color: Palette.primary;
+                        wrap: word-wrap;
+                    }
+                    if root.has-detail: HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: root.d-subscribed ? "Unsubscribe" : "Subscribe";
+                            clicked => { root.subscribe-toggle(); }
+                        }
+                        Button {
+                            text: "Import";
+                            clicked => { root.import-item(); }
+                        }
+                        Button {
+                            text: "Steam page";
+                            clicked => { root.view-on-steam(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: center;
+        Button {
+            text: "◀ Prev";
+            clicked => { root.prev-page(); }
+        }
+        Text {
+            text: "Page " + root.page + " (" + root.total + " total)";
+            font-size: 11px;
+            color: Palette.on-variant;
+            vertical-alignment: center;
+        }
+        Button {
+            text: "Next ▶";
+            clicked => { root.next-page(); }
+        }
+    }
+}

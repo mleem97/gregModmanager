@@ -4,6 +4,7 @@ obj/
 artifacts/
 publish/
 release-assets/
+/target/
 
 # Visual Studio
 .vs/
