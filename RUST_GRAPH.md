@@ -146,8 +146,10 @@ Steam-like lists (file export/import, `.gregpack.json`).
 
 Gating (enforced in Rust, `AppState::apply_probe`): GregApi red
 (unreachable) hides the login button and disables Modstore — only Steam
-Workshop remains. Reachability is probed in the background every 60 s; any
-HTTP answer from the Modstore API base counts as online.
+Workshop remains. Liveness is probed live in the background every 30 s (plus
+on demand when heading for the Modstore): `GET {api}/api/v1/mods` must answer
+2xx + JSON, otherwise the API shows OFFLINE — redirects, error pages,
+timeouts and DNS failures never count as online.
 
 Fixed-geometry rules (the old "misplaced icons" class of bug): icon buttons
 are fixed 56×56 with centered glyphs and a 3 px active bar; text buttons use

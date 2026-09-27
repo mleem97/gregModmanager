@@ -109,7 +109,12 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
             AppState::apply_icon_state(&guard.ui(), ICON_WORKSHOP, "projects");
             guard.ui().set_br_list(0);
         }
-        ICON_MODSTORE => AppState::apply_icon_state(&guard.ui(), ICON_MODSTORE, "modstore"),
+        ICON_MODSTORE => {
+            AppState::apply_icon_state(&guard.ui(), ICON_MODSTORE, "modstore");
+            drop(guard);
+            // Fresh live check the moment the user heads for the Modstore.
+            AppState::request_probe(state);
+        }
         ICON_SETTINGS => {
             AppState::apply_icon_state(&guard.ui(), ICON_SETTINGS, "settings");
             refresh_settings(&mut guard);
@@ -1040,6 +1045,7 @@ fn drain_browse(state: &mut AppState) {
 
 /// Refreshes the catalog.
 pub fn store_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
+    AppState::request_probe(state);
     let mut guard = state.lock().expect("state");
     if guard.store_job.is_some() || !guard.ui().get_modstore_available() {
         return;

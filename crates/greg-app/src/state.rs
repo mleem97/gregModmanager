@@ -94,6 +94,9 @@ pub struct AppState {
     pub events_tx: Sender<UiEvent>,
     pub events_rx: Receiver<UiEvent>,
 
+    /// Wakes the probe loop for an immediate live check.
+    pub probe_wake: Arc<std::sync::atomic::AtomicBool>,
+
     /// Tick counter (Steam re-check every ~60 s).
     pub tick_count: u64,
 }
@@ -137,6 +140,7 @@ impl AppState {
             .expect("tokio runtime");
         let file_log = FileLog::shared().clone();
         let (events_tx, events_rx) = mpsc::channel();
+        let probe_wake = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
         let state = Arc::new(Mutex::new(Self {
             weak,
@@ -169,6 +173,7 @@ impl AppState {
             settings_lang_index: -1,
             events_tx,
             events_rx,
+            probe_wake: Arc::clone(&probe_wake),
             tick_count: 0,
         }));
 
@@ -224,7 +229,11 @@ impl AppState {
 
         // Background: Steam connect, then GregApi probes. No AppState
         // crosses threads here; the UI timer (owned by `main`) drains.
-        Self::spawn_probe(state.lock().expect("state").events_tx.clone(), true);
+        Self::spawn_probe(
+            state.lock().expect("state").events_tx.clone(),
+            Arc::clone(&probe_wake),
+            true,
+        );
         {
             let mut guard = state.lock().expect("state");
             crate::actions::refresh_projects(&mut guard);
@@ -314,8 +323,14 @@ impl AppState {
         }
     }
 
-    /// Spawns the connect + probe loop (60 s cadence).
-    fn spawn_probe(tx: Sender<UiEvent>, connect_first: bool) {
+    /// Spawns the connect + probe loop (30 s cadence, immediate on demand
+    /// via the shared wake flag).
+    fn spawn_probe(
+        tx: Sender<UiEvent>,
+        wake: Arc<std::sync::atomic::AtomicBool>,
+        connect_first: bool,
+    ) {
+        use std::sync::atomic::Ordering;
         std::thread::spawn(move || {
             if connect_first {
                 let backend =
@@ -326,7 +341,13 @@ impl AppState {
                 let _ = tx.send(UiEvent::Probe {
                     gregapi_ok: probe_gregapi(),
                 });
-                std::thread::sleep(Duration::from_secs(60));
+                // Sleep in 1 s slices so an on-demand probe wakes us early.
+                for _ in 0..30 {
+                    if wake.swap(false, Ordering::SeqCst) {
+                        break;
+                    }
+                    std::thread::sleep(Duration::from_secs(1));
+                }
             }
         });
     }
@@ -341,6 +362,12 @@ impl AppState {
         // Keep the GregApi side untouched; gating recomputed by caller.
         let gregapi_ok = ui.get_gregapi_ok();
         Self::apply_probe(&ui, ok, user, hint, gregapi_ok);
+    }
+
+    /// Requests an immediate live probe (Modstore nav, store refresh).
+    pub fn request_probe(state: &Arc<Mutex<Self>>) {
+        let flag = state.lock().expect("state").probe_wake.clone();
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// Logs to buffer + file.
@@ -368,27 +395,35 @@ impl AppState {
     }
 }
 
-/// Reachability probe: any HTTP answer from the Modstore API base = online.
+/// Live API probe: `GET {api}/api/v1/mods` must answer 2xx + JSON.
+/// Redirects, error pages, timeouts and DNS failures all mean OFFLINE —
+/// a bare domain answering (e.g. 307 → 503 parking) is not a live API.
 fn probe_gregapi() -> bool {
     if !greg_core::models::settings::is_modstore_enabled() {
         return false;
     }
     let base = greg_core::models::settings::modstore_api_url();
+    let url = format!("{}/api/v1/mods", base.trim_end_matches('/'));
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none())
         .build();
     let Ok(client) = client else {
         return false;
     };
-    // Root probe: any HTTP response (even 404) proves reachability.
-    match client.get(base.trim_end_matches('/')).send() {
-        Ok(_) => true,
-        Err(e) => {
-            // DNS / connect / timeout errors mean offline; HTTP error
-            // responses still count as reachable.
-            e.is_status()
+    match client.get(&url).send() {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let is_json = response.json::<serde_json::Value>().is_ok();
+            api_is_live(status, is_json)
         }
+        Err(_) => false,
     }
+}
+
+/// Liveness rule, pure and unit-tested: only a successful JSON answer counts.
+fn api_is_live(status: u16, body_is_json: bool) -> bool {
+    (200..300).contains(&status) && body_is_json
 }
 
 /// String list → Slint model.
@@ -414,4 +449,20 @@ pub fn model_of_structs(items: Vec<(&str, &str)>) -> slint::ModelRc<crate::NavIt
             .collect::<Vec<_>>(),
     ));
     model.into()
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::api_is_live;
+
+    #[test]
+    fn only_successful_json_counts() {
+        assert!(api_is_live(200, true));
+        assert!(api_is_live(201, true));
+        assert!(!api_is_live(200, false));
+        assert!(!api_is_live(307, true));
+        assert!(!api_is_live(404, false));
+        assert!(!api_is_live(503, false));
+        assert!(!api_is_live(500, true));
+    }
 }
