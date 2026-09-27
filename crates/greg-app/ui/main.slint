@@ -250,22 +250,32 @@ export component MainWindow inherits Window {
                     padding-bottom: 8px;
                     spacing: 4px;
                     // Logo pinned flush to the very top — always first.
+                    // Square 64x64 cell, 48x48 tile, G centered with
+                    // padding all around. All geometry explicit.
                     Rectangle {
-                        height: 52px;
+                        width: 64px;
+                        height: 64px;
                         logo-touch := TouchArea {
                             width: parent.width;
                             height: parent.height;
                             mouse-cursor: pointer;
                             clicked => { root.icon-clicked("modmanager"); }
                         }
-                        HorizontalLayout {
-                            width: parent.width;
-                            height: parent.height;
-                            alignment: center;
+                        Rectangle {
+                            width: 48px;
+                            height: 48px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            background: Palette.container;
+                            border-radius: Palette.radius;
+                            border-width: 1px;
+                            border-color: Palette.outline;
                             Image {
                                 source: @image-url("../../../G.svg");
-                                width: 40px;
-                                height: 36px;
+                                width: 32px;
+                                height: 30px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
                                 image-fit: contain;
                             }
                         }
