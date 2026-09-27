@@ -44,20 +44,27 @@ export component PacksPage inherits VerticalLayout {
             VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
-                HorizontalLayout {
-                    spacing: 6px;
-                    LineEdit {
-                        text <=> root.new-name;
-                        placeholder-text: "New name…";
-                        horizontal-stretch: 1;
-                    }
-                    Button {
-                        text: "+";
-                        clicked => { root.create(); }
-                    }
-                    Button {
-                        text: "Import";
-                        clicked => { root.import-pack(); }
+                Rectangle {
+                    height: 36px;
+                    HorizontalLayout {
+                        width: parent.width;
+                        height: parent.height;
+                        spacing: 6px;
+                        alignment: center;
+                        LineEdit {
+                            text <=> root.new-name;
+                            placeholder-text: "New name…";
+                            horizontal-stretch: 1;
+                            min-width: 120px;
+                        }
+                        Button {
+                            text: "+";
+                            clicked => { root.create(); }
+                        }
+                        Button {
+                            text: "Import";
+                            clicked => { root.import-pack(); }
+                        }
                     }
                 }
                 Flickable {
@@ -114,23 +121,29 @@ export component PacksPage inherits VerticalLayout {
             VerticalLayout {
                 padding: 6px;
                 spacing: 4px;
-                HorizontalLayout {
-                    spacing: 6px;
-                    Button {
-                        text: "Apply";
-                        clicked => { root.apply-pack(root.selected); }
-                    }
-                    Button {
-                        text: "Add local file";
-                        clicked => { root.add-local-file(); }
-                    }
-                    Button {
-                        text: "Export";
-                        clicked => { root.export-pack(root.selected); }
-                    }
-                    Button {
-                        text: "Delete pack";
-                        clicked => { root.delete-pack(root.selected); }
+                Rectangle {
+                    height: 36px;
+                    HorizontalLayout {
+                        width: parent.width;
+                        height: parent.height;
+                        spacing: 6px;
+                        alignment: center;
+                        Button {
+                            text: "Apply";
+                            clicked => { root.apply-pack(root.selected); }
+                        }
+                        Button {
+                            text: "Add local file";
+                            clicked => { root.add-local-file(); }
+                        }
+                        Button {
+                            text: "Export";
+                            clicked => { root.export-pack(root.selected); }
+                        }
+                        Button {
+                            text: "Delete pack";
+                            clicked => { root.delete-pack(root.selected); }
+                        }
                     }
                 }
                 Flickable {

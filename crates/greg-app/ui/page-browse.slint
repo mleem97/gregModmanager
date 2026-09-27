@@ -182,19 +182,25 @@ export component BrowsePage inherits VerticalLayout {
                         color: Palette.primary;
                         wrap: word-wrap;
                     }
-                    if root.has-detail: HorizontalLayout {
-                        spacing: 8px;
-                        Button {
-                            text: root.d-subscribed ? "Unsubscribe" : "Subscribe";
-                            clicked => { root.subscribe-toggle(); }
-                        }
-                        Button {
-                            text: "Import";
-                            clicked => { root.import-item(); }
-                        }
-                        Button {
-                            text: "Steam page";
-                            clicked => { root.view-on-steam(); }
+                    if root.has-detail: Rectangle {
+                        height: 36px;
+                        HorizontalLayout {
+                            width: parent.width;
+                            height: parent.height;
+                            spacing: 8px;
+                            alignment: center;
+                            Button {
+                                text: root.d-subscribed ? "Unsubscribe" : "Subscribe";
+                                clicked => { root.subscribe-toggle(); }
+                            }
+                            Button {
+                                text: "Import";
+                                clicked => { root.import-item(); }
+                            }
+                            Button {
+                                text: "Steam page";
+                                clicked => { root.view-on-steam(); }
+                            }
                         }
                     }
                 }

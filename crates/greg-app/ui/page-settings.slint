@@ -131,19 +131,25 @@ export component SettingsPage inherits VerticalLayout {
             }
 
             SectionTitle { text: "SUPPORT"; }
-            HorizontalLayout {
-                spacing: 8px;
-                Button {
-                    text: "Open log folder";
-                    clicked => { root.open-logs(); }
-                }
-                Button {
-                    text: "Support bundle";
-                    clicked => { root.make-bundle(); }
-                }
-                Button {
-                    text: "Register greg://";
-                    clicked => { root.register-protocol(); }
+            Rectangle {
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    spacing: 8px;
+                    alignment: center;
+                    Button {
+                        text: "Open log folder";
+                        clicked => { root.open-logs(); }
+                    }
+                    Button {
+                        text: "Support bundle";
+                        clicked => { root.make-bundle(); }
+                    }
+                    Button {
+                        text: "Register greg://";
+                        clicked => { root.register-protocol(); }
+                    }
                 }
             }
             Rectangle {
