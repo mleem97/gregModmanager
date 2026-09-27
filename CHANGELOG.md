@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   buttons with conditional content panels instead of `TabWidget`.
 - My Mods auto-scan: reopening/refreshing a local page re-scans the content
   directories on change (signature-based change detection).
+- Upload freeze fixed: project sync-state hashing (SHA-256 over every
+  `content/` byte) ran synchronously on the UI thread on every Projects
+  refresh/save/Upload click, freezing the app for large mods. Hashing now
+  runs in a background job with a sync-state cache — lists paint instantly
+  ("?" while unknown) and flip to SYNCED/UPDATED! when the job drains.
+  Covered by the `project_sync_hashes_off_ui_thread` regression test.
 
 ### Security
 

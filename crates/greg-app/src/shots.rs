@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, Rgb565Pixel};
 use slint::platform::{Platform, PlatformError, WindowAdapter};
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 use crate::{
     BrowseRow, CheckRow, HealthRow, NavItem, PackEntryRow, PackRow, ProblemRow, ProjectRow,
@@ -395,4 +395,92 @@ fn screenshots() {
     page_modpacks(&ui, &window);
     page_settings(&ui, &window);
     page_bugdialog(&ui, &window);
+}
+
+/// Regression test for the upload freeze: project sync-state hashing must
+/// run in the background job, never synchronously on the UI thread.
+/// A published project with a cold cache paints "?" immediately, spawns the
+/// hasher, and flips to SYNCED once the job drains.
+#[test]
+fn project_sync_hashes_off_ui_thread() {
+    use greg_core::models::WorkshopMetadata;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    // Temp workspace with one published project (content + recorded hash).
+    let tmp = std::env::temp_dir().join(format!("greg-sync-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let root = tmp.join("proj1");
+    std::fs::create_dir_all(root.join("content")).expect("content dir");
+    std::fs::write(root.join("content").join("mod.dll"), vec![7u8; 4096]).expect("content");
+    let meta = WorkshopMetadata {
+        title: "SyncTest".into(),
+        published_file_id: 3807398588,
+        ..Default::default()
+    };
+    let desc = state
+        .lock()
+        .expect("state")
+        .steam
+        .build_upload_description(&root, &meta);
+    let hash = greg_platform::workspace::compute_publish_hash(&root, &meta, &desc);
+    assert!(!hash.is_empty(), "hash must cover content");
+    let meta = WorkshopMetadata {
+        last_published_hash: hash,
+        ..meta
+    };
+    std::fs::write(
+        root.join("metadata.json"),
+        serde_json::to_string_pretty(&meta).expect("meta json"),
+    )
+    .expect("metadata");
+
+    {
+        let mut guard = state.lock().expect("state");
+        guard.workspace =
+            greg_platform::workspace::Workspace::resolve(Some(&tmp.to_string_lossy()), None);
+        assert_eq!(guard.workspace.root(), tmp.as_path());
+        crate::actions::refresh_projects(&mut guard);
+        // Cold cache: instant "?" rows + background job running.
+        assert!(
+            guard.sync_job.is_some(),
+            "sync hashing must run in background"
+        );
+        let states: Vec<String> = ui
+            .get_projects()
+            .iter()
+            .map(|r| r.state.to_string())
+            .collect();
+        assert!(
+            states.iter().any(|s| s == "?"),
+            "cold cache paints unknown, got {states:?}"
+        );
+    }
+    // Drain until the job finishes (tick also repaints on completion).
+    for _ in 0..200 {
+        {
+            let mut guard = state.lock().expect("state");
+            crate::actions::tick(&mut guard);
+            if guard.sync_job.is_none() {
+                break;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    {
+        let guard = state.lock().expect("state");
+        assert!(guard.sync_job.is_none(), "sync job must finish");
+        let states: Vec<String> = ui
+            .get_projects()
+            .iter()
+            .map(|r| r.state.to_string())
+            .collect();
+        assert!(
+            states.iter().any(|s| s == "SYNCED"),
+            "hash matches, expected SYNCED, got {states:?}"
+        );
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
 }

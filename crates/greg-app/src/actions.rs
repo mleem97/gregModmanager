@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use greg_core::l10n;
-use greg_core::models::ProjectSyncState;
+use greg_core::models::{ProjectSyncState, WorkshopMetadata};
 use greg_core::prefs::Preferences;
 use slint::{ComponentHandle as _, Model, ModelRc, SharedString, VecModel};
 
@@ -67,6 +67,7 @@ pub fn tick(state: &mut AppState) {
         auto_refresh_local(state);
     }
     drain_publish(state);
+    drain_sync(state);
     drain_browse(state);
     drain_store(state);
     // Language switch watch (ComboBox has no change callback wired).
@@ -319,19 +320,34 @@ pub fn window_close(state: &Arc<std::sync::Mutex<AppState>>) {
 // ---------------------------------------------------------------------------
 
 /// Refreshes list rows (metadata + sync states).
+///
+/// Sync-state hashing reads every content byte, so it runs in a background
+/// job: this function paints cached states instantly ("?" while unknown)
+/// and spawns the hasher only for projects that actually need it.
 pub fn refresh_projects(state: &mut AppState) {
     let projects = state.workspace.scan_projects().unwrap_or_default();
     let mut rows: Vec<ProjectRow> = Vec::new();
     let mut cache: Vec<(PathBuf, u64)> = Vec::new();
+    let mut pending: Vec<(PathBuf, WorkshopMetadata, String)> = Vec::new();
     for project in &projects {
         let meta = greg_platform::workspace::load_metadata(&project.root_path).unwrap_or_default();
         let desc = state
             .steam
             .build_upload_description(&project.root_path, &meta);
-        let sync = state
-            .workspace
-            .sync_state(&project.root_path, &desc)
-            .unwrap_or(ProjectSyncState::Unknown);
+        let sync = match state.project_sync.get(&project.root_path) {
+            Some((file_id, cached)) if *file_id == meta.published_file_id => *cached,
+            _ => {
+                if !greg_core::limits::is_usable_workshop_id(meta.published_file_id) {
+                    ProjectSyncState::Unpublished
+                } else if meta.last_published_hash.is_empty() {
+                    ProjectSyncState::Unknown
+                } else {
+                    // Expensive (hashes content/) — background job fills the cache.
+                    pending.push((project.root_path.clone(), meta.clone(), desc.clone()));
+                    ProjectSyncState::Unknown
+                }
+            }
+        };
         let (state_text, state_ok) = match sync {
             ProjectSyncState::Unpublished => ("NEW", false),
             ProjectSyncState::Unknown => ("?", false),
@@ -376,6 +392,98 @@ pub fn refresh_projects(state: &mut AppState) {
                 .collect::<Vec<_>>(),
         ))));
     state.project_rows = cache;
+    if !pending.is_empty() && state.sync_job.is_none() {
+        spawn_sync_job(state, pending);
+    }
+}
+
+/// Hashes project content off the UI thread (one record per line:
+/// `path \x1f file_id \x1f state` joined by `\x1e`).
+fn spawn_sync_job(state: &mut AppState, pending: Vec<(PathBuf, WorkshopMetadata, String)>) {
+    let workspace = state.workspace.clone();
+    let job = JobHandle::spawn(move |sink| {
+        let mut out = Vec::with_capacity(pending.len());
+        for (root, meta, desc) in &pending {
+            if sink.cancelled().load(std::sync::atomic::Ordering::Relaxed) {
+                return JobOutcome {
+                    success: false,
+                    message: "cancelled".into(),
+                };
+            }
+            let sync = workspace
+                .sync_state(root, desc)
+                .unwrap_or(ProjectSyncState::Unknown);
+            out.push(format!(
+                "{}\x1f{}\x1f{}",
+                root.display(),
+                meta.published_file_id,
+                sync_code(sync)
+            ));
+        }
+        JobOutcome {
+            success: true,
+            message: out.join("\x1e"),
+        }
+    });
+    state.sync_job = Some(job);
+}
+
+fn sync_code(sync: ProjectSyncState) -> &'static str {
+    match sync {
+        ProjectSyncState::Unpublished => "new",
+        ProjectSyncState::Unknown => "unknown",
+        ProjectSyncState::Synced => "synced",
+        ProjectSyncState::Modified => "modified",
+    }
+}
+
+fn sync_from_code(code: &str) -> Option<ProjectSyncState> {
+    match code {
+        "new" => Some(ProjectSyncState::Unpublished),
+        "unknown" => Some(ProjectSyncState::Unknown),
+        "synced" => Some(ProjectSyncState::Synced),
+        "modified" => Some(ProjectSyncState::Modified),
+        _ => None,
+    }
+}
+
+/// Applies finished sync hashes to the cache and repaints the rows.
+fn drain_sync(state: &mut AppState) {
+    let messages = match state.sync_job.as_mut() {
+        Some(job) => job.drain(),
+        None => return,
+    };
+    let finished = state.sync_job.as_ref().is_some_and(|job| job.is_finished());
+    let mut done: Option<JobOutcome> = None;
+    for msg in messages {
+        if let JobMessage::Done(outcome) = msg {
+            done = Some(outcome);
+        }
+    }
+    let Some(outcome) = done else {
+        if finished {
+            state.sync_job = None;
+        }
+        return;
+    };
+    state.sync_job = None;
+    if !outcome.success {
+        return;
+    }
+    for record in outcome.message.split('\x1e') {
+        let mut parts = record.splitn(3, '\x1f');
+        let (Some(root), Some(file_id), Some(code)) = (parts.next(), parts.next(), parts.next())
+        else {
+            continue;
+        };
+        let (Ok(file_id), Some(sync)) = (file_id.parse::<u64>(), sync_from_code(code)) else {
+            continue;
+        };
+        state
+            .project_sync
+            .insert(PathBuf::from(root), (file_id, sync));
+    }
+    refresh_projects(state);
 }
 
 /// Opens a project in the editor.

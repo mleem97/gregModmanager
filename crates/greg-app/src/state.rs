@@ -3,13 +3,14 @@
 //! Workers never touch the UI directly; a 150 ms Slint timer drains all
 //! channels and applies results to properties.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use greg_core::l10n;
-use greg_core::models::WorkshopMetadata;
+use greg_core::models::{ProjectSyncState, WorkshopMetadata};
 use greg_core::prefs::Preferences;
 use greg_platform::filelog::FileLog;
 use greg_steam::backend::{BackendStatus, SteamBackend};
@@ -55,6 +56,11 @@ pub struct AppState {
 
     /// Project rows cache: (root, file_id).
     pub project_rows: Vec<(PathBuf, u64)>,
+    /// Cached sync states: project root -> (published_file_id, state).
+    /// Content hashing runs in a background job — never on the UI thread.
+    pub project_sync: HashMap<PathBuf, (u64, ProjectSyncState)>,
+    /// Background sync-state computation.
+    pub sync_job: Option<JobHandle>,
 
     /// Editor state.
     pub editor_root: Option<PathBuf>,
@@ -155,6 +161,8 @@ impl AppState {
             file_log,
             log_lines: Arc::new(Mutex::new(Vec::new())),
             project_rows: Vec::new(),
+            project_sync: HashMap::new(),
+            sync_job: None,
             editor_root: None,
             editor_meta: WorkshopMetadata::default(),
             editor_changelog: String::new(),
