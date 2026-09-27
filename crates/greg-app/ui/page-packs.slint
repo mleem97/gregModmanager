@@ -32,7 +32,6 @@ export component PacksPage inherits VerticalLayout {
 
     HorizontalLayout {
         spacing: 8px;
-        vertical-stretch: 1;
 
         // Packs list.
         Rectangle {
@@ -67,8 +66,6 @@ export component PacksPage inherits VerticalLayout {
                         }
                     }
                 }
-                Flickable {
-                    vertical-stretch: 1;
                     VerticalLayout {
                         spacing: 2px;
                         for pack in root.packs: Rectangle {
@@ -108,7 +105,6 @@ export component PacksPage inherits VerticalLayout {
                         }
                     }
                 }
-            }
         }
 
         // Selected entries.
@@ -146,8 +142,6 @@ export component PacksPage inherits VerticalLayout {
                         }
                     }
                 }
-                Flickable {
-                    vertical-stretch: 1;
                     VerticalLayout {
                         spacing: 2px;
                         for entry in root.entries: Rectangle {
@@ -186,7 +180,6 @@ export component PacksPage inherits VerticalLayout {
                         }
                     }
                 }
-            }
         }
     }
 

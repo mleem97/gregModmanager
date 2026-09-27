@@ -76,6 +76,8 @@ pub struct AppState {
     /// Local content cache + pending removal for the confirm dialog.
     pub local_entries: Vec<greg_loader::local_content::LocalContentEntry>,
     pub pending_remove: Option<std::path::PathBuf>,
+    /// Last scan signature of the visible local page (change detection).
+    pub local_sig: String,
 
     /// Problem actions cache: (action id, target) parallel to the rows.
     pub problem_actions: Vec<(String, String)>,
@@ -166,6 +168,7 @@ impl AppState {
             store_job: None,
             local_entries: Vec::new(),
             pending_remove: None,
+            local_sig: String::new(),
             problem_actions: Vec::new(),
             pack_service: crate::actions::load_packs(),
             selected_pack: None,
@@ -238,6 +241,8 @@ impl AppState {
             let mut guard = state.lock().expect("state");
             crate::actions::refresh_projects(&mut guard);
             crate::actions::refresh_settings(&mut guard);
+            // Initial scan so My Mods is populated from the first frame.
+            crate::actions::local_refresh(&mut guard);
         }
         state
     }

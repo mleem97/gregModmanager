@@ -20,31 +20,36 @@ export component ProjectsPage inherits VerticalLayout {
 
     SectionTitle { text: "PROJECTS"; }
 
-    HorizontalLayout {
-        spacing: 8px;
-        Text {
-            text: "Search";
-            font-size: 12px;
-            color: Palette.on-variant;
-            vertical-alignment: center;
-        }
-        search-box := LineEdit {
-            text <=> root.search;
-            placeholder-text: "name or title…";
-            horizontal-stretch: 1;
-        }
-        Button {
-            text: "Refresh";
-            clicked => { root.refresh(); }
-        }
-        Button {
-            text: "Open folder";
-            clicked => { root.open-folder(); }
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            Text {
+                text: "Search";
+                font-size: 12px;
+                color: Palette.on-variant;
+                vertical-alignment: center;
+            }
+            search-box := LineEdit {
+                text <=> root.search;
+                placeholder-text: "name or title…";
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Refresh";
+                clicked => { root.refresh(); }
+            }
+            Button {
+                text: "Open folder";
+                clicked => { root.open-folder(); }
+            }
         }
     }
 
     Rectangle {
-        vertical-stretch: 1;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
@@ -110,40 +115,57 @@ export component ProjectsPage inherits VerticalLayout {
             padding: 10px;
             spacing: 6px;
             SectionTitle { text: "NEW PROJECT"; }
-            HorizontalLayout {
-                spacing: 8px;
-                Text {
-                    width: 130px;
-                    text: "Folder name";
-                    font-size: 12px;
-                    color: Palette.on-variant;
-                    vertical-alignment: center;
-                }
-                LineEdit {
-                    text <=> root.new-folder;
-                    horizontal-stretch: 1;
-                }
-            }
-            HorizontalLayout {
-                spacing: 8px;
-                Text {
-                    width: 130px;
-                    text: "Template";
-                    font-size: 12px;
-                    color: Palette.on-variant;
-                    vertical-alignment: center;
-                }
-                ComboBox {
-                    model: root.templates;
-                    current-index <=> root.new-template;
-                    horizontal-stretch: 1;
+            Rectangle {
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    spacing: 8px;
+                    alignment: center;
+                    Text {
+                        width: 130px;
+                        text: "Folder name";
+                        font-size: 12px;
+                        color: Palette.on-variant;
+                        vertical-alignment: center;
+                    }
+                    LineEdit {
+                        text <=> root.new-folder;
+                        horizontal-stretch: 1;
+                    }
                 }
             }
-            HorizontalLayout {
-                alignment: end;
-                Button {
-                    text: "Create & open";
-                    clicked => { root.create-project(); }
+            Rectangle {
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    spacing: 8px;
+                    alignment: center;
+                    Text {
+                        width: 130px;
+                        text: "Template";
+                        font-size: 12px;
+                        color: Palette.on-variant;
+                        vertical-alignment: center;
+                    }
+                    ComboBox {
+                        model: root.templates;
+                        current-index <=> root.new-template;
+                        horizontal-stretch: 1;
+                    }
+                }
+            }
+            Rectangle {
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    alignment: end;
+                    Button {
+                        text: "Create & open";
+                        clicked => { root.create-project(); }
+                    }
                 }
             }
         }

@@ -61,6 +61,11 @@ pub fn tick(state: &mut AppState) {
     if state.tick_count.is_multiple_of(400) {
         state.refresh_steam_status();
     }
+    // Local auto-scan roughly every 10 s, only while a local page is
+    // visible and only when the folder actually changed (no flicker).
+    if state.tick_count.is_multiple_of(66) {
+        auto_refresh_local(state);
+    }
     drain_publish(state);
     drain_browse(state);
     drain_store(state);
@@ -103,7 +108,7 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
         ICON_MODMANAGER => {
             AppState::apply_icon_state(&guard.ui(), ICON_MODMANAGER, "mymods");
             drop(guard);
-            local_refresh(state);
+            local_refresh(&mut state.lock().expect("state"));
         }
         ICON_WORKSHOP => {
             AppState::apply_icon_state(&guard.ui(), ICON_WORKSHOP, "projects");
@@ -123,19 +128,19 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
     }
 }
 
-/// New-issue URL for bug reports (Forgejo main repo).
+/// Bug-report platform: the teamGreg org (all Greg mods & programs) plus
+/// this app's tracker. Alternative to Discord/Steam threads.
 pub const BUG_REPORT_URL: &str =
     "https://git.datacentermods.com/teamGreg/gregModmanager/issues/new";
+/// Org landing: lists every Greg mod/program repository with its tracker.
+pub const BUG_REPORT_ORG_URL: &str = "https://git.datacentermods.com/teamGreg";
 
 /// Handles navigation clicks (page ids + the report action).
 pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
     if id == "report-bug" {
-        // Action row, not a page: open the tracker, stay where we are.
-        if greg_platform::process::open_url(BUG_REPORT_URL).is_err() {
-            AppState::append_log(state, "Report a Bug: could not open the browser.");
-        } else {
-            AppState::append_log(state, "Report a Bug: opened the issue tracker.");
-        }
+        // Action row, not a page: open the chooser dialog, stay where we are.
+        let guard = state.lock().expect("state");
+        guard.ui().set_show_bug_dialog(true);
         return;
     }
     if id == "problems" {
@@ -159,7 +164,7 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
             let guard = state.lock().expect("state");
             guard.ui().set_current_page(id.into());
         }
-        local_refresh(state);
+        local_refresh(&mut state.lock().expect("state"));
         return;
     }
     // One browse page for all lists; entering via nav auto-loads it so the
@@ -1311,6 +1316,8 @@ fn drain_store(state: &mut AppState) {
     if let Some(message) = outcome.message.strip_prefix("INSTALLED:") {
         state.ui().set_st_status(message.into());
         refresh_projects(state);
+        // Installs land in the game folders — rescan local content too.
+        local_refresh(state);
     }
 }
 
@@ -1327,24 +1334,28 @@ fn local_kind_of(state: &AppState) -> greg_loader::local_content::LocalContentKi
     }
 }
 
-/// Refreshes the local list for the active page.
-pub fn local_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
-    let kind = local_kind_of(&guard);
-    let root = game_root_of(&guard);
-    guard.ui().set_local_title(kind.title().into());
+/// Refreshes the local list for the active page + records its signature.
+pub fn local_refresh(state: &mut AppState) {
+    let kind = local_kind_of(state);
+    let root = game_root_of(state);
+    state.local_sig = if root.is_dir() {
+        greg_loader::local_content::signature(&root, kind)
+    } else {
+        String::new()
+    };
+    state.ui().set_local_title(kind.title().into());
     if !root.is_dir() {
-        guard.local_entries.clear();
-        guard
+        state.local_entries.clear();
+        state
             .ui()
             .set_local_rows(model_of_rows(Vec::<LocalRow>::new()));
-        guard
+        state
             .ui()
             .set_local_status("Game folder not found — set the game root in Settings.".into());
         return;
     }
     let entries = greg_loader::local_content::scan(&root, kind);
-    let q = guard.ui().get_local_search().to_string().to_lowercase();
+    let q = state.ui().get_local_search().to_string().to_lowercase();
     let rows: Vec<LocalRow> = entries
         .iter()
         .enumerate()
@@ -1358,16 +1369,41 @@ pub fn local_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
         .collect();
     // NOTE: row indices address the full cache; toggle/remove resolve
     // through `local_filtered`, so both stay consistent.
-    guard.local_entries = entries;
-    guard.ui().set_local_rows(model_of_rows(rows));
-    guard.ui().set_local_status(
+    state.local_entries = entries;
+    state.ui().set_local_rows(model_of_rows(rows));
+    state.ui().set_local_status(
         format!(
             "{} entries in {}",
-            guard.local_entries.len(),
+            state.local_entries.len(),
             root.display()
         )
         .into(),
     );
+}
+
+/// True on My Mods / My Plugins / My Libs.
+fn is_local_page(state: &AppState) -> bool {
+    matches!(
+        state.ui().get_current_page().as_str(),
+        "mymods" | "myplugins" | "mylibs"
+    )
+}
+
+/// Rescans the visible local page when the folder changed underneath us
+/// (manual drops, external installers, toggles outside the app).
+fn auto_refresh_local(state: &mut AppState) {
+    if !is_local_page(state) {
+        return;
+    }
+    let kind = local_kind_of(state);
+    let root = game_root_of(state);
+    if !root.is_dir() {
+        return;
+    }
+    let signature = greg_loader::local_content::signature(&root, kind);
+    if signature != state.local_sig {
+        local_refresh(state);
+    }
 }
 
 /// Filtered cache indices for the current search text.
@@ -1403,7 +1439,7 @@ pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
                     entry.name
                 ),
             );
-            local_refresh(state);
+            local_refresh(&mut state.lock().expect("state"));
         }
         Err(e) => AppState::append_log(state, &format!("Toggle failed: {e}")),
     }
@@ -1466,7 +1502,7 @@ pub fn confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
             Ok(()) => AppState::append_log(state, &format!("Removed {}", entry.name)),
             Err(e) => AppState::append_log(state, &format!("Remove failed: {e}")),
         }
-        local_refresh(state);
+        local_refresh(&mut state.lock().expect("state"));
     }
 }
 
@@ -1475,6 +1511,54 @@ pub fn confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
     let mut guard = state.lock().expect("state");
     guard.pending_remove = None;
     guard.ui().set_show_confirm(false);
+}
+
+/// Bug dialog: report against this app (prefilled tracker link).
+pub fn bug_open_manager(state: &Arc<std::sync::Mutex<AppState>>) {
+    let title = format!("Bug report (gregModmanager v{})", env!("CARGO_PKG_VERSION"));
+    let url = format!("{}?title={}", BUG_REPORT_URL, percent_encode_bug(&title));
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_show_bug_dialog(false);
+    }
+    if greg_platform::process::open_url(&url).is_err() {
+        AppState::append_log(state, "Report a Bug: could not open the browser.");
+    } else {
+        AppState::append_log(state, "Report a Bug: opened the app tracker.");
+    }
+}
+
+/// Bug dialog: all other Greg mods & programs (org trackers).
+pub fn bug_open_org(state: &Arc<std::sync::Mutex<AppState>>) {
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_show_bug_dialog(false);
+    }
+    if greg_platform::process::open_url(BUG_REPORT_ORG_URL).is_err() {
+        AppState::append_log(state, "Report a Bug: could not open the browser.");
+    } else {
+        AppState::append_log(state, "Report a Bug: opened the Greg org page.");
+    }
+}
+
+/// Bug dialog: dismiss.
+pub fn bug_close(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.ui().set_show_bug_dialog(false);
+}
+
+fn percent_encode_bug(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for b in value.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~' | b'(' | b')') {
+            out.push(b as char);
+        } else if b == b' ' {
+            out.push('+');
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -2040,6 +2124,7 @@ pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
     {
         let mut guard = state.lock().expect("state");
         refresh_projects(&mut guard);
+        local_refresh(&mut guard);
     }
 }
 

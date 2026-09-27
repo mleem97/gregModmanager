@@ -39,49 +39,61 @@ export component BrowsePage inherits VerticalLayout {
 
     SectionTitle { text: "WORKSHOP"; }
 
-    HorizontalLayout {
-        spacing: 8px;
-        ComboBox {
-            width: 170px;
-            model: root.lists;
-            current-index <=> root.list;
-            selected(_) => { root.filter-changed(); }
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            ComboBox {
+                width: 170px;
+                model: root.lists;
+                current-index <=> root.list;
+                selected(_) => { root.filter-changed(); }
+            }
+            ComboBox {
+                width: 150px;
+                model: root.sorts;
+                current-index <=> root.sort;
+                selected(_) => { root.filter-changed(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
         }
-        ComboBox {
-            width: 150px;
-            model: root.sorts;
-            current-index <=> root.sort;
-            selected(_) => { root.filter-changed(); }
-        }
-        Rectangle { horizontal-stretch: 1; }
     }
-    HorizontalLayout {
-        spacing: 8px;
-        LineEdit {
-            text <=> root.search;
-            placeholder-text: "Search Workshop…";
-            horizontal-stretch: 1;
-            accepted => { root.search-go(); }
-        }
-        Text {
-            text: "Tag";
-            font-size: 12px;
-            color: Palette.on-variant;
-            vertical-alignment: center;
-        }
-        LineEdit {
-            text <=> root.tag;
-            placeholder-text: "tag…";
-            width: 140px;
-        }
-        Button {
-            text: "Search";
-            enabled: !root.busy;
-            clicked => { root.search-go(); }
-        }
-        if root.busy: Button {
-            text: "Cancel";
-            clicked => { root.cancel(); }
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Search Workshop…";
+                horizontal-stretch: 1;
+                accepted => { root.search-go(); }
+            }
+            Text {
+                text: "Tag";
+                font-size: 12px;
+                color: Palette.on-variant;
+                vertical-alignment: center;
+            }
+            LineEdit {
+                text <=> root.tag;
+                placeholder-text: "tag…";
+                width: 140px;
+            }
+            Button {
+                text: "Search";
+                enabled: !root.busy;
+                clicked => { root.search-go(); }
+            }
+            if root.busy: Button {
+                text: "Cancel";
+                clicked => { root.cancel(); }
+            }
         }
     }
     Text {
@@ -92,7 +104,6 @@ export component BrowsePage inherits VerticalLayout {
 
     HorizontalLayout {
         spacing: 8px;
-        vertical-stretch: 1;
 
         Rectangle {
             horizontal-stretch: 1;
@@ -208,22 +219,27 @@ export component BrowsePage inherits VerticalLayout {
         }
     }
 
-    HorizontalLayout {
-        spacing: 8px;
-        alignment: center;
-        Button {
-            text: "◀ Prev";
-            clicked => { root.prev-page(); }
-        }
-        Text {
-            text: "Page " + root.page + " (" + root.total + " total)";
-            font-size: 11px;
-            color: Palette.on-variant;
-            vertical-alignment: center;
-        }
-        Button {
-            text: "Next ▶";
-            clicked => { root.next-page(); }
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            Button {
+                text: "◀ Prev";
+                clicked => { root.prev-page(); }
+            }
+            Text {
+                text: "Page " + root.page + " (" + root.total + " total)";
+                font-size: 11px;
+                color: Palette.on-variant;
+                vertical-alignment: center;
+            }
+            Button {
+                text: "Next ▶";
+                clicked => { root.next-page(); }
+            }
         }
     }
 }

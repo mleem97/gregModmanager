@@ -117,6 +117,47 @@ pub fn scan(game_root: &Path, kind: LocalContentKind) -> Vec<LocalContentEntry> 
     entries
 }
 
+/// Cheap change signature for a kind (`name|size|mtime|enabled` per file).
+/// Poll this to rescan only when something actually changed.
+pub fn signature(game_root: &Path, kind: LocalContentKind) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for folder in folders(game_root, kind) {
+        if !folder.is_dir() {
+            continue;
+        }
+        let Ok(read) = std::fs::read_dir(&folder) else {
+            continue;
+        };
+        for entry in read.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("?")
+                .to_string();
+            let (size, mtime) = entry
+                .metadata()
+                .map(|m| {
+                    (
+                        m.len(),
+                        m.modified()
+                            .ok()
+                            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0),
+                    )
+                })
+                .unwrap_or((0, 0));
+            parts.push(format!("{name}|{size}|{mtime}"));
+        }
+    }
+    parts.sort();
+    parts.join("\n")
+}
+
 /// Toggles an entry (`.dll` ↔ `.dll.disabled`). Non-DLL files cannot toggle.
 pub fn set_enabled(entry: &LocalContentEntry, enabled: bool) -> Result<PathBuf> {
     if entry.enabled == enabled {
@@ -203,6 +244,21 @@ mod tests {
 
         let libs = scan(&root, LocalContentKind::Libs);
         assert_eq!(libs.len(), 1);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn signature_tracks_changes() {
+        let root = game_root("sig");
+        let before = signature(&root, LocalContentKind::Mods);
+        std::fs::write(root.join("Mods").join("new.dll"), b"123").unwrap();
+        let after = signature(&root, LocalContentKind::Mods);
+        assert_ne!(before, after);
+        // Toggle renames the file → signature changes too.
+        let mods = scan(&root, LocalContentKind::Mods);
+        let entry = mods.iter().find(|e| e.name == "new.dll").unwrap();
+        set_enabled(entry, false).unwrap();
+        assert_ne!(after, signature(&root, LocalContentKind::Mods));
         std::fs::remove_dir_all(&root).ok();
     }
 

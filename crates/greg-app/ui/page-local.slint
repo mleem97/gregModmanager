@@ -21,20 +21,27 @@ export component LocalPage inherits VerticalLayout {
 
     SectionTitle { text: root.title; }
 
-    HorizontalLayout {
-        spacing: 8px;
-        LineEdit {
-            text <=> root.search;
-            placeholder-text: "Filter…";
-            horizontal-stretch: 1;
-        }
-        Button {
-            text: "Rescan";
-            clicked => { root.refresh(); }
-        }
-        Button {
-            text: "Open folder";
-            clicked => { root.open-folder(); }
+    // Fixed height: bare input/button rows balloon vertically otherwise.
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Filter…";
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Rescan";
+                clicked => { root.refresh(); }
+            }
+            Button {
+                text: "Open folder";
+                clicked => { root.open-folder(); }
+            }
         }
     }
     Text {
@@ -43,13 +50,15 @@ export component LocalPage inherits VerticalLayout {
         color: Palette.on-variant;
     }
 
+    // Compact list: no vertical-stretch here — stretch on fixed-content
+    // containers never grows them (max-capped) but propagates upward and
+    // makes the whole page tall, misplacing the void above the list.
+    // (Explicit max-height does NOT uncap: the child content cap wins.)
     Rectangle {
-        vertical-stretch: 1;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
         border-color: Palette.outline;
-        Flickable {
             VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
@@ -96,6 +105,5 @@ export component LocalPage inherits VerticalLayout {
                     }
                 }
             }
-        }
     }
 }

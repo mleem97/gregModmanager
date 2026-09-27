@@ -1,4 +1,4 @@
-import { LineEdit, Button, TabWidget, ProgressIndicator } from "std-widgets.slint";
+import { LineEdit, Button, ProgressIndicator } from "std-widgets.slint";
 import { Palette, SectionTitle } from "theme.slint";
 import { StoreRow, UpdateRow } from "models.slint";
 
@@ -22,26 +22,32 @@ export component StorePage inherits VerticalLayout {
 
     SectionTitle { text: "MODSTORE"; }
 
-    HorizontalLayout {
-        spacing: 8px;
-        LineEdit {
-            text <=> root.search;
-            placeholder-text: "Search Modstore…";
-            horizontal-stretch: 1;
-        }
-        Button {
-            text: "Refresh";
-            enabled: !root.busy;
-            clicked => { root.refresh(); }
-        }
-        Button {
-            text: "Updates";
-            enabled: !root.busy;
-            clicked => { root.check-updates(); }
-        }
-        if root.busy: Button {
-            text: "Cancel";
-            clicked => { root.cancel(); }
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Search Modstore…";
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Refresh";
+                enabled: !root.busy;
+                clicked => { root.refresh(); }
+            }
+            Button {
+                text: "Updates";
+                enabled: !root.busy;
+                clicked => { root.check-updates(); }
+            }
+            if root.busy: Button {
+                text: "Cancel";
+                clicked => { root.cancel(); }
+            }
         }
     }
     if root.busy: ProgressIndicator {
@@ -53,16 +59,38 @@ export component StorePage inherits VerticalLayout {
         color: Palette.on-variant;
     }
 
-    tabs := TabWidget {
-        vertical-stretch: 1;
+    // Custom tabs: TabWidget sizes content to preferred (Flickable
+    // reports 0), leaving the content invisible. Buttons + conditional
+    // Rectangles give the Flickable a real viewport instead.
+    in-out property <bool> show-updates;
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: start;
+            Button {
+                text: "Catalog";
+                clicked => { root.show-updates = false; }
+            }
+            Button {
+                text: "Updates (" + root.updates.length + ")";
+                clicked => { root.show-updates = true; }
+            }
+        }
+    }
 
-        Tab {
-            title: "Catalog";
-            Flickable {
-                VerticalLayout {
-                    padding: 6px;
-                    spacing: 4px;
-                    for item[idx] in root.items: Rectangle {
+    if !root.show-updates: Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        Flickable {
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+                for item[idx] in root.items: Rectangle {
                         background: Palette.container-low;
                         border-radius: Palette.radius;
                         border-width: 1px;
@@ -94,9 +122,12 @@ export component StorePage inherits VerticalLayout {
             }
         }
 
-        Tab {
-            title: "Updates (" + root.updates.length + ")";
-            Flickable {
+    if root.show-updates: Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        Flickable {
                 VerticalLayout {
                     padding: 6px;
                     spacing: 4px;
@@ -131,5 +162,4 @@ export component StorePage inherits VerticalLayout {
                 }
             }
         }
-    }
 }

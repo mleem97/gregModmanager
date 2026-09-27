@@ -4,6 +4,9 @@ mod actions;
 mod state;
 mod worker;
 
+#[cfg(test)]
+mod shots;
+
 slint::include_modules!();
 
 use std::sync::{Arc, Mutex};
@@ -84,7 +87,11 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     // Local content.
     {
         let state = Arc::clone(state);
-        ui.on_local_refresh(move || actions::local_refresh(&state));
+        ui.on_local_refresh(move || {
+            if let Ok(mut guard) = state.lock() {
+                actions::local_refresh(&mut guard);
+            }
+        });
     }
     {
         let state = Arc::clone(state);
@@ -155,6 +162,19 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_packs_apply(move |idx| actions::packs_apply(&state, idx));
+    }
+    // Bug report dialog.
+    {
+        let state = Arc::clone(state);
+        ui.on_bug_open_manager(move || actions::bug_open_manager(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_bug_open_org(move || actions::bug_open_org(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_bug_close(move || actions::bug_close(&state));
     }
     // Projects.
     {

@@ -134,6 +134,9 @@ export component MainWindow inherits Window {
     in-out property <bool> show-confirm: false;
     in-out property <string> confirm-text;
 
+    // --- bug report dialog (all Greg mods & programs) ---
+    in-out property <bool> show-bug-dialog: false;
+
     // --- settings page state ---
     in-out property <string> se-workspace;
     in-out property <string> se-gameroot;
@@ -161,6 +164,9 @@ export component MainWindow inherits Window {
     callback local-open-folder();
     callback confirm-yes();
     callback confirm-no();
+    callback bug-open-manager();
+    callback bug-open-org();
+    callback bug-close();
 
     // --- problems callbacks ---
     callback problems-refresh();
@@ -426,7 +432,7 @@ export component MainWindow inherits Window {
                     // Conditional navigation.
                     if root.nav-visible: Rectangle {
                         width: 200px;
-                        background: Palette.surface;
+                        background: Palette.container-low;
                         VerticalLayout {
                             padding: 14px;
                             spacing: 6px;
@@ -453,8 +459,12 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             width: parent.width;
                             height: parent.height;
+                            // Top-anchor compact pages: the default packs
+                            // stretch-less content at the end (void on top).
+                            alignment: start;
                             if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
-                                vertical-stretch: 1;
+                                // No stretch: compact page, rows top + void below
+                                // (nested stretch + flexible status text mis-distributes).
                                 title <=> root.local-title;
                                 search <=> root.local-search;
                                 rows <=> root.local-rows;
@@ -465,14 +475,12 @@ export component MainWindow inherits Window {
                                 open-folder => { root.local-open-folder(); }
                             }
                             if root.current-page == "problems": ProblemsPage {
-                                vertical-stretch: 1;
                                 rows <=> root.problem-rows;
                                 status <=> root.problem-status;
                                 refresh => { root.problems-refresh(); }
                                 act(idx) => { root.problems-act(idx); }
                             }
                             if root.current-page == "modpacks" || root.current-page == "collections": PacksPage {
-                                vertical-stretch: 1;
                                 kind <=> root.pack-kind;
                                 title <=> root.pack-title;
                                 packs <=> root.pack-packs;
@@ -492,7 +500,6 @@ export component MainWindow inherits Window {
                                 apply-pack(idx) => { root.packs-apply(idx); }
                             }
                             if root.current-page == "projects": ProjectsPage {
-                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -505,7 +512,6 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "new": ProjectsPage {
-                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -518,7 +524,6 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "editor": EditorPage {
-                                vertical-stretch: 1;
                                 title <=> root.ed-title;
                                 version <=> root.ed-version;
                                 desc <=> root.ed-desc;
@@ -559,7 +564,6 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.ed-view-steam(); }
                             }
                             if root.current-page == "browse": BrowsePage {
-                                vertical-stretch: 1;
                                 list <=> root.br-list;
                                 lists <=> root.br-lists;
                                 sort <=> root.br-sort;
@@ -591,7 +595,6 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.br-view-steam(); }
                             }
                             if root.current-page == "modstore": StorePage {
-                                vertical-stretch: 1;
                                 search <=> root.st-search;
                                 items <=> root.st-items;
                                 updates <=> root.st-updates;
@@ -605,7 +608,6 @@ export component MainWindow inherits Window {
                                 install-update(idx) => { root.st-install-update(idx); }
                             }
                             if root.current-page == "settings": SettingsPage {
-                                vertical-stretch: 1;
                                 workspace <=> root.se-workspace;
                                 gameroot <=> root.se-gameroot;
                                 lang <=> root.se-lang;
@@ -697,5 +699,54 @@ export component MainWindow inherits Window {
                 }
             }
         }
+
+        // Bug report dialog: entry point for all Greg mods & programs.
+        if root.show-bug-dialog: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: 420px;
+                height: 230px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius;
+                border-width: 1px;
+                border-color: Palette.primary;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+                    alignment: center;
+                    Text {
+                        text: "Report a Bug";
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: Palette.on-surface;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: "What is the bug about?";
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        horizontal-alignment: center;
+                    }
+                    Button {
+                        text: "gregModmanager (this app)";
+                        clicked => { root.bug-open-manager(); }
+                    }
+                    Button {
+                        text: "Other Greg mods & programs";
+                        clicked => { root.bug-open-org(); }
+                    }
+                    Button {
+                        text: "Cancel";
+                        clicked => { root.bug-close(); }
+                    }
+                }
+            }
+        }
     }
 }
+

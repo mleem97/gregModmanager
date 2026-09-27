@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Main-window page layout: content pages are compact and top-anchored again
+  (no void above lists, no bottom-anchored rows). Root causes: the content
+  wrapper packed stretch-less pages at the end, `vertical-stretch` on
+  fixed-content list containers only propagated tallness upward while bare
+  status texts absorbed the free space mid-page, and `TabWidget` sized its
+  `Flickable` tab content to zero height. The Modstore now uses custom tab
+  buttons with conditional content panels instead of `TabWidget`.
+- My Mods auto-scan: reopening/refreshing a local page re-scans the content
+  directories on change (signature-based change detection).
+
 ### Security
 
 ## [1.6.1] - 2026-09-25
