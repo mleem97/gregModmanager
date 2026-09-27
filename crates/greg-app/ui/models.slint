@@ -63,3 +63,19 @@ export struct ProblemRow {
     // Opaque index into the Rust cache.
     index: int,
 }
+
+export struct PackRow {
+    name: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the Rust cache.
+    index: int,
+}
+
+export struct PackEntryRow {
+    title: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the pack's entries.
+    index: int,
+}

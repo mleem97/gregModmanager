@@ -9,6 +9,7 @@ pub mod health;
 pub mod installers;
 pub mod local_content;
 pub mod native_config;
+pub mod packs;
 pub mod sync;
 pub mod templates;
 

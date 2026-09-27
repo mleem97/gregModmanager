@@ -80,6 +80,13 @@ pub struct AppState {
     /// Problem actions cache: (action id, target) parallel to the rows.
     pub problem_actions: Vec<(String, String)>,
 
+    /// Pack catalog (packs + shareable collections) + selection.
+    pub pack_service: greg_core::models::ModCollectionService,
+    /// Selected pack id.
+    pub selected_pack: Option<String>,
+    /// Pack ids in row order (resolves list indices).
+    pub pack_order: Vec<String>,
+
     /// Last applied settings language index (watch for changes).
     pub settings_lang_index: i32,
 
@@ -156,6 +163,9 @@ impl AppState {
             local_entries: Vec::new(),
             pending_remove: None,
             problem_actions: Vec::new(),
+            pack_service: crate::actions::load_packs(),
+            selected_pack: None,
+            pack_order: Vec::new(),
             settings_lang_index: -1,
             events_tx,
             events_rx,
@@ -181,12 +191,8 @@ impl AppState {
             "Userlib",
             "DataCenterMod",
         ]));
-        ui.set_br_lists(model_of(&[
-            "Browse",
-            "Subscribed",
-            "Favorited",
-            "My uploads",
-        ]));
+        // One browse page with a list switcher; own uploads live in Projects.
+        ui.set_br_lists(model_of(&["Browse", "Subscribed", "Favorited"]));
         ui.set_br_sorts(model_of(&[
             "Updated",
             "Newest",
@@ -239,6 +245,8 @@ impl AppState {
                     ("mymods", "My Mods"),
                     ("myplugins", "My Plugins"),
                     ("mylibs", "My Libs"),
+                    ("modpacks", "Modpacks"),
+                    ("collections", "Collections"),
                     ("problems", "Problems"),
                     ("report-bug", "Report a Bug"),
                 ]));
@@ -252,7 +260,6 @@ impl AppState {
                     ("browse", "Browse"),
                     ("subscribed", "Subscribed"),
                     ("favorited", "Favorited"),
-                    ("uploads", "My Uploads"),
                 ]));
             }
             _ => {

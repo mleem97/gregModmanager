@@ -14,7 +14,8 @@ use crate::state::{
 };
 use crate::worker::{JobHandle, JobMessage, JobOutcome};
 use crate::{
-    BrowseRow, CheckRow, HealthRow, LocalRow, ProblemRow, ProjectRow, StoreRow, UpdateRow,
+    BrowseRow, CheckRow, HealthRow, LocalRow, PackEntryRow, PackRow, ProblemRow, ProjectRow,
+    StoreRow, UpdateRow,
 };
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,14 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
         refresh_problems(state);
         return;
     }
+    if id == "modpacks" || id == "collections" {
+        {
+            let guard = state.lock().expect("state");
+            guard.ui().set_current_page(id.into());
+        }
+        packs_refresh(state);
+        return;
+    }
     if matches!(id, "mymods" | "myplugins" | "mylibs") {
         {
             let guard = state.lock().expect("state");
@@ -148,26 +157,31 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
         local_refresh(state);
         return;
     }
-    let guard = state.lock().expect("state");
-    match id {
-        "projects" | "new" => guard.ui().set_current_page(id.into()),
-        "browse" => {
-            guard.ui().set_br_list(0);
-            guard.ui().set_current_page("browse".into());
+    // One browse page for all lists; entering via nav auto-loads it so the
+    // page never sits empty. "My Uploads" is gone: own uploads live in
+    // Projects (sync state + Steam link per row).
+    let fetch = matches!(id, "browse" | "subscribed" | "favorited");
+    {
+        let guard = state.lock().expect("state");
+        match id {
+            "projects" | "new" => guard.ui().set_current_page(id.into()),
+            "browse" => {
+                guard.ui().set_br_list(0);
+                guard.ui().set_current_page("browse".into());
+            }
+            "subscribed" => {
+                guard.ui().set_br_list(1);
+                guard.ui().set_current_page("browse".into());
+            }
+            "favorited" => {
+                guard.ui().set_br_list(2);
+                guard.ui().set_current_page("browse".into());
+            }
+            _ => {}
         }
-        "subscribed" => {
-            guard.ui().set_br_list(1);
-            guard.ui().set_current_page("browse".into());
-        }
-        "favorited" => {
-            guard.ui().set_br_list(2);
-            guard.ui().set_current_page("browse".into());
-        }
-        "uploads" => {
-            guard.ui().set_br_list(3);
-            guard.ui().set_current_page("browse".into());
-        }
-        _ => {}
+    }
+    if fetch {
+        browse_go(state, None);
     }
 }
 
@@ -818,7 +832,6 @@ pub fn browse_go(state: &Arc<std::sync::Mutex<AppState>>, detail_id: Option<u64>
                 match list {
                     1 => steam.subscribed(page as u32, &cancel),
                     2 => steam.favorited(page as u32, &cancel),
-                    3 => steam.my_published(page as u32, &cancel),
                     _ => steam.browse(page as u32, sort, tag.as_deref(), &cancel),
                 }
             };
@@ -833,6 +846,15 @@ pub fn browse_go(state: &Arc<std::sync::Mutex<AppState>>, detail_id: Option<u64>
         outcome
     });
     guard.browse_job = Some(job);
+}
+
+/// Re-fetches page one after a list/sort change.
+pub fn browse_filter_changed(state: &Arc<std::sync::Mutex<AppState>>) {
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_br_page(1);
+    }
+    browse_go(state, None);
 }
 
 /// Cancels the browse job.
@@ -1623,6 +1645,395 @@ pub fn problems_act(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
         "settings" => on_icon(state, crate::state::ICON_SETTINGS),
         "editor" if !action.1.is_empty() => open_project(state, &action.1),
         _ => {}
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Modpacks + shareable collections.
+// ---------------------------------------------------------------------------
+
+/// Catalog file: app-data `collections.json` (C# used `{root}/collections.json`).
+pub fn packs_path() -> std::path::PathBuf {
+    greg_platform::paths::app_data_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("collections.json")
+}
+
+/// Loads the catalog (empty when missing/corrupt).
+pub fn load_packs() -> greg_core::models::ModCollectionService {
+    let path = packs_path();
+    if !path.is_file() {
+        return greg_core::models::ModCollectionService::new();
+    }
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| greg_core::models::ModCollectionService::load_json(&text).ok())
+        .unwrap_or_default()
+}
+
+/// Persists the catalog (best-effort).
+pub fn save_packs(svc: &greg_core::models::ModCollectionService) {
+    if let Ok(json) = svc.to_json() {
+        let path = packs_path();
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(path, json);
+    }
+}
+
+fn packs_kind_of(state: &AppState) -> greg_core::models::CollectionKind {
+    use greg_core::models::CollectionKind as K;
+    match state.ui().get_current_page().as_str() {
+        "collections" => K::Collection,
+        _ => K::Pack,
+    }
+}
+
+/// Refreshes packs list + selected entries for the active kind.
+pub fn packs_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let kind = packs_kind_of(&guard);
+    guard.ui().set_pack_kind(kind.id().into());
+    guard
+        .ui()
+        .set_pack_title(if kind == greg_core::models::CollectionKind::Collection {
+            "COLLECTIONS".into()
+        } else {
+            "MODPACKS".into()
+        });
+    let ids: Vec<String> = guard
+        .pack_service
+        .of_kind(kind)
+        .iter()
+        .map(|c| c.id.clone())
+        .collect();
+    // Drop selections that vanished (or belong to the other kind).
+    if guard
+        .selected_pack
+        .as_ref()
+        .is_none_or(|id| !ids.contains(id))
+    {
+        guard.selected_pack = ids.first().cloned();
+    }
+    guard.pack_order = ids;
+    let rows: Vec<PackRow> = guard
+        .pack_order
+        .iter()
+        .enumerate()
+        .filter_map(|(i, id)| {
+            guard.pack_service.get(id).map(|c| PackRow {
+                name: if c.name.trim().is_empty() {
+                    "(unnamed)".into()
+                } else {
+                    c.name.clone().into()
+                },
+                detail: format!(
+                    "{} entries{}",
+                    c.items.len(),
+                    if c.enabled { "" } else { " · off" }
+                )
+                .into(),
+                enabled: c.enabled,
+                index: i as i32,
+            })
+        })
+        .collect();
+    let selected_index = guard
+        .selected_pack
+        .as_ref()
+        .and_then(|id| guard.pack_order.iter().position(|x| x == id))
+        .map(|i| i as i32)
+        .unwrap_or(-1);
+    guard.ui().set_pack_packs(model_of_rows(rows));
+    guard.ui().set_pack_selected(selected_index);
+    refresh_pack_entries(&mut guard);
+    if guard.ui().get_pack_status().to_string().is_empty() {
+        guard.ui().set_pack_status(
+            "Create packs from your installed mods, apply them, or share collections as files."
+                .into(),
+        );
+    }
+}
+
+fn refresh_pack_entries(guard: &mut AppState) {
+    let entries: Vec<PackEntryRow> = guard
+        .selected_pack
+        .as_ref()
+        .and_then(|id| guard.pack_service.get(id))
+        .map(|c| {
+            c.items
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    let detail = if e.published_file_id != 0 {
+                        format!("Workshop {}", e.published_file_id)
+                    } else if let Some(path) = e.local_path.as_deref() {
+                        let size = std::fs::metadata(path)
+                            .map(|m| greg_core::util::format_bytes(m.len() as i64))
+                            .unwrap_or_default();
+                        let folder = std::path::Path::new(path)
+                            .parent()
+                            .and_then(|p| p.file_name())
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("?");
+                        format!("{size} · {folder}")
+                    } else {
+                        "unresolved entry".to_string()
+                    };
+                    PackEntryRow {
+                        title: if e.title.trim().is_empty() {
+                            "(untitled)".into()
+                        } else {
+                            e.title.clone().into()
+                        },
+                        detail: detail.into(),
+                        enabled: e.enabled,
+                        index: i as i32,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    guard.ui().set_pack_entries(model_of_rows(entries));
+}
+
+/// Creates a pack/collection of the active kind.
+pub fn packs_create(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let name = guard.ui().get_pack_new_name().to_string();
+    if name.trim().is_empty() {
+        return;
+    }
+    let kind = packs_kind_of(&guard);
+    let id = guard.pack_service.create(kind, name.trim(), "");
+    guard.selected_pack = Some(id);
+    guard.ui().set_pack_new_name("".into());
+    save_packs(&guard.pack_service);
+    drop(guard);
+    packs_refresh(state);
+}
+
+/// Selects a pack by row index.
+pub fn packs_select(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    let id = guard.pack_order.get(index as usize).cloned();
+    guard.selected_pack = id;
+    guard.ui().set_pack_selected(index);
+    refresh_pack_entries(&mut guard);
+}
+
+/// Toggles a whole pack by row index.
+pub fn packs_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    if let Some(id) = guard.pack_order.get(index as usize).cloned() {
+        guard.pack_service.toggle(&id);
+        save_packs(&guard.pack_service);
+    }
+    drop(guard);
+    packs_refresh(state);
+}
+
+/// Deletes a pack by row index.
+pub fn packs_delete(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    if let Some(id) = guard.pack_order.get(index as usize).cloned() {
+        guard.pack_service.delete(&id);
+        if guard.selected_pack.as_deref() == Some(&id) {
+            guard.selected_pack = None;
+        }
+        save_packs(&guard.pack_service);
+    }
+    drop(guard);
+    packs_refresh(state);
+}
+
+/// Toggles one entry of the selected pack.
+pub fn packs_toggle_entry(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    if let Some(id) = guard.selected_pack.clone() {
+        guard.pack_service.toggle_entry(&id, index as usize);
+        save_packs(&guard.pack_service);
+        refresh_pack_entries(&mut guard);
+    }
+}
+
+/// Removes one entry of the selected pack.
+pub fn packs_remove_entry(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    if let Some(id) = guard.selected_pack.clone() {
+        guard.pack_service.remove_entry_at(&id, index as usize);
+        save_packs(&guard.pack_service);
+        refresh_pack_entries(&mut guard);
+        drop(guard);
+        packs_refresh(state);
+    }
+}
+
+/// Adds a local file (DLL) to the selected pack.
+pub fn packs_add_file(state: &Arc<std::sync::Mutex<AppState>>) {
+    let selected = {
+        let guard = state.lock().expect("state");
+        guard.selected_pack.clone()
+    };
+    let Some(pack_id) = selected else { return };
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter("Mod files", &["dll", "zip"])
+        .pick_file()
+    else {
+        return;
+    };
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("?")
+        .to_string();
+    let mod_type = if path.to_string_lossy().to_lowercase().contains("plugin") {
+        "MelonloaderPlugin"
+    } else {
+        "DataCenterMod"
+    };
+    let mut guard = state.lock().expect("state");
+    guard.pack_service.add_item(
+        &pack_id,
+        greg_core::models::ModCollectionEntry {
+            title: name,
+            source_name: "Local file".into(),
+            mod_type: mod_type.into(),
+            local_path: Some(path.to_string_lossy().to_string()),
+            ..Default::default()
+        },
+    );
+    save_packs(&guard.pack_service);
+    refresh_pack_entries(&mut guard);
+}
+
+/// Exports the selected pack to a shareable file.
+pub fn packs_export(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (id, name) = {
+        let guard = state.lock().expect("state");
+        match guard.selected_pack.clone() {
+            Some(id) => {
+                let name = guard
+                    .pack_service
+                    .get(&id)
+                    .map(|c| {
+                        if c.name.trim().is_empty() {
+                            "pack".to_string()
+                        } else {
+                            c.name.clone()
+                        }
+                    })
+                    .unwrap_or_else(|| "pack".to_string());
+                (id, name)
+            }
+            None => return,
+        }
+    };
+    let Some(dest) = rfd::FileDialog::new()
+        .set_file_name(format!("{name}.gregpack.json"))
+        .save_file()
+    else {
+        return;
+    };
+    let guard = state.lock().expect("state");
+    match guard.pack_service.export_pack(&id) {
+        Ok(json) => match std::fs::write(&dest, json) {
+            Ok(()) => {
+                guard
+                    .ui()
+                    .set_pack_status(format!("Exported to {}", dest.display()).into());
+                AppState::append_log(state, &format!("Exported pack to {}", dest.display()));
+            }
+            Err(e) => guard
+                .ui()
+                .set_pack_status(format!("Export failed: {e}").into()),
+        },
+        Err(e) => guard
+            .ui()
+            .set_pack_status(format!("Export failed: {e}").into()),
+    }
+}
+
+/// Imports a shared pack/collection file.
+pub fn packs_import(state: &Arc<std::sync::Mutex<AppState>>) {
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter("Pack files", &["json"])
+        .pick_file()
+    else {
+        return;
+    };
+    let mut guard = state.lock().expect("state");
+    match std::fs::read_to_string(&path) {
+        Ok(json) => match guard.pack_service.import_pack(&json) {
+            Ok(id) => {
+                guard.selected_pack = Some(id);
+                save_packs(&guard.pack_service);
+                drop(guard);
+                packs_refresh(state);
+            }
+            Err(e) => guard
+                .ui()
+                .set_pack_status(format!("Import failed: {e}").into()),
+        },
+        Err(e) => guard
+            .ui()
+            .set_pack_status(format!("Import failed: {e}").into()),
+    }
+}
+
+/// Workshop link for pack apply (boxed once, not inline).
+type WorkshopLink<'a> = Option<&'a dyn Fn(u64) -> std::result::Result<(), String>>;
+
+/// Applies the selected pack (local enable/disable + Workshop subscribe).
+/// The index argument mirrors the UI callback; selection is authoritative.
+pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
+    let (pack, game_root, steam) = {
+        let guard = state.lock().expect("state");
+        let Some(id) = guard.selected_pack.clone() else {
+            return;
+        };
+        let Some(pack) = guard.pack_service.get(&id).cloned() else {
+            return;
+        };
+        (pack, game_root_of(&guard), Arc::clone(&guard.steam))
+    };
+    let steam_available = matches!(
+        steam.status(),
+        greg_steam::backend::BackendStatus::Available { .. }
+    );
+    // Sync Steam calls are quick local IPC; unavailable backends are passed
+    // as `None` so workshop entries land in `skipped_no_steam`.
+    let subscribe_steam = Arc::clone(&steam);
+    let unsubscribe_steam = Arc::clone(&steam);
+    let subscribe = move |id: u64| subscribe_steam.subscribe(id).map_err(|e| e.to_string());
+    let unsubscribe = move |id: u64| unsubscribe_steam.unsubscribe(id).map_err(|e| e.to_string());
+    let (sub, unsub): (WorkshopLink<'_>, WorkshopLink<'_>) = if steam_available {
+        (Some(&subscribe), Some(&unsubscribe))
+    } else {
+        (None, None)
+    };
+    let report = greg_loader::packs::apply_pack(&pack, &game_root, sub, unsub);
+    let summary = match report {
+        Ok(report) => {
+            for error in &report.errors {
+                AppState::append_log(state, &format!("Pack apply: {error}"));
+            }
+            AppState::append_log(state, &format!("Pack apply: {}", report.summary()));
+            report.summary()
+        }
+        Err(e) => {
+            AppState::append_log(state, &format!("Pack apply failed: {e}"));
+            format!("Apply failed: {e}")
+        }
+    };
+    let guard = state.lock().expect("state");
+    guard.ui().set_pack_status(summary.into());
+    drop(guard);
+    // Local states may have changed — refresh dependent pages.
+    {
+        let mut guard = state.lock().expect("state");
+        refresh_projects(&mut guard);
     }
 }
 

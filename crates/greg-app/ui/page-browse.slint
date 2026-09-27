@@ -25,6 +25,7 @@ export component BrowsePage inherits VerticalLayout {
 
     callback refresh();
     callback search-go();
+    callback filter-changed();
     callback cancel();
     callback select(string);
     callback prev-page();
@@ -41,12 +42,26 @@ export component BrowsePage inherits VerticalLayout {
     HorizontalLayout {
         spacing: 8px;
         ComboBox {
+            width: 170px;
             model: root.lists;
             current-index <=> root.list;
+            selected(_) => { root.filter-changed(); }
         }
         ComboBox {
+            width: 150px;
             model: root.sorts;
             current-index <=> root.sort;
+            selected(_) => { root.filter-changed(); }
+        }
+        Rectangle { horizontal-stretch: 1; }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        LineEdit {
+            text <=> root.search;
+            placeholder-text: "Search Workshop…";
+            horizontal-stretch: 1;
+            accepted => { root.search-go(); }
         }
         Text {
             text: "Tag";
@@ -56,15 +71,8 @@ export component BrowsePage inherits VerticalLayout {
         }
         LineEdit {
             text <=> root.tag;
-        }
-    }
-    HorizontalLayout {
-        spacing: 8px;
-        LineEdit {
-            text <=> root.search;
-            placeholder-text: "Search Workshop…";
-            horizontal-stretch: 1;
-            accepted => { root.search-go(); }
+            placeholder-text: "tag…";
+            width: 140px;
         }
         Button {
             text: "Search";

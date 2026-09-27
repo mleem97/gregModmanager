@@ -136,10 +136,13 @@ Shell layout in `crates/greg-app/ui/main.slint`, grounded in the old Avalonia
 login/profile card, full-height 64 px icon bar on the far left with the G logo
 as first icon (Modmanager ▤, Workshop Upload ⬆, Modstore ◈, Settings ⚙),
 conditional navigation beside it (MODMANAGER: My Mods, My Plugins, My Libs,
-Problems, Report a Bug; WORKSHOP UPLOAD: Projects, New Project, Browse,
-Subscribed, Favorited, My Uploads; Modstore and Settings need none — tabs /
-single page suffice), content pages, and a bottom status bar with Steam +
-GregApi LEDs.
+Modpacks, Collections, Problems, Report a Bug; WORKSHOP UPLOAD: Projects,
+New Project, Browse, Subscribed, Favorited — one shared browse page with a
+list switcher, own uploads live in Projects; Modstore and Settings need none
+— tabs / single page suffice), content pages, and a bottom status bar with
+Steam + GregApi LEDs. Modpacks are local applicable sets (entries carry
+`enabled` + optional `local_path`); Collections are the shareable
+Steam-like lists (file export/import, `.gregpack.json`).
 
 Gating (enforced in Rust, `AppState::apply_probe`): GregApi red
 (unreachable) hides the login button and disables Modstore — only Steam

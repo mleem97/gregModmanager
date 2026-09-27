@@ -1,7 +1,8 @@
 import { Button } from "std-widgets.slint";
 import { Palette, IconButton, NavButton, StatusLed, WinBtn } from "theme.slint";
-import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow } from "models.slint";
+import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow, PackRow, PackEntryRow } from "models.slint";
 import { LocalPage } from "page-local.slint";
+import { PacksPage } from "page-packs.slint";
 import { ProblemsPage } from "page-problems.slint";
 import { ProjectsPage } from "page-projects.slint";
 import { EditorPage } from "page-editor.slint";
@@ -120,6 +121,15 @@ export component MainWindow inherits Window {
     in-out property <[ProblemRow]> problem-rows;
     in-out property <string> problem-status;
 
+    // --- packs page state (one component serves Modpacks + Collections) ---
+    in-out property <string> pack-kind;
+    in-out property <string> pack-title;
+    in-out property <[PackRow]> pack-packs;
+    in-out property <int> pack-selected: -1;
+    in-out property <[PackEntryRow]> pack-entries;
+    in-out property <string> pack-new-name;
+    in-out property <string> pack-status;
+
     // --- confirm dialog ---
     in-out property <bool> show-confirm: false;
     in-out property <string> confirm-text;
@@ -156,6 +166,18 @@ export component MainWindow inherits Window {
     callback problems-refresh();
     callback problems-act(int);
 
+    // --- packs callbacks ---
+    callback packs-create();
+    callback packs-select(int);
+    callback packs-toggle(int);
+    callback packs-delete(int);
+    callback packs-toggle-entry(int);
+    callback packs-remove-entry(int);
+    callback packs-add-file();
+    callback packs-export(int);
+    callback packs-import();
+    callback packs-apply(int);
+
     // --- projects callbacks ---
     callback project-refresh();
     callback project-open(string);
@@ -177,6 +199,7 @@ export component MainWindow inherits Window {
 
     // --- browse callbacks ---
     callback br-go();
+    callback br-filter-changed();
     callback br-cancel();
     callback br-select(string);
     callback br-prev();
@@ -438,6 +461,26 @@ export component MainWindow inherits Window {
                                 refresh => { root.problems-refresh(); }
                                 act(idx) => { root.problems-act(idx); }
                             }
+                            if root.current-page == "modpacks" || root.current-page == "collections": PacksPage {
+                                vertical-stretch: 1;
+                                kind <=> root.pack-kind;
+                                title <=> root.pack-title;
+                                packs <=> root.pack-packs;
+                                selected <=> root.pack-selected;
+                                entries <=> root.pack-entries;
+                                new-name <=> root.pack-new-name;
+                                status <=> root.pack-status;
+                                create => { root.packs-create(); }
+                                select(idx) => { root.packs-select(idx); }
+                                toggle-pack(idx) => { root.packs-toggle(idx); }
+                                delete-pack(idx) => { root.packs-delete(idx); }
+                                toggle-entry(idx) => { root.packs-toggle-entry(idx); }
+                                remove-entry(idx) => { root.packs-remove-entry(idx); }
+                                add-local-file => { root.packs-add-file(); }
+                                export-pack(idx) => { root.packs-export(idx); }
+                                import-pack => { root.packs-import(); }
+                                apply-pack(idx) => { root.packs-apply(idx); }
+                            }
                             if root.current-page == "projects": ProjectsPage {
                                 vertical-stretch: 1;
                                 search <=> root.project-search;
@@ -526,9 +569,10 @@ export component MainWindow inherits Window {
                                 d-subscribed <=> root.br-d-subscribed;
                                 status <=> root.br-status;
                                 busy <=> root.br-busy;
-                                refresh => { root.br-go(); }
-                                search-go => { root.br-go(); }
-                                cancel => { root.br-cancel(); }
+                    refresh => { root.br-go(); }
+                    search-go => { root.br-go(); }
+                    filter-changed => { root.br-filter-changed(); }
+                    cancel => { root.br-cancel(); }
                                 select(id) => { root.br-select(id); }
                                 prev-page => { root.br-prev(); }
                                 next-page => { root.br-next(); }

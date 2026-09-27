@@ -115,6 +115,47 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         let state = Arc::clone(state);
         ui.on_problems_act(move |idx| actions::problems_act(&state, idx));
     }
+    // Packs (Modpacks + Collections share one component).
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_create(move || actions::packs_create(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_select(move |idx| actions::packs_select(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_toggle(move |idx| actions::packs_toggle(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_delete(move |idx| actions::packs_delete(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_toggle_entry(move |idx| actions::packs_toggle_entry(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_remove_entry(move |idx| actions::packs_remove_entry(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_add_file(move || actions::packs_add_file(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_export(move |_idx| actions::packs_export(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_import(move || actions::packs_import(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_packs_apply(move |idx| actions::packs_apply(&state, idx));
+    }
     // Projects.
     {
         let state = Arc::clone(state);
@@ -197,6 +238,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_br_go(move || actions::browse_go(&state, None));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_br_filter_changed(move || actions::browse_filter_changed(&state));
     }
     {
         let state = Arc::clone(state);

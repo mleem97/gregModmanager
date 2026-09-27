@@ -1,0 +1,185 @@
+import { LineEdit, Button } from "std-widgets.slint";
+import { Palette, SectionTitle } from "theme.slint";
+import { PackRow, PackEntryRow } from "models.slint";
+
+// Modpacks and shareable collections share one component; `kind` selects
+// the backing data ("pack" | "collection"). Master-detail: packs left,
+// selected entries right.
+export component PacksPage inherits VerticalLayout {
+    in-out property <string> kind;
+    in-out property <string> title;
+    in-out property <[PackRow]> packs;
+    in-out property <int> selected;
+    in-out property <[PackEntryRow]> entries;
+    in-out property <string> new-name;
+    in-out property <string> status;
+
+    callback create();
+    callback select(int);
+    callback toggle-pack(int);
+    callback delete-pack(int);
+    callback toggle-entry(int);
+    callback remove-entry(int);
+    callback add-local-file();
+    callback export-pack(int);
+    callback import-pack();
+    callback apply-pack(int);
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: root.title; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        vertical-stretch: 1;
+
+        // Packs list.
+        Rectangle {
+            width: 280px;
+            background: Palette.container-low;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.outline;
+            VerticalLayout {
+                padding: 6px;
+                spacing: 2px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    LineEdit {
+                        text <=> root.new-name;
+                        placeholder-text: "New name…";
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "+";
+                        clicked => { root.create(); }
+                    }
+                    Button {
+                        text: "Import";
+                        clicked => { root.import-pack(); }
+                    }
+                }
+                Flickable {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 2px;
+                        for pack in root.packs: Rectangle {
+                            height: 48px;
+                            background: pack.index == root.selected ? Palette.container-high : Palette.container;
+                            border-radius: Palette.radius;
+                            touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.select(pack.index); }
+                            }
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 6px;
+                                spacing: 6px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    Text {
+                                        text: pack.name;
+                                        font-size: 12px;
+                                        font-weight: 700;
+                                        color: pack.enabled ? Palette.on-surface : Palette.on-variant;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: pack.detail;
+                                        font-size: 10px;
+                                        color: Palette.on-variant;
+                                        overflow: elide;
+                                    }
+                                }
+                                Button {
+                                    text: pack.enabled ? "On" : "Off";
+                                    clicked => { root.toggle-pack(pack.index); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Selected entries.
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Palette.container-low;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.outline;
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    Button {
+                        text: "Apply";
+                        clicked => { root.apply-pack(root.selected); }
+                    }
+                    Button {
+                        text: "Add local file";
+                        clicked => { root.add-local-file(); }
+                    }
+                    Button {
+                        text: "Export";
+                        clicked => { root.export-pack(root.selected); }
+                    }
+                    Button {
+                        text: "Delete pack";
+                        clicked => { root.delete-pack(root.selected); }
+                    }
+                }
+                Flickable {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: 2px;
+                        for entry in root.entries: Rectangle {
+                            height: 40px;
+                            background: Palette.container;
+                            border-radius: Palette.radius;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 6px;
+                                spacing: 6px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    Text {
+                                        text: entry.title;
+                                        font-size: 12px;
+                                        color: entry.enabled ? Palette.on-surface : Palette.on-variant;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: entry.detail;
+                                        font-size: 10px;
+                                        color: Palette.on-variant;
+                                        overflow: elide;
+                                    }
+                                }
+                                Button {
+                                    text: entry.enabled ? "On" : "Off";
+                                    clicked => { root.toggle-entry(entry.index); }
+                                }
+                                Button {
+                                    text: "Remove";
+                                    clicked => { root.remove-entry(entry.index); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+}

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Modmanager core loop: My Mods/Plugins/Libs (enable/disable/remove),
+  local Modpacks (create, apply, export/import) and shareable Steam-like
+  Collections, Problems inbox with jump actions, Report-a-Bug tracker link.
+  Browse unifies Browse/Subscribed/Favorited with auto-load (My Uploads
+  removed — own uploads live in Projects).
 - `cargo xtask dist`: portable release packages with native Steam libraries
   staged next to the binaries — Windows `steam_api64.dll` (`.zip`),
   Linux `libsteam_api.so` (`.tar.gz`), macOS `libsteam_api.dylib` (`.tar.gz`),
