@@ -38,7 +38,7 @@ signing, and notarization.
 | nfpm and native package tools | DEB, RPM, APK, and Arch packages |
 | WSL | optional Windows-host Linux package adapter |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Forgejo Actions (`.forgejo/workflows/`) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the Forgejo API, one Discord notification per run. GitHub is a read-only mirror with no workflows. |
+| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the instance API, one Discord notification per run. GitHub is a read-only archive mirror with no workflows. |
 
 ## Release formats
 

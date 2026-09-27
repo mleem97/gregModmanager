@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dual CI: `.gitea/workflows/` added as byte-identical copy of
+  `.forgejo/workflows/` (Gitea Actions alongside Forgejo Actions, guarded by a
+  `parity` job). GitHub has no workflows directory and runs no automation —
+  it is a read-only archive mirror only.
 - File-based project docs: `README.md` (Markdown) is the description source and
   `CHANGELOG.md` (Keep a Changelog + SemVer) is the changelog source. Steam
   uploads get converted BBCode/plain text automatically — the Modstore keeps

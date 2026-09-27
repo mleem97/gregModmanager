@@ -4,9 +4,10 @@
 
 - Local build script: `build/scripts/build.ps1`.
 - Interactive builders: `build/builder.ps1` and `build/builder.sh`.
-- CI workflows: `.forgejo/workflows/` (Forgejo Actions, Linux-only runners;
-  Windows artifacts are cross-built). GitHub is a read-only mirror — `.github/`
-  contains no workflows.
+- CI workflows: `.forgejo/workflows/` (Forgejo Actions) and `.gitea/workflows/`
+  (Gitea Actions) — both directories are byte-identical by convention (enforced
+  by the `parity` job), Linux-only runners; Windows artifacts are cross-built.
+  GitHub is a read-only archive mirror — `.github/` contains no workflows.
 - Keep script and workflow changes aligned unless the PR explicitly documents a staged migration.
 
 ## Steam Workshop
