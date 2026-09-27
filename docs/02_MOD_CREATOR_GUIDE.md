@@ -29,6 +29,22 @@ Before automating metadata generation, inspect the model and an application-
 created project on the version you target. Do not submit an example JSON file as
 though it were a validated manifest.
 
+## Project docs: README.md and CHANGELOG.md
+
+A project folder may contain `README.md` and `CHANGELOG.md` next to
+`metadata.json` and `content/`:
+
+- `README.md` (Markdown) is the description source. The manager converts it to
+  Steam Workshop BBCode on upload; the Modstore keeps the native Markdown.
+  Without the file, the `description` from `metadata.json` is used.
+- `CHANGELOG.md` must follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+  with [Semantic Versioning](https://semver.org/spec/v2.0.0.html) sections
+  (`## [1.1.0] - YYYY-MM-DD`, plus optional `## [Unreleased]`). The manager
+  auto-reads the section matching the `version` in `metadata.json` as the Steam
+  change note — no manual input in the app and no `--changelog` flag needed.
+  Manual input always wins when provided. New projects created from a template
+  already ship both files.
+
 ## Publish a prepared project from the command line
 
 The executable has a headless Steam Workshop publish command. The project path

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- File-based project docs: `README.md` (Markdown) is the description source and
+  `CHANGELOG.md` (Keep a Changelog + SemVer) is the changelog source. Steam
+  uploads get converted BBCode/plain text automatically — the Modstore keeps
+  native Markdown. The changelog section matching `metadata.json`'s version is
+  auto-read, so updates need no manual input in the app or `--changelog` flag.
+  New template projects ship both files; upload checks validate SemVer and the
+  Keep a Changelog format.
+
 ### Changed
 
 ### Deprecated

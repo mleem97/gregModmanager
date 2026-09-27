@@ -26,6 +26,10 @@ public static class HeadlessRunner
 				  --upload             Same as --mode publish
 				  --path <dir>         Project root (must contain content/ and metadata.json)
 				  --changelog <text>   Change note attached to the Steam update
+				                       (optional when CHANGELOG.md has a Keep-a-Changelog
+				                       section for the metadata version — auto-read)
+				  README.md (Markdown) is converted to Steam BBCode on upload;
+				  the Modstore keeps native Markdown.
 				  --autocommit         Write .ralph/tasks/status.json on completion
 				  --mode status        Show sync state of one project (needs --path).
 				                       Exit code: 0 = synced, 1 = publish needed

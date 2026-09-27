@@ -199,9 +199,11 @@ public partial class EditorPage : UserControl
             : S.Get("Editor_ChangelogRequiredHint");
         ViewOnSteamBtn.IsVisible = isUpdate;
 
+        AutoFillChangelogFromFile();
         UpdateContentSizeUi();
         UpdateCounts(TitleEntry, DescriptionEditor, TitleCountLabel, DescriptionCountLabel);
         UpdateTagsHint(TagsEntry, TagsHintLabel);
+        UpdateDocsHints();
         RebuildScreenshotGallery();
         RunUploadCheck();
         RebuildWorkshopDepRows();
@@ -393,7 +395,88 @@ public partial class EditorPage : UserControl
     private void OnNeedsMelonLoaderToggled(object? sender, RoutedEventArgs e) => RunUploadCheck();
     private void OnNativeProfileChanged(object? sender, SelectionChangedEventArgs e) => RunUploadCheck();
     private void OnModTypeChanged(object? sender, SelectionChangedEventArgs e) => RunUploadCheck();
-    private void OnChangeLogTextChanged(object? sender, TextChangedEventArgs e) => RunUploadCheck();
+    private void OnChangeLogTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        // When the version changes, refresh an untouched changelog field from
+        // CHANGELOG.md so no manual input is needed. Never overwrite user text.
+        if (ReferenceEquals(sender, VersionEntry))
+        {
+            AutoFillChangelogFromFile();
+            UpdateDocsHints();
+        }
+
+        RunUploadCheck();
+    }
+
+    /// <summary>
+    /// Fills an empty changelog editor from CHANGELOG.md (Keep a Changelog) for
+    /// the current version. Manual text always wins — this never overwrites.
+    /// </summary>
+    private void AutoFillChangelogFromFile()
+    {
+        try
+        {
+            if (ChangeLogEditor is null || !string.IsNullOrWhiteSpace(ChangeLogEditor.Text))
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(_projectRoot) || !Directory.Exists(_projectRoot))
+            {
+                return;
+            }
+
+            var version = (VersionEntry?.Text ?? _metadata.Version ?? "1.0.0").Trim();
+            var resolved = ProjectDocsResolver.ResolveSteamChangelog(_projectRoot, version, manualChangelog: null);
+            if (!string.IsNullOrWhiteSpace(resolved.Text))
+            {
+                ChangeLogEditor.Text = resolved.Text;
+            }
+        }
+        catch
+        {
+            // best effort — upload checks report file problems
+        }
+    }
+
+    /// <summary>Shows README.md / CHANGELOG.md file sources in the existing hint labels.</summary>
+    private void UpdateDocsHints()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(_projectRoot) || !Directory.Exists(_projectRoot))
+            {
+                return;
+            }
+
+            var readme = ProjectDocsResolver.FindReadme(_projectRoot);
+            if (readme is not null && DescriptionCountLabel is not null)
+            {
+                var converted = ProjectDocsResolver.ResolveSteamDescription(_projectRoot, "").Text;
+                DescriptionCountLabel.Text = S.Format("Editor_ReadmeSteamHint",
+                    DescriptionEditor?.Text?.Length ?? 0,
+                    SteamConstants.MaxDescriptionLength,
+                    converted.Length);
+            }
+
+            var changelogPath = ProjectDocsResolver.FindChangelog(_projectRoot);
+            if (changelogPath is not null && ChangeLogHintLabel is not null)
+            {
+                var version = (VersionEntry?.Text ?? _metadata.Version ?? "1.0.0").Trim();
+                var resolved = ProjectDocsResolver.ResolveSteamChangelog(_projectRoot, version, ChangeLogEditor?.Text);
+                if (resolved.Source is ProjectDocsResolver.ChangelogSource.FileVersion or ProjectDocsResolver.ChangelogSource.FileUnreleased)
+                {
+                    var from = resolved.EntryVersion == "Unreleased" ? "[Unreleased]" : $"[{resolved.EntryVersion}]";
+                    ChangeLogHintLabel.Text = S.Format("Editor_ChangelogFileHint", from,
+                        KeepAChangelogParser.NormalizeVersion(version) ?? version);
+                }
+            }
+        }
+        catch
+        {
+            // best effort
+        }
+    }
 
     #endregion
 
@@ -907,10 +990,14 @@ public partial class EditorPage : UserControl
             WorkspaceService.SaveMetadata(_projectRoot, _metadata);
 
             var content = Path.GetFullPath(Path.Combine(_projectRoot, "content"));
-            var changeLogText = (ChangeLogEditor.Text ?? "").Trim();
-            var changeLog = string.IsNullOrWhiteSpace(changeLogText)
-                ? $"v{_metadata.Version}"
-                : $"v{_metadata.Version}: {changeLogText}";
+            // Manual input wins; otherwise CHANGELOG.md (Keep a Changelog) for
+            // this version is used — no manual input needed. PublishAsync would
+            // resolve the file as well, but the formatted note is shown in the log.
+            var manualText = (ChangeLogEditor.Text ?? "").Trim();
+            var resolved = ProjectDocsResolver.ResolveSteamChangelog(_projectRoot, _metadata.Version, string.IsNullOrWhiteSpace(manualText) ? null : manualText);
+            var changeLog = !string.IsNullOrWhiteSpace(resolved.Text)
+                ? ProjectDocsResolver.FormatSteamChangeNote(_metadata.Version, resolved.Text)
+                : $"v{_metadata.Version}";
 
             var owner = TopLevel.GetTopLevel(this) as Window
                 ?? App.Services.GetService<MainWindow>() as Window;

@@ -16,11 +16,13 @@ public static class UploadDependencyChecker
 			CheckNativeConfigJson(projectRoot, results);
 		}
 		CheckMetadataFields(metadata, results);
+		CheckVersion(metadata, results);
+		CheckProjectDocs(projectRoot, metadata, results);
 		CheckPreviewImage(projectRoot, metadata, results);
 		CheckTags(metadata, results);
 		CheckContentSize(projectRoot, results);
-		CheckChangelog(metadata, changeLog, results);
-		CheckGregFrameworkDependency(metadata, results);
+		CheckChangelog(projectRoot, metadata, changeLog, results);
+		CheckGregFrameworkDependency(projectRoot, metadata, results);
 
 		return results;
 	}
@@ -283,10 +285,126 @@ public static class UploadDependencyChecker
 		}
 	}
 
-	private static void CheckChangelog(WorkshopMetadata metadata, string? changeLog, List<UploadCheckResult> results)
+	private static void CheckVersion(WorkshopMetadata metadata, List<UploadCheckResult> results)
+	{
+		var version = (metadata.Version ?? "").Trim();
+		if (string.IsNullOrWhiteSpace(version))
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "Version",
+				Severity = UploadCheckSeverity.Error,
+				Detail = "Version is empty. Use Semantic Versioning (e.g. 1.0.0).",
+			});
+			return;
+		}
+
+		if (!KeepAChangelogParser.IsValidSemVersion(version))
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "Version",
+				Severity = UploadCheckSeverity.Error,
+				Detail = $"\"{version}\" is not valid Semantic Versioning (expected MAJOR.MINOR.PATCH, e.g. 1.2.0).",
+			});
+			return;
+		}
+
+		results.Add(new UploadCheckResult
+		{
+			Label = "Version",
+			Severity = UploadCheckSeverity.Ok,
+			Detail = $"v{KeepAChangelogParser.NormalizeVersion(version)} (SemVer).",
+		});
+	}
+
+	/// <summary>Reports README.md / CHANGELOG.md file sources used for Steam (BBCode) vs. Modstore (native Markdown).</summary>
+	private static void CheckProjectDocs(string projectRoot, WorkshopMetadata metadata, List<UploadCheckResult> results)
+	{
+		var readme = ProjectDocsResolver.FindReadme(projectRoot);
+		if (readme is not null)
+		{
+			var converted = ProjectDocsResolver.ResolveSteamDescription(projectRoot, metadata.Description).Text;
+			var detail = $"README.md found ({Path.GetFileName(readme)}) — Steam uses converted BBCode ({converted.Length}/{SteamConstants.MaxDescriptionLength}). Modstore keeps native Markdown.";
+			results.Add(new UploadCheckResult
+			{
+				Label = "README.md",
+				Severity = converted.Length > SteamConstants.MaxDescriptionLength ? UploadCheckSeverity.Error : UploadCheckSeverity.Ok,
+				Detail = converted.Length > SteamConstants.MaxDescriptionLength
+					? detail + " Shorten the README: Steam allows at most 8000 characters."
+					: detail,
+			});
+		}
+		else
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "README.md",
+				Severity = UploadCheckSeverity.Warning,
+				Detail = "No README.md in the project root — Steam uses the metadata description. Add README.md (Markdown) to share one source with the Modstore.",
+			});
+		}
+
+		var changelogPath = ProjectDocsResolver.FindChangelog(projectRoot);
+		if (changelogPath is null)
+		{
+			return;
+		}
+
+		string markdown;
+		try
+		{
+			markdown = File.ReadAllText(changelogPath);
+		}
+		catch
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "CHANGELOG.md",
+				Severity = UploadCheckSeverity.Warning,
+				Detail = $"Found {Path.GetFileName(changelogPath)} but could not read it.",
+			});
+			return;
+		}
+
+		if (!KeepAChangelogParser.TryParseEntries(markdown, out _, out var parseError))
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "CHANGELOG.md",
+				Severity = UploadCheckSeverity.Error,
+				Detail = $"{Path.GetFileName(changelogPath)} is not Keep a Changelog format: {parseError}",
+			});
+			return;
+		}
+
+		var version = KeepAChangelogParser.NormalizeVersion(metadata.Version) ?? "1.0.0";
+		if (KeepAChangelogParser.TryGetEntryForVersion(markdown, version, out var entry) && entry is not null)
+		{
+			var from = entry.Version == "Unreleased" ? "[Unreleased] (mentions this version)" : $"[{entry.Version}]";
+			results.Add(new UploadCheckResult
+			{
+				Label = "CHANGELOG.md",
+				Severity = UploadCheckSeverity.Ok,
+				Detail = $"{Path.GetFileName(changelogPath)} {from} will be used for v{version} — no manual input needed.",
+			});
+		}
+		else
+		{
+			results.Add(new UploadCheckResult
+			{
+				Label = "CHANGELOG.md",
+				Severity = UploadCheckSeverity.Warning,
+				Detail = $"{Path.GetFileName(changelogPath)} has no section for v{version}. Add '## [{version}] - YYYY-MM-DD' (Keep a Changelog) or enter notes manually.",
+			});
+		}
+	}
+
+	private static void CheckChangelog(string projectRoot, WorkshopMetadata metadata, string? changeLog, List<UploadCheckResult> results)
 	{
 		var isFirstPublish = metadata.PublishedFileId == 0;
-		var hasChangelog = !string.IsNullOrWhiteSpace(changeLog);
+		var resolved = ProjectDocsResolver.ResolveSteamChangelog(projectRoot, metadata.Version, changeLog);
+		var hasChangelog = !string.IsNullOrWhiteSpace(resolved.Text);
 
 		if (isFirstPublish && !hasChangelog)
 		{
@@ -294,7 +412,7 @@ public static class UploadDependencyChecker
 			{
 				Label = "Changelog",
 				Severity = UploadCheckSeverity.Error,
-				Detail = "A version changelog is required for the first publish. Describe your initial release.",
+				Detail = "A version changelog is required for the first publish. Add '## [x.y.z]' to CHANGELOG.md (Keep a Changelog) or describe the initial release manually.",
 			});
 		}
 		else if (!isFirstPublish && !hasChangelog)
@@ -308,19 +426,26 @@ public static class UploadDependencyChecker
 		}
 		else
 		{
+			var source = resolved.Source switch
+			{
+				ProjectDocsResolver.ChangelogSource.Manual => "manual input",
+				ProjectDocsResolver.ChangelogSource.FileVersion => $"CHANGELOG.md [{resolved.EntryVersion}]",
+				ProjectDocsResolver.ChangelogSource.FileUnreleased => "CHANGELOG.md [Unreleased]",
+				_ => "manual input",
+			};
 			results.Add(new UploadCheckResult
 			{
 				Label = "Changelog",
 				Severity = UploadCheckSeverity.Ok,
-				Detail = $"{changeLog!.Length} characters.",
+				Detail = $"{resolved.Text.Length} characters ({source}).",
 			});
 		}
 	}
 
 	/// <summary>Aligns <see cref="WorkshopMetadata.Needsgreg"/> with description/tags (gregCoreModFramework / GregFramework).</summary>
-	private static void CheckGregFrameworkDependency(WorkshopMetadata metadata, List<UploadCheckResult> results)
+	private static void CheckGregFrameworkDependency(string projectRoot, WorkshopMetadata metadata, List<UploadCheckResult> results)
 	{
-		var desc = metadata.Description ?? "";
+		var desc = ProjectDocsResolver.ResolveSteamDescription(projectRoot, metadata.Description).Text;
 		var descMentionsgreg = ContainsgregHint(desc);
 		var tagsSuggestgreg = metadata.Tags.Any(t => TagSuggestsgreg(t));
 

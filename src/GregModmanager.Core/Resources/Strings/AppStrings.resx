@@ -118,6 +118,8 @@
   <data name="Editor_ChangeNotes" xml:space="preserve"><value>Change notes</value></data>
   <data name="Editor_ChangeNotesHint" xml:space="preserve"><value>Describe what changed. Shown on Steam's changelog tab.</value></data>
   <data name="Editor_ChangeNotesPlaceholder" xml:space="preserve"><value>e.g. Fixed crash on startup...</value></data>
+  <data name="Editor_ReadmeSteamHint" xml:space="preserve"><value>{0} / {1} — README.md → Steam BBCode ({2}/{1})</value></data>
+  <data name="Editor_ChangelogFileHint" xml:space="preserve"><value>CHANGELOG.md {0} → v{1} (no manual input needed). Modstore keeps native Markdown.</value></data>
   <data name="Editor_PreviewContent" xml:space="preserve"><value>Preview &amp; Content</value></data>
   <data name="Editor_PreviewHint" xml:space="preserve"><value>Workshop thumbnail (PNG, JPG, GIF, WebP)</value></data>
   <data name="Editor_ChooseImage" xml:space="preserve"><value>Choose image...</value></data>

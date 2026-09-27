@@ -311,8 +311,65 @@ public sealed class WorkspaceService
 
 		var meta = BuildMetadataForTemplate(dirName, kind);
 		SaveMetadata(root, meta);
+		CreateProjectDocsTemplates(root, dirName);
 		CreateProjectGitignore(root);
 		return root;
+	}
+
+	/// <summary>
+	/// Writes <c>README.md</c> (Markdown, converted to Steam BBCode on upload)
+	/// and <c>CHANGELOG.md</c> (Keep a Changelog + SemVer, auto-read per version)
+	/// for new projects. Existing files are never overwritten.
+	/// </summary>
+	private static void CreateProjectDocsTemplates(string root, string title)
+	{
+		var readmePath = Path.Combine(root, "README.md");
+		if (!File.Exists(readmePath))
+		{
+			File.WriteAllText(readmePath, $"""
+				# {title}
+
+				Short description of your mod.
+
+				## Features
+
+				- Feature 1
+				- Feature 2
+
+				## Installation
+
+				Subscribe to this Workshop item — the game loads it automatically.
+
+				## Requirements
+
+				- Data Center
+				""".Trim() + "\n");
+		}
+
+		var changelogPath = Path.Combine(root, "CHANGELOG.md");
+		if (!File.Exists(changelogPath))
+		{
+			File.WriteAllText(changelogPath, $"""
+				# Changelog
+
+				All notable changes to this project will be documented in this file.
+
+				The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+				and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+				## [Unreleased]
+
+				### Added
+
+				- Planned changes go here.
+
+				## [1.0.0] - {DateTime.Today:yyyy-MM-dd}
+
+				### Added
+
+				- Initial release.
+				""".Trim() + "\n");
+		}
 	}
 
 	private static void CreateProjectGitignore(string root)
@@ -785,8 +842,8 @@ foreach (var file in Directory.EnumerateFiles(sourceDir, "*", new EnumerationOpt
 			return ProjectSyncState.Unpublished;
 		if (string.IsNullOrEmpty(meta.LastPublishedHash))
 			return ProjectSyncState.Unknown;
-		// Same effective description as PublishAsync uses (notices included).
-		var current = ComputePublishHash(projectRoot, meta, SteamWorkshopService.BuildUploadDescription(meta).Trim());
+		// Same effective description as PublishAsync uses (README.md + notices included).
+		var current = ComputePublishHash(projectRoot, meta, SteamWorkshopService.BuildUploadDescription(projectRoot, meta).Trim());
 		if (string.IsNullOrEmpty(current))
 			return ProjectSyncState.Unknown;
 		return string.Equals(current, meta.LastPublishedHash, StringComparison.Ordinal)

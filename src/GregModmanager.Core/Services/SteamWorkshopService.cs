@@ -235,9 +235,27 @@ namespace GregModmanager.Services;
 	/// auto-appended requirement notices (MelonLoader/gregCore) when missing.
 	/// Single source of truth — used for upload AND for the publish hash, so
 	/// change detection never disagrees with what Steam received.
+	/// Prefer <see cref="BuildUploadDescription(string, WorkshopMetadata)"/> so
+	/// <c>README.md</c> is honored when present.
 	/// </summary>
 	public static string BuildUploadDescription(WorkshopMetadata meta)
 	{
+		return BuildUploadDescription(projectRoot: null, meta);
+	}
+
+	/// <summary>
+	/// Project-aware description: <c>README.md</c> (Markdown, converted to Steam
+	/// BBCode) wins when present in <paramref name="projectRoot"/>, otherwise the
+	/// metadata text. Requirement notices are appended when missing.
+	/// The Modstore keeps the native Markdown (see <see cref="ProjectDocsResolver"/>).
+	/// </summary>
+	public static string BuildUploadDescription(string? projectRoot, WorkshopMetadata meta)
+	{
+		if (!string.IsNullOrWhiteSpace(projectRoot) && Directory.Exists(projectRoot))
+		{
+			return ProjectDocsResolver.BuildEffectiveSteamDescription(projectRoot, meta);
+		}
+
 		var desc = meta.Description ?? "";
 		if (meta.NeedsMelonLoader && !desc.Contains("MelonLoader", StringComparison.OrdinalIgnoreCase))
 		{
@@ -250,6 +268,30 @@ namespace GregModmanager.Services;
 		}
 
 		return desc;
+	}
+
+	/// <summary>
+	/// Effective Steam change note: manual text wins, otherwise the
+	/// <c>CHANGELOG.md</c> section (Keep a Changelog) for the metadata version,
+	/// falling back to <c>[Unreleased]</c>. Empty when nothing usable exists.
+	/// </summary>
+	public static string ResolveEffectiveChangeLog(string? projectRoot, WorkshopMetadata metadata, string? manualChangeLog)
+	{
+		if (!string.IsNullOrWhiteSpace(manualChangeLog))
+		{
+			return manualChangeLog.Trim();
+		}
+
+		if (!string.IsNullOrWhiteSpace(projectRoot) && Directory.Exists(projectRoot))
+		{
+			var resolved = ProjectDocsResolver.ResolveSteamChangelog(projectRoot, metadata.Version, manualChangelog: null);
+			if (!string.IsNullOrWhiteSpace(resolved.Text))
+			{
+				return ProjectDocsResolver.FormatSteamChangeNote(metadata.Version, resolved.Text);
+			}
+		}
+
+		return string.Empty;
 	}
 
 	/// <summary>
@@ -358,7 +400,10 @@ namespace GregModmanager.Services;
 		}
 
 		var title = (metadata.Title ?? string.Empty).Trim();
-		var description = BuildUploadDescription(metadata).Trim();
+		var description = BuildUploadDescription(projectRoot, metadata).Trim();
+		var effectiveChangeLog = string.IsNullOrWhiteSpace(changeLog)
+			? ResolveEffectiveChangeLog(projectRoot, metadata, manualChangeLog: null)
+			: changeLog.Trim();
 		if (string.IsNullOrEmpty(title))
 		{
 			return PublishOutcome.Fail("Title is required.");
@@ -494,8 +539,20 @@ namespace GregModmanager.Services;
 				.WithContent(absContent)
 				.WithPreviewFile(previewForSteam);
 			ed = tagList.Aggregate(ed, (current, tag) => current.WithTag(tag));
-			if (!string.IsNullOrWhiteSpace(changeLog))
-				ed = ed.WithChangeLog(changeLog);
+			if (!string.IsNullOrWhiteSpace(effectiveChangeLog))
+			{
+				ed = ed.WithChangeLog(effectiveChangeLog);
+			}
+			else if (!string.IsNullOrWhiteSpace(changeLog))
+			{
+				ed = ed.WithChangeLog(changeLog.Trim());
+			}
+
+			if (!string.IsNullOrWhiteSpace(effectiveChangeLog) && !string.Equals(effectiveChangeLog, changeLog?.Trim(), StringComparison.Ordinal))
+			{
+				log?.Report($"Changelog auto-read for v{(metadata.Version ?? "1.0.0").Trim()} (CHANGELOG.md) — no manual input needed.");
+			}
+
 			return ApplyVisibility(ed, metadata.Visibility);
 		}
 
