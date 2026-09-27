@@ -159,8 +159,11 @@ jobs:
         run: |
           if command -v osslsigncode >/dev/null 2>&1 && [ -n "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" ]; then
             echo "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" | base64 -d > /tmp/sign.pfx
+            # Primary project URL (Forgejo main repo); GitHub archive mirror as fallback.
+            info_url="https://git.datacentermods.com/teamGreg/gregModmanager"
+            # Fallback: https://github.com/mleem97/gregModmanager
             osslsigncode sign -pkcs12 /tmp/sign.pfx -pass "${{ secrets.WINDOWS_SIGN_PASSWORD }}" \
-              -n "gregModmanager" -i "https://github.com/mleem97/gregModmanager" \
+              -n "gregModmanager" -i "$info_url" \
               -in ./publish/win-x64/GregModmanager.exe -out ./publish/win-x64/GregModmanager-signed.exe
             mv ./publish/win-x64/GregModmanager-signed.exe ./publish/win-x64/GregModmanager.exe
             rm -f /tmp/sign.pfx
