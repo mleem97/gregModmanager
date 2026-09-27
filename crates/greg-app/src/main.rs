@@ -67,6 +67,54 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         let state = Arc::clone(state);
         ui.on_profile_clicked(move || actions::profile_clicked(&state));
     }
+    // Custom window chrome.
+    {
+        let state = Arc::clone(state);
+        ui.on_window_minimize(move || actions::window_minimize(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_window_maximize(move || actions::window_maximize(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_window_close(move || actions::window_close(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_window_drag_move(move |dx, dy| actions::window_drag_move(&state, dx, dy));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_window_resize_move(move |edge, dx, dy| {
+            actions::window_resize_move(&state, &edge, dx, dy)
+        });
+    }
+    // Local content.
+    {
+        let state = Arc::clone(state);
+        ui.on_local_refresh(move || actions::local_refresh(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_local_toggle(move |idx| actions::local_toggle(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_local_remove(move |idx| actions::local_remove(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_local_open_folder(move || actions::local_open_folder(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_confirm_yes(move || actions::confirm_yes(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_confirm_no(move || actions::confirm_no(&state));
+    }
     // Projects.
     {
         let state = Arc::clone(state);

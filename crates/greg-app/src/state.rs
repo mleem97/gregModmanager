@@ -19,7 +19,7 @@ use crate::worker::JobHandle;
 use crate::MainWindow;
 
 /// Icon ids.
-pub const ICON_PROJECTS: &str = "projects";
+pub const ICON_MODMANAGER: &str = "modmanager";
 pub const ICON_WORKSHOP: &str = "workshop";
 pub const ICON_MODSTORE: &str = "modstore";
 pub const ICON_SETTINGS: &str = "settings";
@@ -72,6 +72,10 @@ pub struct AppState {
     pub store_items: Vec<greg_modstore::models::ModStoreCatalogItem>,
     pub store_updates: Vec<greg_modstore::models::ModStoreUpdate>,
     pub store_job: Option<JobHandle>,
+
+    /// Local content cache + pending removal for the confirm dialog.
+    pub local_entries: Vec<greg_loader::local_content::LocalContentEntry>,
+    pub pending_remove: Option<std::path::PathBuf>,
 
     /// Last applied settings language index (watch for changes).
     pub settings_lang_index: i32,
@@ -146,6 +150,8 @@ impl AppState {
             store_items: Vec::new(),
             store_updates: Vec::new(),
             store_job: None,
+            local_entries: Vec::new(),
+            pending_remove: None,
             settings_lang_index: -1,
             events_tx,
             events_rx,
@@ -204,7 +210,7 @@ impl AppState {
         ui.set_br_page(1);
 
         // Initial navigation: projects icon.
-        Self::apply_icon_state(&ui, ICON_PROJECTS, "projects");
+        Self::apply_icon_state(&ui, ICON_MODMANAGER, "mymods");
 
         // Background: Steam connect, then GregApi probes. No AppState
         // crosses threads here; the UI timer (owned by `main`) drains.
@@ -222,18 +228,21 @@ impl AppState {
         ui.set_current_icon(icon.into());
         ui.set_current_page(page.into());
         match icon {
-            ICON_PROJECTS => {
+            ICON_MODMANAGER => {
                 ui.set_nav_visible(true);
                 ui.set_nav_title("MODMANAGER".into());
                 ui.set_nav_items(model_of_structs(vec![
-                    ("projects", "Projects"),
-                    ("new", "New Project"),
+                    ("mymods", "My Mods"),
+                    ("myplugins", "My Plugins"),
+                    ("mylibs", "My Libs"),
                 ]));
             }
             ICON_WORKSHOP => {
                 ui.set_nav_visible(true);
-                ui.set_nav_title("WORKSHOP".into());
+                ui.set_nav_title("WORKSHOP UPLOAD".into());
                 ui.set_nav_items(model_of_structs(vec![
+                    ("projects", "Projects"),
+                    ("new", "New Project"),
                     ("browse", "Browse"),
                     ("subscribed", "Subscribed"),
                     ("favorited", "Favorited"),
@@ -288,7 +297,7 @@ impl AppState {
         // (Session handling arrives with the OAuth callback flow.)
         ui.set_login_visible(gregapi_ok && !ui.get_profile_visible());
         if !available && ui.get_current_page() == "modstore" {
-            Self::apply_icon_state(ui, ICON_PROJECTS, "projects");
+            Self::apply_icon_state(ui, ICON_MODMANAGER, "mymods");
         }
     }
 

@@ -1,6 +1,7 @@
 import { Button } from "std-widgets.slint";
-import { Palette, IconButton, NavButton, StatusLed } from "theme.slint";
-import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow } from "models.slint";
+import { Palette, IconButton, NavButton, StatusLed, WinBtn } from "theme.slint";
+import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow } from "models.slint";
+import { LocalPage } from "page-local.slint";
 import { ProjectsPage } from "page-projects.slint";
 import { EditorPage } from "page-editor.slint";
 import { BrowsePage } from "page-browse.slint";
@@ -13,11 +14,14 @@ import { SettingsPage } from "page-settings.slint";
 
 export component MainWindow inherits Window {
     title: "gregModmanager";
+    // 100% custom chrome: no native frame, everything styled in Slint.
+    no-frame: true;
     preferred-width: 1400px;
     preferred-height: 900px;
     min-width: 1024px;
     min-height: 640px;
     background: Palette.surface;
+    icon: @image-url("../../../G.svg");
 
     // --- shell state (Rust <-> Slint) ---
     in-out property <string> app-version;
@@ -102,6 +106,16 @@ export component MainWindow inherits Window {
     in-out property <bool> st-busy;
     in-out property <string> st-status;
 
+    // --- local content page state (My Mods / Plugins / Libs) ---
+    in-out property <string> local-title;
+    in-out property <string> local-search;
+    in-out property <[LocalRow]> local-rows;
+    in-out property <string> local-status;
+
+    // --- confirm dialog ---
+    in-out property <bool> show-confirm: false;
+    in-out property <string> confirm-text;
+
     // --- settings page state ---
     in-out property <string> se-workspace;
     in-out property <string> se-gameroot;
@@ -118,6 +132,29 @@ export component MainWindow inherits Window {
     callback start-game(string);
     callback login-clicked();
     callback profile-clicked();
+    callback window-minimize();
+    callback window-maximize();
+    callback window-close();
+    callback window-drag-move(float, float);
+    callback window-resize-move(string, float, float);
+
+    // --- custom-chrome drag state ---
+    // Note: `maximized` is a builtin Window property (bound both ways).
+    in-out property <bool> dragging: false;
+    in-out property <length> drag-last-x;
+    in-out property <length> drag-last-y;
+    in-out property <bool> resizing: false;
+    in-out property <string> resize-edge;
+    in-out property <length> resize-last-x;
+    in-out property <length> resize-last-y;
+
+    // --- local content callbacks ---
+    callback local-refresh();
+    callback local-toggle(int);
+    callback local-remove(int);
+    callback local-open-folder();
+    callback confirm-yes();
+    callback confirm-no();
 
     // --- projects callbacks ---
     callback project-refresh();
@@ -166,23 +203,53 @@ export component MainWindow inherits Window {
     callback se-make-bundle();
     callback se-register-protocol();
 
-    VerticalLayout {
-        spacing: 0px;
+    // Full-window frame: 1px outline + overlay resize handles.
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: Palette.surface;
+        border-width: 1px;
+        border-color: Palette.outline;
 
-        // Header: logo + game start + login/profile.
+        VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 0px;
+
+        // Header: logo + game start + login/profile + window buttons.
+        // Custom chrome: the drag area sits behind everything else.
         Rectangle {
             height: 42px;
             background: Palette.container-low;
+            drag-touch := TouchArea {
+                width: parent.width;
+                height: parent.height;
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down) {
+                        root.dragging = true;
+                        root.drag-last-x = drag-touch.mouse-x;
+                        root.drag-last-y = drag-touch.mouse-y;
+                    } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                        root.dragging = false;
+                    }
+                }
+                moved => {
+                    if (root.dragging) {
+                        root.window-drag-move((drag-touch.mouse-x - root.drag-last-x) / 1px, (drag-touch.mouse-y - root.drag-last-y) / 1px);
+                        root.drag-last-x = drag-touch.mouse-x;
+                        root.drag-last-y = drag-touch.mouse-y;
+                    }
+                }
+            }
             HorizontalLayout {
                 padding-left: 14px;
                 padding-right: 6px;
                 spacing: 8px;
-                Rectangle {
-                    width: 18px;
-                    height: 18px;
+                Image {
+                    source: @image-url("../../../G.svg");
+                    width: 26px;
+                    height: 26px;
                     y: (parent.height - self.height) / 2;
-                    background: Palette.primary;
-                    border-radius: 2px;
                 }
                 Text {
                     text: "GREGMODMANAGER // TERMINAL CORE";
@@ -245,6 +312,22 @@ export component MainWindow inherits Window {
                         }
                     }
                 }
+                HorizontalLayout {
+                    spacing: 0px;
+                    WinBtn {
+                        glyph: "—";
+                        clicked => { root.window-minimize(); }
+                    }
+                    WinBtn {
+                        glyph: root.maximized ? "❐" : "□";
+                        clicked => { root.window-maximize(); }
+                    }
+                    WinBtn {
+                        glyph: "✕";
+                        danger: true;
+                        clicked => { root.window-close(); }
+                    }
+                }
             }
         }
 
@@ -265,16 +348,16 @@ export component MainWindow inherits Window {
                         alignment: center;
                         IconButton {
                             glyph: "▤";
-                            tip: "Projects";
-                            active: root.current-icon == "projects";
-                            clicked => { root.icon-clicked("projects"); }
+                            tip: "Modmanager";
+                            active: root.current-icon == "modmanager";
+                            clicked => { root.icon-clicked("modmanager"); }
                         }
                     }
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "◉";
-                            tip: "Workshop";
+                            glyph: "⬆";
+                            tip: "Workshop Upload";
                             active: root.current-icon == "workshop";
                             clicked => { root.icon-clicked("workshop"); }
                         }
@@ -331,7 +414,18 @@ export component MainWindow inherits Window {
                 VerticalLayout {
                     width: parent.width;
                     height: parent.height;
-                    if root.current-page == "projects": ProjectsPage {
+                    if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
+                    vertical-stretch: 1;
+                    title <=> root.local-title;
+                    search <=> root.local-search;
+                    rows <=> root.local-rows;
+                    status <=> root.local-status;
+                    refresh => { root.local-refresh(); }
+                    toggle(idx) => { root.local-toggle(idx); }
+                    remove(idx) => { root.local-remove(idx); }
+                    open-folder => { root.local-open-folder(); }
+                }
+                if root.current-page == "projects": ProjectsPage {
                     vertical-stretch: 1;
                     search <=> root.project-search;
                     rows <=> root.projects;
@@ -490,6 +584,204 @@ export component MainWindow inherits Window {
                     font-size: 11px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
+                }
+            }
+        }
+        }
+
+        // Modal confirm dialog (e.g. local file removal).
+        if root.show-confirm: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: 380px;
+                height: 150px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius;
+                border-width: 1px;
+                border-color: Palette.primary;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+                    alignment: center;
+                    Text {
+                        text: root.confirm-text;
+                        font-size: 13px;
+                        color: Palette.on-surface;
+                        wrap: word-wrap;
+                        horizontal-alignment: center;
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: center;
+                        Button {
+                            text: "Delete";
+                            clicked => { root.confirm-yes(); }
+                        }
+                        Button {
+                            text: "Cancel";
+                            clicked => { root.confirm-no(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Overlay resize handles (custom chrome, disabled when maximized).
+        // Each reports pressed position deltas; Rust applies them to the window.
+        TouchArea {
+            x: 0px; y: 8px; width: 6px; height: parent.height - 16px;
+            mouse-cursor: ew-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "left";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "left") {
+                    root.window-resize-move("left", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: parent.width - 6px; y: 8px; width: 6px; height: parent.height - 16px;
+            mouse-cursor: ew-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "right";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "right") {
+                    root.window-resize-move("right", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: 8px; y: 0px; width: parent.width - 16px; height: 6px;
+            mouse-cursor: ns-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "top";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "top") {
+                    root.window-resize-move("top", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: 8px; y: parent.height - 6px; width: parent.width - 16px; height: 6px;
+            mouse-cursor: ns-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "bottom";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "bottom") {
+                    root.window-resize-move("bottom", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: 0px; y: 0px; width: 10px; height: 10px;
+            mouse-cursor: nwse-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "nw";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "nw") {
+                    root.window-resize-move("nw", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: parent.width - 10px; y: 0px; width: 10px; height: 10px;
+            mouse-cursor: nesw-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "ne";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "ne") {
+                    root.window-resize-move("ne", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: 0px; y: parent.height - 10px; width: 10px; height: 10px;
+            mouse-cursor: nesw-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "sw";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "sw") {
+                    root.window-resize-move("sw", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                }
+            }
+        }
+        TouchArea {
+            x: parent.width - 10px; y: parent.height - 10px; width: 10px; height: 10px;
+            mouse-cursor: nwse-resize;
+            enabled: !root.maximized;
+            pointer-event(e) => {
+                if (e.kind == PointerEventKind.down) {
+                    root.resizing = true; root.resize-edge = "se";
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
+                } else if (e.kind == PointerEventKind.up || e.kind == PointerEventKind.cancel) {
+                    root.resizing = false;
+                }
+            }
+            moved => {
+                if (root.resizing && root.resize-edge == "se") {
+                    root.window-resize-move("se", (self.mouse-x - root.resize-last-x) / 1px, (self.mouse-y - root.resize-last-y) / 1px);
+                    root.resize-last-x = self.mouse-x; root.resize-last-y = self.mouse-y;
                 }
             }
         }

@@ -7,11 +7,13 @@ use std::sync::Arc;
 use greg_core::l10n;
 use greg_core::models::ProjectSyncState;
 use greg_core::prefs::Preferences;
-use slint::{Model, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle as _, Model, ModelRc, SharedString, VecModel};
 
-use crate::state::{AppState, UiEvent, ICON_MODSTORE, ICON_PROJECTS, ICON_SETTINGS, ICON_WORKSHOP};
+use crate::state::{
+    AppState, UiEvent, ICON_MODMANAGER, ICON_MODSTORE, ICON_SETTINGS, ICON_WORKSHOP,
+};
 use crate::worker::{JobHandle, JobMessage, JobOutcome};
-use crate::{BrowseRow, CheckRow, HealthRow, ProjectRow, StoreRow, UpdateRow};
+use crate::{BrowseRow, CheckRow, HealthRow, LocalRow, ProjectRow, StoreRow, UpdateRow};
 
 // ---------------------------------------------------------------------------
 // Tick: drain events + background jobs (runs on the UI thread).
@@ -95,9 +97,13 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
         return;
     }
     match icon {
-        ICON_PROJECTS => AppState::apply_icon_state(&guard.ui(), ICON_PROJECTS, "projects"),
+        ICON_MODMANAGER => {
+            AppState::apply_icon_state(&guard.ui(), ICON_MODMANAGER, "mymods");
+            drop(guard);
+            local_refresh(state);
+        }
         ICON_WORKSHOP => {
-            AppState::apply_icon_state(&guard.ui(), ICON_WORKSHOP, "browse");
+            AppState::apply_icon_state(&guard.ui(), ICON_WORKSHOP, "projects");
             guard.ui().set_br_list(0);
         }
         ICON_MODSTORE => AppState::apply_icon_state(&guard.ui(), ICON_MODSTORE, "modstore"),
@@ -111,6 +117,14 @@ pub fn on_icon(state: &Arc<std::sync::Mutex<AppState>>, icon: &str) {
 
 /// Handles navigation clicks (page ids).
 pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
+    if matches!(id, "mymods" | "myplugins" | "mylibs") {
+        {
+            let guard = state.lock().expect("state");
+            guard.ui().set_current_page(id.into());
+        }
+        local_refresh(state);
+        return;
+    }
     let guard = state.lock().expect("state");
     match id {
         "projects" | "new" => guard.ui().set_current_page(id.into()),
@@ -224,6 +238,90 @@ pub fn profile_clicked(state: &Arc<std::sync::Mutex<AppState>>) {
 }
 
 // ---------------------------------------------------------------------------
+// Custom window chrome (no native frame — everything handled here).
+// ---------------------------------------------------------------------------
+
+/// Minimum window size (logical px, mirrors the Slint minimums).
+const MIN_WIDTH: f32 = 1024.0;
+/// Minimum window height (logical px).
+const MIN_HEIGHT: f32 = 640.0;
+
+/// Minimize the window.
+pub fn window_minimize(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = guard.ui();
+    ui.window().set_minimized(true);
+}
+
+/// Toggles maximized state (builtin `maximized` property mirrors it).
+pub fn window_maximize(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = guard.ui();
+    let win = ui.window();
+    win.set_maximized(!win.is_maximized());
+}
+
+/// Closes the window (ends the session, then quits).
+pub fn window_close(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.file_log.end_session();
+    std::process::exit(0);
+}
+
+/// Moves the window by a logical-pixel delta (titlebar drag).
+pub fn window_drag_move(state: &Arc<std::sync::Mutex<AppState>>, dx: f32, dy: f32) {
+    let guard = state.lock().expect("state");
+    let ui = guard.ui();
+    let win = ui.window();
+    if win.is_maximized() {
+        return;
+    }
+    let scale = win.scale_factor().max(0.1);
+    let pos = win.position();
+    win.set_position(slint::PhysicalPosition::new(
+        pos.x + (dx * scale) as i32,
+        pos.y + (dy * scale) as i32,
+    ));
+}
+
+/// Resizes the window by a logical-pixel delta from the given edge.
+pub fn window_resize_move(state: &Arc<std::sync::Mutex<AppState>>, edge: &str, dx: f32, dy: f32) {
+    let guard = state.lock().expect("state");
+    let ui = guard.ui();
+    let win = ui.window();
+    if win.is_maximized() {
+        return;
+    }
+    let scale = win.scale_factor().max(0.1);
+    let pos = win.position();
+    let size = win.size();
+    let (mut x, mut y) = (pos.x, pos.y);
+    let (mut w, mut h) = (size.width as i32, size.height as i32);
+    let dxp = (dx * scale) as i32;
+    let dyp = (dy * scale) as i32;
+    let min_w = (MIN_WIDTH * scale) as i32;
+    let min_h = (MIN_HEIGHT * scale) as i32;
+    if edge.contains('w') {
+        let clamped = dxp.min(w - min_w);
+        x += clamped;
+        w -= clamped;
+    }
+    if edge.contains('e') {
+        w = (w + dxp).max(min_w);
+    }
+    if edge.contains('n') {
+        let clamped = dyp.min(h - min_h);
+        y += clamped;
+        h -= clamped;
+    }
+    if edge.contains('s') {
+        h = (h + dyp).max(min_h);
+    }
+    win.set_position(slint::PhysicalPosition::new(x, y));
+    win.set_size(slint::PhysicalSize::new(w.max(1) as u32, h.max(1) as u32));
+}
+
+// ---------------------------------------------------------------------------
 // Projects.
 // ---------------------------------------------------------------------------
 
@@ -306,7 +404,7 @@ pub fn open_project(state: &Arc<std::sync::Mutex<AppState>>, root: &str) {
     guard.editor_dep_ids = guard.editor_meta.workshop_dependency_ids.clone();
     push_editor(&mut guard);
     run_editor_checks(&mut guard);
-    AppState::apply_icon_state(&guard.ui(), ICON_PROJECTS, "editor");
+    AppState::apply_icon_state(&guard.ui(), ICON_WORKSHOP, "editor");
 }
 
 /// Pushes editor state into properties.
@@ -1217,6 +1315,169 @@ fn drain_store(state: &mut AppState) {
         state.ui().set_st_status(message.into());
         refresh_projects(state);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Local content (My Mods / My Plugins / My Libs).
+// ---------------------------------------------------------------------------
+
+fn local_kind_of(state: &AppState) -> greg_loader::local_content::LocalContentKind {
+    use greg_loader::local_content::LocalContentKind as K;
+    match state.ui().get_current_page().as_str() {
+        "myplugins" => K::Plugins,
+        "mylibs" => K::Libs,
+        _ => K::Mods,
+    }
+}
+
+/// Refreshes the local list for the active page.
+pub fn local_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let kind = local_kind_of(&guard);
+    let root = game_root_of(&guard);
+    guard.ui().set_local_title(kind.title().into());
+    if !root.is_dir() {
+        guard.local_entries.clear();
+        guard
+            .ui()
+            .set_local_rows(model_of_rows(Vec::<LocalRow>::new()));
+        guard
+            .ui()
+            .set_local_status("Game folder not found — set the game root in Settings.".into());
+        return;
+    }
+    let entries = greg_loader::local_content::scan(&root, kind);
+    let q = guard.ui().get_local_search().to_string().to_lowercase();
+    let rows: Vec<LocalRow> = entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| q.is_empty() || e.name.to_lowercase().contains(&q))
+        .map(|(i, e)| LocalRow {
+            name: e.name.clone().into(),
+            detail: e.detail.clone().into(),
+            enabled: e.enabled,
+            index: i as i32,
+        })
+        .collect();
+    // NOTE: row indices address the full cache; toggle/remove resolve
+    // through `local_filtered`, so both stay consistent.
+    guard.local_entries = entries;
+    guard.ui().set_local_rows(model_of_rows(rows));
+    guard.ui().set_local_status(
+        format!(
+            "{} entries in {}",
+            guard.local_entries.len(),
+            root.display()
+        )
+        .into(),
+    );
+}
+
+/// Filtered cache indices for the current search text.
+fn local_filtered(state: &AppState) -> Vec<usize> {
+    let q = state.ui().get_local_search().to_string().to_lowercase();
+    state
+        .local_entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| q.is_empty() || e.name.to_lowercase().contains(&q))
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Toggles an entry by list index.
+pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let entry = {
+        let guard = state.lock().expect("state");
+        let filtered = local_filtered(&guard);
+        match filtered.get(index as usize) {
+            Some(&i) => guard.local_entries.get(i).cloned(),
+            None => None,
+        }
+    };
+    let Some(entry) = entry else { return };
+    match greg_loader::local_content::set_enabled(&entry, !entry.enabled) {
+        Ok(_) => {
+            AppState::append_log(
+                state,
+                &format!(
+                    "{} {}",
+                    if entry.enabled { "Disabled" } else { "Enabled" },
+                    entry.name
+                ),
+            );
+            local_refresh(state);
+        }
+        Err(e) => AppState::append_log(state, &format!("Toggle failed: {e}")),
+    }
+}
+
+/// Opens the confirm dialog for a removal.
+pub fn local_remove(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    let mut guard = state.lock().expect("state");
+    let filtered = local_filtered(&guard);
+    let entry = filtered
+        .get(index as usize)
+        .and_then(|&i| guard.local_entries.get(i).cloned());
+    match entry {
+        Some(entry) => {
+            guard.pending_remove = Some(entry.path.clone());
+            guard
+                .ui()
+                .set_confirm_text(format!("Delete {}?", entry.name).into());
+            guard.ui().set_show_confirm(true);
+        }
+        None => guard.ui().set_show_confirm(false),
+    }
+}
+
+/// Opens the scanned folder of the active kind.
+pub fn local_open_folder(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let root = game_root_of(&guard);
+    let kind = local_kind_of(&guard);
+    let dir = match kind {
+        greg_loader::local_content::LocalContentKind::Mods => root.join("Mods"),
+        greg_loader::local_content::LocalContentKind::Plugins => root.join("Plugins"),
+        greg_loader::local_content::LocalContentKind::Libs => {
+            root.join("Plugins").join("Dependencies")
+        }
+    };
+    let target = if dir.is_dir() { dir } else { root };
+    let _ = greg_platform::process::open_folder(&target);
+}
+
+/// Confirm dialog: delete the pending file.
+pub fn confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
+    let pending = {
+        let mut guard = state.lock().expect("state");
+        guard.ui().set_show_confirm(false);
+        guard.pending_remove.take()
+    };
+    if let Some(path) = pending {
+        let entry = greg_loader::local_content::LocalContentEntry {
+            name: path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("?")
+                .to_string(),
+            detail: String::new(),
+            enabled: true,
+            path,
+        };
+        match greg_loader::local_content::remove(&entry) {
+            Ok(()) => AppState::append_log(state, &format!("Removed {}", entry.name)),
+            Err(e) => AppState::append_log(state, &format!("Remove failed: {e}")),
+        }
+        local_refresh(state);
+    }
+}
+
+/// Confirm dialog: dismiss.
+pub fn confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    guard.pending_remove = None;
+    guard.ui().set_show_confirm(false);
 }
 
 // ---------------------------------------------------------------------------

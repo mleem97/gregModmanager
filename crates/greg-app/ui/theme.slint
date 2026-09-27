@@ -89,6 +89,31 @@ export component NavButton inherits Rectangle {
 // Custom Rectangle buttons cannot measure their label and collapse to zero
 // width inside layouts — that was the "misplaced icons" class of bug.
 
+// Fixed 34x28 titlebar window button (custom chrome, no native frame).
+export component WinBtn inherits Rectangle {
+    in property <string> glyph;
+    in property <bool> danger;
+    callback clicked();
+
+    width: 34px;
+    height: 28px;
+    // Slint has no :hover selector — TouchArea state drives the fill.
+    background: touch.has-hover ? (root.danger ? #7A1F1F : Palette.container) : transparent;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: root.glyph;
+        font-size: 12px;
+        color: touch.has-hover && root.danger ? #FFFFFF : Palette.on-variant;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 // 8px status LED + label, fixed height.
 export component StatusLed inherits HorizontalLayout {
     in property <bool> ok;

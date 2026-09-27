@@ -44,3 +44,11 @@ export struct HealthRow {
     detail: string,
     ok: bool,
 }
+
+export struct LocalRow {
+    name: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the Rust cache (paths never cross into Slint).
+    index: int,
+}
