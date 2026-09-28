@@ -88,7 +88,7 @@ fn sample_ui() -> crate::MainWindow {
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
     ui.window().set_size(slint::LogicalSize::new(1400.0, 900.0));
-    ui.set_app_version("1.6.1".into());
+    ui.set_app_version("1.7.0".into());
     ui.set_steam_ok(true);
     ui.set_steam_text("Steam Connected · Tester".into());
     ui.set_gregapi_ok(false);
