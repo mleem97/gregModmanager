@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Modstore E2E (live `datacentermods.com` verified 2026-09-28): catalog
+  (`GET /api/v1/mods`), updates (`POST /api/v1/mods/updates/check`),
+  collections (`GET /api/collections`), upload (`POST /api/upload-url` +
+  `POST /api/mods/submit`, 401 without Bearer) and the OAuth browser flow
+  (`GET /auth/login` → 307, `POST /auth/token`, `POST /auth/logout`)
+  match the desktop client. Store is live but empty
+  (`{"schemaVersion":1,"mods":[]}`).
+- OAuth session restore no longer accepts a `200 null` get-session body:
+  `BetterAuthClient::verify_session` is fail-closed and accepts both the
+  flat `{id, email}` shape and BetterAuth's `{user, session}` wrapper.
+  Expired/invalid tokens now force a fresh browser login instead of a
+  stale session.
+
 ## [1.7.0] - 2026-09-28
 
 ### Added
