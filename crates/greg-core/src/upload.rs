@@ -10,6 +10,9 @@ use crate::limits::{MAX_DESCRIPTION_LENGTH, MAX_PREVIEW_IMAGE_BYTES, MAX_TITLE_L
 use crate::models::{UploadCheckResult, WorkshopMetadata};
 
 /// Runs all readiness checks for a project.
+/// Includes the Security-Pipeline preflight (secrets, executables, symlinks,
+/// size hard-limit) so the desktop never uploads what the web pipeline would
+/// reject.
 pub fn check(
     lang: &str,
     project_root: &Path,
@@ -28,6 +31,7 @@ pub fn check(
     check_preview_image(project_root, meta, &mut results);
     check_tags(meta, &mut results);
     check_content_size(project_root, &mut results);
+    check_security_preflight(project_root, &mut results);
     check_changelog(project_root, meta, manual_changelog, &mut results);
     check_greg_dependency(project_root, meta, &mut results);
     results
@@ -330,7 +334,17 @@ fn check_content_size(project_root: &Path, results: &mut Vec<UploadCheckResult>)
         }
     }
     const WARN_THRESHOLD: i64 = 100 * 1024 * 1024;
-    if total > WARN_THRESHOLD {
+    // Hard limit mirrors `POST /api/upload-url` (MAX_MOD_BYTES = 500 MiB).
+    const MAX_THRESHOLD: i64 = 500 * 1024 * 1024;
+    if total > MAX_THRESHOLD {
+        results.push(UploadCheckResult::error(
+            "Content size",
+            format!(
+                "Total content size is {} — exceeds the 500 MiB upload limit. Remove files before uploading.",
+                crate::util::format_bytes(total)
+            ),
+        ));
+    } else if total > WARN_THRESHOLD {
         results.push(UploadCheckResult::warning(
             "Content size",
             format!(
@@ -342,6 +356,124 @@ fn check_content_size(project_root: &Path, results: &mut Vec<UploadCheckResult>)
         results.push(UploadCheckResult::ok(
             "Content size",
             crate::util::format_bytes(total),
+        ));
+    }
+}
+
+/// Security-Pipeline preflight (mirrors the web Security-Pipeline UploadChecker).
+///
+/// Blocks what the server would reject or quarantine:
+/// secrets/credentials, Windows/Unix executables outside the mod allowlist,
+/// symlinks (zip-slip/jail-break risk) and `.git/` payloads.
+fn check_security_preflight(project_root: &Path, results: &mut Vec<UploadCheckResult>) {
+    const SECRET_FILES: &[&str] = &[
+        ".env",
+        ".env.local",
+        ".env.production",
+        "id_rsa",
+        "id_ed25519",
+        "credentials.json",
+        "secrets.json",
+    ];
+    const SECRET_EXTS: &[&str] = &[".pem", ".key", ".pfx", ".p12", ".kdbx"];
+    // Executables that must never ship inside mod content.
+    // `.dll` stays allowed (native Data Center mods); everything that can
+    // run standalone is blocked.
+    const BLOCKED_EXTS: &[&str] = &[
+        ".exe", ".msi", ".bat", ".cmd", ".com", ".scr", ".pif", ".vbs", ".vbe", ".jse", ".wsf",
+        ".wsh", ".ps1", ".sh",
+    ];
+
+    let content = project_root.join("content");
+    if !content.is_dir() {
+        return;
+    }
+    let mut secrets: Vec<String> = Vec::new();
+    let mut blocked: Vec<String> = Vec::new();
+    let mut symlinks: Vec<String> = Vec::new();
+    let mut git_payload = false;
+
+    let mut stack = vec![content.clone()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let rel = path
+                .strip_prefix(project_root)
+                .map(|r| r.to_string_lossy().to_string())
+                .unwrap_or_else(|_| path.to_string_lossy().to_string());
+            if entry.file_type().map(|t| t.is_symlink()).unwrap_or(false) {
+                symlinks.push(rel);
+                continue;
+            }
+            if path.is_dir() {
+                if path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n == ".git")
+                    .unwrap_or(false)
+                {
+                    git_payload = true;
+                }
+                stack.push(path);
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let is_secret = SECRET_FILES.iter().any(|s| name == *s)
+                || SECRET_EXTS.iter().any(|e| name.ends_with(e));
+            if is_secret {
+                secrets.push(rel.clone());
+            }
+            if BLOCKED_EXTS.iter().any(|e| name.ends_with(e)) {
+                blocked.push(rel);
+            }
+        }
+    }
+
+    if secrets.is_empty() && blocked.is_empty() && symlinks.is_empty() && !git_payload {
+        results.push(UploadCheckResult::ok(
+            "Security preflight",
+            "No secrets, executables or symlinks in content/.",
+        ));
+        return;
+    }
+    if !secrets.is_empty() {
+        results.push(UploadCheckResult::error(
+            "Security preflight",
+            format!(
+                "Remove credential files before uploading: {}.",
+                secrets.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            ),
+        ));
+    }
+    if !blocked.is_empty() {
+        results.push(UploadCheckResult::error(
+            "Security preflight",
+            format!(
+                "Blocked executables in content/ (ship .dll/.zip/.lua/.py/.go only): {}.",
+                blocked.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            ),
+        ));
+    }
+    if !symlinks.is_empty() {
+        results.push(UploadCheckResult::error(
+            "Security preflight",
+            format!(
+                "Symlinks are not uploaded (extraction risk): {}.",
+                symlinks.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+            ),
+        ));
+    }
+    if git_payload {
+        results.push(UploadCheckResult::warning(
+            "Security preflight",
+            "content/ contains .git/ — it will bloat the upload. Remove it or move the project root.",
         ));
     }
 }
@@ -485,6 +617,53 @@ mod tests {
         assert!(!is_ready_to_upload(&results));
         assert!(results.iter().any(|r| {
             r.label == "Content folder" && r.severity == crate::models::UploadCheckSeverity::Error
+        }));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    fn temp_project(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "greg-upload-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(dir.join("content")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn security_preflight_blocks_secrets_and_executables() {
+        let dir = temp_project("sec");
+        std::fs::write(dir.join("content").join("mod.dll"), b"dll").unwrap();
+        std::fs::write(dir.join("content").join(".env"), b"SECRET=x").unwrap();
+        std::fs::write(dir.join("content").join("run.exe"), b"mz").unwrap();
+        let mut results = Vec::new();
+        check_security_preflight(&dir, &mut results);
+        assert!(results.iter().any(|r| {
+            r.label == "Security preflight"
+                && r.severity == crate::models::UploadCheckSeverity::Error
+                && r.detail.contains(".env")
+        }));
+        assert!(results.iter().any(|r| {
+            r.label == "Security preflight"
+                && r.severity == crate::models::UploadCheckSeverity::Error
+                && r.detail.contains("run.exe")
+        }));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn security_preflight_passes_clean_content() {
+        let dir = temp_project("clean");
+        std::fs::write(dir.join("content").join("mod.dll"), b"dll").unwrap();
+        std::fs::write(dir.join("content").join("config.json"), b"{}").unwrap();
+        let mut results = Vec::new();
+        check_security_preflight(&dir, &mut results);
+        assert!(results.iter().any(|r| {
+            r.label == "Security preflight"
+                && r.severity == crate::models::UploadCheckSeverity::Ok
         }));
         std::fs::remove_dir_all(&dir).ok();
     }

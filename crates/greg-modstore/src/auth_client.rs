@@ -11,7 +11,42 @@ use greg_core::models::{
 use crate::error::{ModStoreError, Result};
 
 /// Callback redirect URI registered for the desktop flow.
-pub const AUTH_CALLBACK_REDIRECT_URI: &str = "greg://auth/callback";
+/// Canonical value matches the web default (`greg://v1/auth/callback`).
+/// The legacy `greg://auth/callback` remains accepted server-side.
+pub const AUTH_CALLBACK_REDIRECT_URI: &str = "greg://v1/auth/callback";
+
+/// Legacy callback URI (still accepted by the web backend).
+pub const AUTH_CALLBACK_REDIRECT_URI_LEGACY: &str = "greg://auth/callback";
+
+/// Candidate token endpoints for a base URL (canonical first, legacy alias second).
+fn token_urls(base: &str) -> Vec<String> {
+    let b = base.trim_end_matches('/');
+    vec![format!("{b}/auth/token"), format!("{b}/token")]
+}
+
+/// Candidate logout endpoints for a base URL (canonical first, legacy alias second).
+fn logout_urls(base: &str) -> Vec<String> {
+    let b = base.trim_end_matches('/');
+    vec![format!("{b}/auth/logout"), format!("{b}/logout")]
+}
+
+/// Candidate BetterAuth sign-in endpoints (canonical first, legacy shim second).
+fn sign_in_urls(base: &str) -> Vec<String> {
+    let b = base.trim_end_matches('/');
+    vec![
+        format!("{b}/api/auth/sign-in/email"),
+        format!("{b}/sign-in/email"),
+    ]
+}
+
+/// Candidate BetterAuth session endpoints (canonical first, legacy shim second).
+fn session_urls(base: &str) -> Vec<String> {
+    let b = base.trim_end_matches('/');
+    vec![
+        format!("{b}/api/auth/get-session"),
+        format!("{b}/get-session"),
+    ]
+}
 
 /// Browser-flow client: login URL, token exchange, logout.
 #[derive(Debug, Clone)]
@@ -60,6 +95,8 @@ impl AuthApiClient {
     }
 
     /// Exchanges a browser-callback code for a session.
+    /// Tries `POST {base}/auth/token` first, then the legacy `POST {base}/token`
+    /// alias across all configured base URLs (failover).
     pub async fn exchange_callback_code(
         &self,
         request: TokenExchangeRequest,
@@ -69,62 +106,66 @@ impl AuthApiClient {
             request.redirect_uri = Some(AUTH_CALLBACK_REDIRECT_URI.to_string());
         }
         for base in &self.api_base_urls {
-            let url = format!("{}/token", base.trim_end_matches('/'));
-            match self.http.post(&url).json(&request).send().await {
-                Ok(resp) if resp.status().is_success() => {
-                    match resp.json::<TokenExchangeResponse>().await {
-                        Ok(token) if !token.access_token.is_empty() => {
-                            let user = token.user;
-                            let display = if user.display_name.is_empty() {
-                                if user.name.is_empty() {
-                                    "User".to_string()
+            for url in token_urls(base) {
+                match self.http.post(&url).json(&request).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        match resp.json::<TokenExchangeResponse>().await {
+                            Ok(token) if !token.access_token.is_empty() => {
+                                let user = token.user;
+                                let display = if user.display_name.is_empty() {
+                                    if user.name.is_empty() {
+                                        "User".to_string()
+                                    } else {
+                                        user.name.clone()
+                                    }
                                 } else {
-                                    user.name.clone()
-                                }
-                            } else {
-                                user.display_name.clone()
-                            };
-                            return Ok(Some(ActiveSession {
-                                access_token: token.access_token,
-                                session_id: token.session_id,
-                                identity: AccountIdentity {
-                                    subject_id: if user.subject_id.is_empty() {
-                                        user.id.clone()
-                                    } else {
-                                        user.subject_id.clone()
+                                    user.display_name.clone()
+                                };
+                                return Ok(Some(ActiveSession {
+                                    access_token: token.access_token,
+                                    session_id: token.session_id,
+                                    identity: AccountIdentity {
+                                        subject_id: if user.subject_id.is_empty() {
+                                            user.id.clone()
+                                        } else {
+                                            user.subject_id.clone()
+                                        },
+                                        email: user.email.clone(),
+                                        display_name: display,
+                                        avatar_url: if user.avatar_url.is_empty() {
+                                            None
+                                        } else {
+                                            Some(user.avatar_url.clone())
+                                        },
+                                        roles: if user.roles.is_empty() {
+                                            vec!["user".to_string()]
+                                        } else {
+                                            user.roles.clone()
+                                        },
+                                        tenant: user.tenant.clone(),
                                     },
-                                    email: user.email.clone(),
-                                    display_name: display,
-                                    avatar_url: if user.avatar_url.is_empty() {
-                                        None
-                                    } else {
-                                        Some(user.avatar_url.clone())
-                                    },
-                                    roles: if user.roles.is_empty() {
-                                        vec!["user".to_string()]
-                                    } else {
-                                        user.roles.clone()
-                                    },
-                                    tenant: user.tenant.clone(),
-                                },
-                            }));
+                                }));
+                            }
+                            _ => continue,
                         }
-                        _ => continue,
                     }
+                    _ => continue,
                 }
-                _ => continue,
             }
         }
         Ok(None)
     }
 
     /// Ends a session (best-effort across base URLs).
+    /// Tries `POST {base}/auth/logout` first, then legacy `POST {base}/logout`.
     pub async fn end_session(&self, access_token: &str) -> bool {
         for base in &self.api_base_urls {
-            let url = format!("{}/logout", base.trim_end_matches('/'));
-            if let Ok(resp) = self.http.post(&url).bearer_auth(access_token).send().await {
-                if resp.status().is_success() {
-                    return true;
+            for url in logout_urls(base) {
+                if let Ok(resp) = self.http.post(&url).bearer_auth(access_token).send().await
+                {
+                    if resp.status().is_success() {
+                        return true;
+                    }
                 }
             }
         }
@@ -132,7 +173,9 @@ impl AuthApiClient {
     }
 }
 
-/// Legacy email/password client (BetterAuth: `/sign-in/email`, `/get-session`).
+/// Email/password client (BetterAuth).
+/// Canonical endpoints are `/api/auth/sign-in/email` + `/api/auth/get-session`;
+/// legacy `{base}/sign-in/email` + `{base}/get-session` shims are tried as fallback.
 #[derive(Debug, Clone)]
 pub struct BetterAuthClient {
     http: reqwest::Client,
@@ -155,13 +198,16 @@ impl BetterAuthClient {
             password: password.to_string(),
         };
         for base in &self.base_urls {
-            let url = format!("{}/sign-in/email", base.trim_end_matches('/'));
-            match self.http.post(&url).json(&payload).send().await {
-                Ok(resp) if resp.status().is_success() => match resp.json::<AuthResponse>().await {
-                    Ok(auth) => return Ok(Some(auth)),
-                    Err(_) => continue,
-                },
-                _ => continue,
+            for url in sign_in_urls(base) {
+                match self.http.post(&url).json(&payload).send().await {
+                    Ok(resp) if resp.status().is_success() => {
+                        match resp.json::<AuthResponse>().await {
+                            Ok(auth) => return Ok(Some(auth)),
+                            Err(_) => continue,
+                        }
+                    }
+                    _ => continue,
+                }
             }
         }
         Ok(None)
@@ -170,13 +216,14 @@ impl BetterAuthClient {
     /// Verifies a session token.
     pub async fn verify_session(&self, token: &str) -> bool {
         for base in &self.base_urls {
-            let url = format!("{}/get-session", base.trim_end_matches('/'));
-            if let Ok(resp) = self.http.get(&url).bearer_auth(token).send().await {
-                if resp.status().is_success() {
-                    if let Ok(user) = resp.json::<UserInfo>().await {
-                        return !user.id.is_empty() || !user.email.is_empty();
+            for url in session_urls(base) {
+                if let Ok(resp) = self.http.get(&url).bearer_auth(token).send().await {
+                    if resp.status().is_success() {
+                        if let Ok(user) = resp.json::<UserInfo>().await {
+                            return !user.id.is_empty() || !user.email.is_empty();
+                        }
+                        return true;
                     }
-                    return true;
                 }
             }
         }
@@ -240,6 +287,42 @@ mod tests {
         assert_eq!(
             percent_encode("greg://auth/callback"),
             "greg%3A%2F%2Fauth%2Fcallback"
+        );
+        assert_eq!(
+            percent_encode(AUTH_CALLBACK_REDIRECT_URI),
+            "greg%3A%2F%2Fv1%2Fauth%2Fcallback"
+        );
+    }
+
+    #[test]
+    fn endpoint_candidates_prefer_canonical() {
+        assert_eq!(
+            token_urls("https://datacentermods.com"),
+            vec![
+                "https://datacentermods.com/auth/token".to_string(),
+                "https://datacentermods.com/token".to_string(),
+            ]
+        );
+        assert_eq!(
+            logout_urls("https://datacentermods.com/"),
+            vec![
+                "https://datacentermods.com/auth/logout".to_string(),
+                "https://datacentermods.com/logout".to_string(),
+            ]
+        );
+        assert_eq!(
+            sign_in_urls("https://datacentermods.com"),
+            vec![
+                "https://datacentermods.com/api/auth/sign-in/email".to_string(),
+                "https://datacentermods.com/sign-in/email".to_string(),
+            ]
+        );
+        assert_eq!(
+            session_urls("https://datacentermods.com"),
+            vec![
+                "https://datacentermods.com/api/auth/get-session".to_string(),
+                "https://datacentermods.com/get-session".to_string(),
+            ]
         );
     }
 }
