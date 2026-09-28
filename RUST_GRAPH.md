@@ -177,8 +177,8 @@ conditional panels instead. Window dragging uses the native
 - [x] `greg-steam` (`steamworks` crate) publish/browse behind rate limiter.
 - [x] `greg-app` (Slint) shell + editor + upload flow.
 - [x] OAuth session flow (`greg://auth/callback` handling, profile menu).
-- [x] Gallery screenshots upload via Steam (second update with
-  `AddItemPreviewFile` over `steamworks-sys`; safe 0.13.1 API has no
-  wrappers). Gallery download/sync still open (no additional-preview
-  getters in the safe API).
+- [x] Gallery screenshots up/download via Steam (upload: second update with
+  `AddItemPreviewFile`; download: details query with additional-previews
+  flag into `screenshots/` on import — both over `steamworks-sys`, the
+  safe 0.13.1 API has no wrappers).
 - [x] Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.

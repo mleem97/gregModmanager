@@ -404,6 +404,56 @@ impl WorkshopService {
 
     /// Downloads a published item into a new workspace project for editing.
     /// Reuses the existing project when the item was imported before.
+    /// Downloads an item's gallery into `screenshots/` and returns the
+    /// relative paths for `additional_previews` (mirrors the C#
+    /// `DownloadGalleryImagesAsync`). Non-fatal by design: failures are logged
+    /// and skipped. Metadata persistence stays with the caller.
+    pub fn download_gallery(
+        &self,
+        project_root: &Path,
+        file_id: u64,
+        log: &dyn Fn(&str),
+        cancel: &AtomicBool,
+    ) -> Vec<String> {
+        let urls = match self.backend.additional_preview_urls(file_id, cancel) {
+            Ok(urls) => urls,
+            Err(e) => {
+                log(&format!("Gallery sync skipped: {e}"));
+                return Vec::new();
+            }
+        };
+        if urls.is_empty() {
+            return Vec::new();
+        }
+        let dir = project_root.join("screenshots");
+        if let Err(e) = std::fs::create_dir_all(&dir) {
+            log(&format!("Gallery sync skipped: {e}"));
+            return Vec::new();
+        }
+        let mut synced = Vec::new();
+        for (index, url) in urls.iter().enumerate() {
+            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            let bytes = match reqwest::blocking::get(url).and_then(|r| r.bytes()) {
+                Ok(b) => b.to_vec(),
+                Err(_) => {
+                    log(&format!("Gallery download failed: {url}"));
+                    continue;
+                }
+            };
+            let name = format!("screenshot_{index}{}", image_ext(&bytes));
+            match std::fs::write(dir.join(&name), &bytes) {
+                Ok(()) => synced.push(format!("screenshots/{name}")),
+                Err(e) => log(&format!("Gallery save failed ({name}): {e}")),
+            }
+        }
+        if !synced.is_empty() {
+            log(&format!("Gallery synced: {} screenshot(s).", synced.len()));
+        }
+        synced
+    }
+
     pub fn import_to_workspace(
         &self,
         ws: &greg_platform::workspace::Workspace,
@@ -459,6 +509,8 @@ impl WorkshopService {
         };
         meta.preview_image_relative_path =
             fetch_preview_image(&detail.preview_image_url, &dest_root, log);
+        meta.additional_previews =
+            self.download_gallery(&dest_root, published_file_id, log, cancel);
         if let Err(e) = workspace::save_metadata(&dest_root, &meta) {
             return ImportOutcome::fail(format!("Cannot save metadata: {e}"));
         }
@@ -560,18 +612,7 @@ fn fetch_preview_image(url: &str, dest_root: &Path, log: &dyn Fn(&str)) -> Strin
         Ok(b) => b.to_vec(),
         Err(_) => return "preview.png".into(),
     };
-    let ext = if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 {
-        ".jpg"
-    } else if bytes.len() >= 8 && bytes[0..4] == [0x89, 0x50, 0x4E, 0x47] {
-        ".png"
-    } else if bytes.len() >= 4 && bytes[0..3] == [0x47, 0x49, 0x46] {
-        ".gif"
-    } else if bytes.len() >= 4 && bytes[0..4] == [0x52, 0x49, 0x46, 0x46] {
-        ".webp"
-    } else {
-        ".png"
-    };
-    let name = format!("preview{ext}");
+    let name = format!("preview{}", image_ext(&bytes));
     match std::fs::write(dest_root.join(&name), &bytes) {
         Ok(()) => {
             log(&format!("Downloaded preview image as {name}"));
@@ -582,6 +623,21 @@ fn fetch_preview_image(url: &str, dest_root: &Path, log: &dyn Fn(&str)) -> Strin
 }
 
 /// Steam gallery limit per preview file (mirrors the C# `SteamConstants`).
+/// Image extension sniffed from magic bytes (shared with preview fetch).
+fn image_ext(bytes: &[u8]) -> &'static str {
+    if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 {
+        ".jpg"
+    } else if bytes.len() >= 8 && bytes[0..4] == [0x89, 0x50, 0x4E, 0x47] {
+        ".png"
+    } else if bytes.len() >= 4 && bytes[0..3] == [0x47, 0x49, 0x46] {
+        ".gif"
+    } else if bytes.len() >= 4 && bytes[0..4] == [0x52, 0x49, 0x46, 0x46] {
+        ".webp"
+    } else {
+        ".png"
+    }
+}
+
 pub const MAX_PREVIEW_FILE_BYTES: u64 = 1024 * 1024;
 
 /// Resolves gallery screenshots to absolute, attachable paths.
@@ -657,6 +713,161 @@ mod gallery_tests {
         );
         assert_eq!(out, vec![dir.join("a.png")]);
         assert_eq!(logged.borrow().len(), 2, "missing + oversize logged");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod download_gallery_tests {
+    use super::WorkshopService;
+    use crate::backend::{
+        BackendStatus, PageQuery, PageResult, SteamBackend, SubmitOutcome, UpdateRequest,
+    };
+    use crate::error::{Result, SteamError};
+    use crate::models::ItemDetail;
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::AtomicBool;
+
+    /// Canned gallery URLs; everything else unavailable.
+    struct FakeBackend {
+        gallery_urls: Vec<String>,
+    }
+
+    impl SteamBackend for FakeBackend {
+        fn status(&self) -> BackendStatus {
+            BackendStatus::Available {
+                user_name: "Test".into(),
+            }
+        }
+        fn page(&self, _q: &PageQuery, _c: &AtomicBool) -> Result<PageResult> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn details(&self, _id: u64, _c: &AtomicBool) -> Result<ItemDetail> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn subscribe(&self, _id: u64) -> Result<()> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn unsubscribe(&self, _id: u64) -> Result<()> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn favorite(&self, _id: u64, _fav: bool) -> Result<()> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn vote(&self, _id: u64, _up: bool) -> Result<()> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn own_ids(&self) -> Result<Vec<u64>> {
+            Ok(Vec::new())
+        }
+        fn submit(
+            &self,
+            _req: &UpdateRequest,
+            _progress: &dyn Fn(f32),
+            _cancel: &AtomicBool,
+        ) -> Result<SubmitOutcome> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn upload_gallery(
+            &self,
+            _file_id: u64,
+            _screenshots: &[PathBuf],
+            _log: &dyn Fn(&str),
+            _cancel: &AtomicBool,
+        ) -> Result<usize> {
+            Ok(0)
+        }
+        fn additional_preview_urls(
+            &self,
+            _file_id: u64,
+            _cancel: &AtomicBool,
+        ) -> Result<Vec<String>> {
+            Ok(self.gallery_urls.clone())
+        }
+        fn download(
+            &self,
+            _id: u64,
+            _progress: &dyn Fn(f32),
+            _cancel: &AtomicBool,
+        ) -> Result<PathBuf> {
+            Err(SteamError::NotAvailable("fake".into()))
+        }
+        fn install_info(&self, _id: u64) -> Option<crate::backend::InstallDir> {
+            None
+        }
+        fn open_in_browser(&self, _id: u64) {}
+    }
+
+    /// Minimal PNG payload (magic bytes only — extension sniffing).
+    const PNG: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];
+
+    /// Serves `hits` PNG responses on localhost, returns the base URL.
+    fn serve_png(hits: usize) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("localhost listener");
+        let addr = listener.local_addr().expect("addr");
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(hits) {
+                let mut stream = match stream {
+                    Ok(s) => s,
+                    Err(_) => break,
+                };
+                use std::io::{Read, Write};
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    PNG.len()
+                );
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(PNG);
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    #[test]
+    fn downloads_gallery_into_screenshots() {
+        let base = serve_png(2);
+        let backend = FakeBackend {
+            gallery_urls: vec![format!("{base}/a.png"), format!("{base}/b.png")],
+        };
+        let service = WorkshopService::new(std::sync::Arc::new(backend), "en");
+        let dir = std::env::temp_dir().join(format!(
+            "greg-gallery-dl-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmp");
+        let cancel = AtomicBool::new(false);
+        let out = service.download_gallery(&dir, 1, &|_| {}, &cancel);
+        assert_eq!(
+            out,
+            vec![
+                "screenshots/screenshot_0.png".to_string(),
+                "screenshots/screenshot_1.png".to_string()
+            ]
+        );
+        assert!(Path::new(&dir.join("screenshots/screenshot_0.png")).is_file());
+        assert!(Path::new(&dir.join("screenshots/screenshot_1.png")).is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_gallery_downloads_nothing() {
+        let backend = FakeBackend {
+            gallery_urls: Vec::new(),
+        };
+        let service = WorkshopService::new(std::sync::Arc::new(backend), "en");
+        let dir = std::env::temp_dir().join("greg-gallery-empty");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmp");
+        let cancel = AtomicBool::new(false);
+        let out = service.download_gallery(&dir, 1, &|_| {}, &cancel);
+        assert!(out.is_empty());
+        assert!(!dir.join("screenshots").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

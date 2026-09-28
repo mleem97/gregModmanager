@@ -133,6 +133,8 @@ pub trait SteamBackend: Send + Sync {
         log: &dyn Fn(&str),
         cancel: &AtomicBool,
     ) -> Result<usize>;
+    /// Gallery image URLs of an item (additional previews, images only).
+    fn additional_preview_urls(&self, file_id: u64, cancel: &AtomicBool) -> Result<Vec<String>>;
     /// Download an item into the Steam-managed folder.
     fn download(&self, id: u64, progress: &dyn Fn(f32), cancel: &AtomicBool) -> Result<PathBuf>;
     /// Install info, if downloaded.
@@ -203,6 +205,9 @@ impl SteamBackend for UnavailableBackend {
         _log: &dyn Fn(&str),
         _cancel: &AtomicBool,
     ) -> Result<usize> {
+        self.err()
+    }
+    fn additional_preview_urls(&self, _file_id: u64, _cancel: &AtomicBool) -> Result<Vec<String>> {
         self.err()
     }
     fn install_info(&self, _id: u64) -> Option<InstallDir> {
@@ -765,6 +770,116 @@ pub(crate) mod real {
             };
             log(&format!("Gallery: {attached} screenshot(s) attached."));
             Ok(attached)
+        }
+
+        /// Gallery image URLs via a details query with the additional
+        /// previews flag (`GetQueryUGCAdditionalPreview` has no safe
+        /// `steamworks` 0.13.1 wrapper, same story as the upload side).
+        /// Only image previews are returned; the query handle is always
+        /// released before returning.
+        fn additional_preview_urls(
+            &self,
+            file_id: u64,
+            cancel: &AtomicBool,
+        ) -> Result<Vec<String>> {
+            use std::ffi::CStr;
+            use std::os::raw::c_char;
+            use steamworks_sys as sys;
+
+            unsafe {
+                let ugc = sys::SteamAPI_SteamUGC_v021();
+                if ugc.is_null() {
+                    return Err(SteamError::Api("Steam UGC interface unavailable".into()));
+                }
+                let mut id = file_id;
+                let handle =
+                    sys::SteamAPI_ISteamUGC_CreateQueryUGCDetailsRequest(ugc, &mut id as *mut _, 1);
+                if handle == sys::k_UGCQueryHandleInvalid {
+                    return Err(SteamError::Api("gallery query rejected".into()));
+                }
+                let outcome: Result<Vec<String>> = (|| {
+                    if !sys::SteamAPI_ISteamUGC_SetReturnAdditionalPreviews(ugc, handle, true) {
+                        return Err(SteamError::Api("gallery flag rejected".into()));
+                    }
+                    let call = sys::SteamAPI_ISteamUGC_SendQueryUGCRequest(ugc, handle);
+                    if call == 0 {
+                        return Err(SteamError::Api("gallery query rejected".into()));
+                    }
+                    let pipe = sys::SteamAPI_GetHSteamPipe();
+                    let deadline = Instant::now() + Duration::from_secs(60);
+                    loop {
+                        if cancel.load(Ordering::Relaxed) {
+                            return Err(SteamError::Cancelled);
+                        }
+                        self.client.run_callbacks();
+                        let mut completed: sys::SteamUGCQueryCompleted_t = std::mem::zeroed();
+                        let mut failed = false;
+                        let ready = sys::SteamAPI_ManualDispatch_GetAPICallResult(
+                            pipe,
+                            call,
+                            &mut completed as *mut _ as *mut std::os::raw::c_void,
+                            std::mem::size_of::<sys::SteamUGCQueryCompleted_t>()
+                                as std::os::raw::c_int,
+                            sys::SteamUGCQueryCompleted_t_k_iCallback as std::os::raw::c_int,
+                            &mut failed,
+                        );
+                        if ready {
+                            if failed {
+                                return Err(SteamError::Api(
+                                    "gallery query failed (transport)".into(),
+                                ));
+                            }
+                            if completed.m_eResult != sys::EResult::k_EResultOK {
+                                return Err(SteamError::Api(format!(
+                                    "gallery query failed: {:?}",
+                                    completed.m_eResult
+                                )));
+                            }
+                            if completed.m_unNumResultsReturned < 1 {
+                                return Err(SteamError::Api(format!("item {file_id} not found")));
+                            }
+                            break;
+                        }
+                        if Instant::now() >= deadline {
+                            return Err(SteamError::Timeout(
+                                "gallery query produced no result".into(),
+                            ));
+                        }
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                    let count =
+                        sys::SteamAPI_ISteamUGC_GetQueryUGCNumAdditionalPreviews(ugc, handle, 0);
+                    let mut urls = Vec::new();
+                    for index in 0..count {
+                        let mut url_buf = [0 as c_char; 1024];
+                        let mut name_buf = [0 as c_char; 256];
+                        let mut preview_type = sys::EItemPreviewType::k_EItemPreviewType_Image;
+                        let ok = sys::SteamAPI_ISteamUGC_GetQueryUGCAdditionalPreview(
+                            ugc,
+                            handle,
+                            0,
+                            index,
+                            url_buf.as_mut_ptr(),
+                            url_buf.len() as u32,
+                            name_buf.as_mut_ptr(),
+                            name_buf.len() as u32,
+                            &mut preview_type,
+                        );
+                        if !ok || preview_type != sys::EItemPreviewType::k_EItemPreviewType_Image {
+                            continue;
+                        }
+                        let url = CStr::from_ptr(url_buf.as_ptr())
+                            .to_string_lossy()
+                            .into_owned();
+                        if !url.trim().is_empty() {
+                            urls.push(url);
+                        }
+                    }
+                    Ok(urls)
+                })();
+                sys::SteamAPI_ISteamUGC_ReleaseQueryUGCRequest(ugc, handle);
+                outcome
+            }
         }
 
         fn download(

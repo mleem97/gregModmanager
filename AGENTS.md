@@ -23,7 +23,7 @@ This file is the short entry point for agent-oriented repository instructions. R
 ## Project context
 
 - Application: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI: `eframe`/`egui` (immediate mode, single binary); see `RUST_GRAPH.md` for the chosen stack and alternatives.
+- UI: `slint`/`slint-build` (retained mode, single binary); see `RUST_GRAPH.md` for the chosen stack and alternatives.
 - Target language: latest stable Rust (rustup toolchain); MSRV is "latest stable" unless the maintainer pins one.
 - Workspace root: `Cargo.toml` with members under `crates/*` plus `xtask/`.
 - Executable crates: `crates/greg-app` (desktop UI), `crates/greg-cli` (headless `publish`/`status`/`list`).
@@ -39,7 +39,7 @@ This file is the short entry point for agent-oriented repository instructions. R
 
 ## Architecture guardrails
 
-- `greg-core` must not depend on UI crates (`eframe`/`egui`). If a required fix appears to need that dependency, stop and ask for maintainer confirmation.
+- `greg-core` must not depend on UI crates (`slint`). If a required fix appears to need that dependency, stop and ask for maintainer confirmation.
 - `greg-app` / `greg-cli` may depend on domain crates; they stay thin (composition root + presentation).
 - Wire services via constructor injection in the binary `main.rs` composition roots.
 - Prefer the `dirs` crate, known paths, or validated user paths over hard-coded platform paths.
