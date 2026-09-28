@@ -54,6 +54,12 @@ impl JsonFilePreferences {
         }
         let text = serde_json::to_string_pretty(&inner.data).map_err(json_err)?;
         std::fs::write(&inner.path, text).map_err(io_err)?;
+        // The store holds the OAuth access token: owner-only permissions.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&inner.path, std::fs::Permissions::from_mode(0o600));
+        }
         Ok(())
     }
 }
@@ -126,5 +132,21 @@ mod tests {
         // String "1"/"true" must NOT count as bool (typed JSON, like C#).
         p.set_string("s", "true");
         assert!(!p.get_bool("s", false));
+    }
+
+    /// Token store must be owner-only (OAuth access token lives here).
+    #[cfg(unix)]
+    #[test]
+    fn store_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut p = JsonFilePreferences::open();
+        p.set_string("perm-probe", "x");
+        p.remove("perm-probe");
+        let mode = std::fs::metadata(p.path())
+            .expect("prefs file")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "preferences.json must be 0600, got {mode:o}");
     }
 }

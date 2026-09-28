@@ -297,6 +297,11 @@ pub fn copy_dir_recursive(source: &Path, dest: &Path) -> Result<()> {
         .into_iter()
         .filter_map(|e| e.ok())
     {
+        // Never follow or materialize symlinks from foreign content
+        // (workshop items): jail-break and arbitrary-read risk.
+        if entry.path().is_symlink() {
+            continue;
+        }
         let rel = entry
             .path()
             .strip_prefix(source)
@@ -455,6 +460,24 @@ mod tests {
         let dest = base.join("dest");
         copy_dir_recursive(&base.join("content"), &dest).unwrap();
         assert!(dest.join("mod.dll").is_file());
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_skips_symlinks() {
+        use std::os::unix::fs::symlink;
+        let base = temp_root("copy-link");
+        let content = base.join("content");
+        std::fs::create_dir_all(&content).unwrap();
+        std::fs::write(content.join("mod.dll"), b"1").unwrap();
+        symlink(content.join("mod.dll"), content.join("evil.dll")).ok();
+        symlink("/etc/hostname", content.join("escape")).ok();
+        let dest = base.join("dest");
+        copy_dir_recursive(&content, &dest).unwrap();
+        assert!(dest.join("mod.dll").is_file());
+        assert!(!dest.join("evil.dll").exists());
+        assert!(!dest.join("escape").exists());
         std::fs::remove_dir_all(&base).ok();
     }
 }

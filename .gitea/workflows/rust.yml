@@ -70,6 +70,20 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      # Vulnerabilities fail the run; unmaintained warnings only warn.
+      # See SECURITY.md (Verification / Secure Build).
+      - run: cargo audit
+
   build-linux:
     name: Build + dist (Linux x86_64)
     runs-on: ubuntu-latest
