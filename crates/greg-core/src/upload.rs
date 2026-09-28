@@ -355,17 +355,16 @@ fn check_changelog(
     let is_first_publish = meta.published_file_id == 0;
     let resolved = project_docs::resolve_steam_changelog(project_root, &meta.version, manual);
     if resolved.text.trim().is_empty() {
-        if is_first_publish {
-            results.push(UploadCheckResult::error(
-                "Changelog",
-                "A version changelog is required for the first publish. Add '## [x.y.z]' to CHANGELOG.md (Keep a Changelog) or describe the initial release manually.",
-            ));
-        } else {
-            results.push(UploadCheckResult::warning(
-                "Changelog",
-                "No changelog provided. Recommended so subscribers know what changed.",
-            ));
-        }
+        // Optional even for the first publish: Steam accepts empty change
+        // notes, and maintainers upload work-in-progress snapshots.
+        results.push(UploadCheckResult::warning(
+            "Changelog",
+            if is_first_publish {
+                "No changelog provided. Recommended for the first release so subscribers know what this is."
+            } else {
+                "No changelog provided. Recommended so subscribers know what changed."
+            },
+        ));
         return;
     }
     let source = match resolved.source {

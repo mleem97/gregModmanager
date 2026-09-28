@@ -733,13 +733,28 @@ pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     // Save first (separate lock scope).
     editor_save(state);
     let mut guard = state.lock().expect("state");
+    let ui = guard.ui();
     let Some(root) = guard.editor_root.clone() else {
+        ui.set_ed_status("No project open.".into());
         return;
     };
     if guard.publish_job.is_some() {
+        ui.set_ed_status("Upload already running…".into());
         return;
     }
-    if !guard.ui().get_ed_ready() {
+    if !ui.get_ed_ready() {
+        // Never die silently: list the blocking checks in the status line.
+        let blocking: Vec<String> = ui
+            .get_ed_checks()
+            .iter()
+            .filter(|row| !row.ok)
+            .map(|row| format!("{} — {}", row.label, row.detail))
+            .collect();
+        ui.set_ed_status(if blocking.is_empty() {
+            "Not ready to upload.".into()
+        } else {
+            format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
+        });
         return;
     }
     let mut meta = guard.editor_meta.clone();

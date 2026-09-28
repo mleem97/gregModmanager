@@ -34,6 +34,10 @@ pub struct JobHandle {
 
 impl JobHandle {
     /// Spawns `work` on a background thread.
+    ///
+    /// Worker panics are caught and reported as a failed outcome — a dying
+    /// thread must never leave the UI stuck (e.g. "Uploading…" forever with
+    /// a dead button and no message).
     pub fn spawn(work: impl FnOnce(JobSink) -> JobOutcome + Send + 'static) -> Self {
         let (tx, rx) = mpsc::channel();
         let cancelled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -43,7 +47,22 @@ impl JobHandle {
                 tx,
                 cancelled: flag,
             };
-            let outcome = work(sink.clone());
+            let outcome =
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(sink.clone())))
+                {
+                    Ok(outcome) => outcome,
+                    Err(payload) => {
+                        let detail = payload
+                            .downcast_ref::<String>()
+                            .cloned()
+                            .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+                            .unwrap_or_else(|| "unknown panic".into());
+                        JobOutcome {
+                            success: false,
+                            message: format!("Internal error, please report: {detail}"),
+                        }
+                    }
+                };
             let _ = sink.tx.send(JobMessage::Done(outcome));
         });
         Self {

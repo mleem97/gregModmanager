@@ -161,7 +161,7 @@ fn check_il2cpp(root: &Path, results: &mut Vec<DependencyCheck>) {
 }
 
 fn check_greg_framework(root: &Path, results: &mut Vec<DependencyCheck>) {
-    let dll = root.join("Mods").join("gregCoreModdingFramework.dll");
+    let dll = root.join("Mods").join("gregCore.dll");
     results.push(if dll.is_file() {
         DependencyCheck {
             label: "gregCoreModFramework".into(),
@@ -172,7 +172,7 @@ fn check_greg_framework(root: &Path, results: &mut Vec<DependencyCheck>) {
         DependencyCheck {
             label: "gregCoreModFramework".into(),
             status: DependencyStatus::Missing,
-            detail: "gregCoreModdingFramework.dll is missing under Mods/.".into(),
+            detail: "gregCore.dll is missing under Mods/.".into(),
         }
     });
 }
