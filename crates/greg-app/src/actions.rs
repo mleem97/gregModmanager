@@ -264,16 +264,32 @@ fn percent_encode(value: &str) -> String {
     out
 }
 
+/// Generates a cryptographically random desktop auth request id.
+///
+/// ASVS 3.11 (session ids must be random and unpredictable): the previous
+/// timestamp+PID construction was guessable, letting an attacker pre-compute
+/// a victim's next `requestId`. 128 bits from the OS CSPRNG, hex-encoded
+/// (32 chars, inside the server's `^[a-zA-Z0-9_-]{16,128}$` shape).
+fn new_request_id() -> String {
+    let mut bytes = [0u8; 16];
+    if getrandom::fill(&mut bytes).is_ok() {
+        return bytes.iter().map(|b| format!("{b:02x}")).collect();
+    }
+    // CSPRNG unavailable (should not happen): fall back to a
+    // time+pid+counter mix rather than failing the login outright.
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static FALLBACK_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let count = FALLBACK_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("fb{nanos:x}{:x}{count:x}", std::process::id())
+}
+
 /// Opens the login URL in a browser (session completes via `greg://` later).
 pub fn login(state: &Arc<std::sync::Mutex<AppState>>) {
-    let request_id = format!(
-        "{:x}{:x}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0),
-        std::process::id()
-    );
+    let request_id = new_request_id();
     let formats = login_url_formats();
     let redirect = percent_encode(greg_modstore::auth_client::AUTH_CALLBACK_REDIRECT_URI);
     let candidate = formats.first().map(|f| {
@@ -589,6 +605,12 @@ pub fn forward_to_primary(url: &str) {
     }
     let _ = writeln!(content, "{url}");
     let _ = std::fs::write(handoff_path(), content);
+    // May carry single-use OAuth codes: owner-only permissions.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(handoff_path(), std::fs::Permissions::from_mode(0o600));
+    }
 }
 
 /// Picks up second-instance handoffs (called from the main timer with the
@@ -3108,7 +3130,19 @@ impl AppState {
 
 #[cfg(test)]
 mod protocol_tests {
-    use super::{parse_protocol_url, ProtocolUrl};
+    use super::{new_request_id, parse_protocol_url, ProtocolUrl};
+
+    #[test]
+    fn request_ids_are_unique_and_server_shaped() {
+        let a = new_request_id();
+        let b = new_request_id();
+        assert_eq!(a.len(), 32, "128-bit hex request id");
+        assert_ne!(a, b, "request ids must be unpredictable");
+        for id in [&a, &b] {
+            assert!(id.len() >= 16 && id.len() <= 128);
+            assert!(id.chars().all(|c| c.is_ascii_alphanumeric()));
+        }
+    }
 
     #[test]
     fn accepts_both_callback_paths() {
