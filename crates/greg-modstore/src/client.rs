@@ -14,6 +14,8 @@ use crate::models::{
 pub struct ModStoreClient {
     http: reqwest::Client,
     base_urls: Vec<String>,
+    /// OAuth access token (attached as Bearer when present).
+    access_token: Option<String>,
 }
 
 impl ModStoreClient {
@@ -27,7 +29,19 @@ impl ModStoreClient {
         Ok(Self {
             http: reqwest::Client::new(),
             base_urls,
+            access_token: None,
         })
+    }
+
+    /// Attaches the OAuth session token to all requests.
+    pub fn with_token(mut self, access_token: impl Into<String>) -> Self {
+        let token = access_token.into();
+        self.access_token = if token.trim().is_empty() {
+            None
+        } else {
+            Some(token)
+        };
+        self
     }
 
     /// Base URLs (for diagnostics).
@@ -54,7 +68,11 @@ impl ModStoreClient {
         let mut last: Option<ModStoreError> = None;
         for base in &self.base_urls {
             let url = format!("{}{path}", base.trim_end_matches('/'));
-            match self.http.get(&url).send().await {
+            let mut request = self.http.get(&url);
+            if let Some(token) = self.access_token.as_deref() {
+                request = request.bearer_auth(token);
+            }
+            match request.send().await {
                 Ok(resp) => match resp.error_for_status() {
                     Ok(ok) => match ok.json::<T>().await {
                         Ok(body) => return Ok(body),
@@ -78,7 +96,11 @@ impl ModStoreClient {
         let mut last: Option<ModStoreError> = None;
         for base in &self.base_urls {
             let url = format!("{}{path}", base.trim_end_matches('/'));
-            match self.http.post(&url).json(body).send().await {
+            let mut request = self.http.post(&url).json(body);
+            if let Some(token) = self.access_token.as_deref() {
+                request = request.bearer_auth(token);
+            }
+            match request.send().await {
                 Ok(resp) => match resp.error_for_status() {
                     Ok(ok) => match ok.json::<T>().await {
                         Ok(parsed) => return Ok(parsed),
@@ -103,5 +125,15 @@ mod tests {
     fn requires_endpoints() {
         assert!(ModStoreClient::new(vec![]).is_err());
         assert!(ModStoreClient::new(vec!["https://example.com".into()]).is_ok());
+    }
+
+    #[test]
+    fn token_attaches_and_blank_clears() {
+        let plain = ModStoreClient::new(vec!["https://example.com".into()]).expect("client");
+        assert!(plain.access_token.is_none());
+        let authed = plain.with_token("abc123");
+        assert_eq!(authed.access_token.as_deref(), Some("abc123"));
+        let cleared = authed.with_token("   ");
+        assert!(cleared.access_token.is_none());
     }
 }

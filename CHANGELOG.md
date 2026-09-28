@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files logged and skipped). Steam appends gallery files (no replace API).
 - Workshop gallery download: import fetches an item's gallery into
   `screenshots/` and records it in `additional_previews`.
+- Modstore API calls use the OAuth session: catalog and update checks send
+  the access token as Bearer when logged in (release downloads stay
+  unsigned CDN URLs).
 
 ### Changed
 

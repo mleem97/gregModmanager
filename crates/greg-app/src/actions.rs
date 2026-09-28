@@ -1503,33 +1503,38 @@ pub fn store_refresh(state: &Arc<std::sync::Mutex<AppState>>) {
         return;
     }
     let urls = store_base_urls(&guard);
+    let token = guard.session.as_ref().map(|s| s.access_token.clone());
     let rt = guard.runtime.handle().clone();
     guard.ui().set_br_busy(false);
     guard.ui().set_st_busy(true);
     guard.ui().set_st_status("Loading catalog…".into());
     let job = JobHandle::spawn(move |sink| {
-        let outcome = match greg_modstore::client::ModStoreClient::new(urls) {
-            Ok(client) => match rt.block_on(client.catalog()) {
-                Ok(response) => {
-                    let payload = serde_json::to_string(&response.mods).unwrap_or_default();
-                    JobOutcome {
-                        success: true,
-                        message: format!("CATALOG:{payload}"),
+        let outcome =
+            match greg_modstore::client::ModStoreClient::new(urls).map(|client| match token {
+                Some(token) => client.with_token(token),
+                None => client,
+            }) {
+                Ok(client) => match rt.block_on(client.catalog()) {
+                    Ok(response) => {
+                        let payload = serde_json::to_string(&response.mods).unwrap_or_default();
+                        JobOutcome {
+                            success: true,
+                            message: format!("CATALOG:{payload}"),
+                        }
                     }
-                }
-                Err(e) => {
-                    sink.log(e.to_string());
-                    JobOutcome {
-                        success: false,
-                        message: e.to_string(),
+                    Err(e) => {
+                        sink.log(e.to_string());
+                        JobOutcome {
+                            success: false,
+                            message: e.to_string(),
+                        }
                     }
-                }
-            },
-            Err(e) => JobOutcome {
-                success: false,
-                message: e.to_string(),
-            },
-        };
+                },
+                Err(e) => JobOutcome {
+                    success: false,
+                    message: e.to_string(),
+                },
+            };
         let _ = sink;
         outcome
     });
@@ -1543,6 +1548,7 @@ pub fn store_check_updates(state: &Arc<std::sync::Mutex<AppState>>) {
         return;
     }
     let urls = store_base_urls(&guard);
+    let token = guard.session.as_ref().map(|s| s.access_token.clone());
     let rt = guard.runtime.handle().clone();
     let game_root = game_root_of(&guard);
     guard.ui().set_st_busy(true);
@@ -1557,28 +1563,32 @@ pub fn store_check_updates(state: &Arc<std::sync::Mutex<AppState>>) {
                 version: e.version,
             })
             .collect();
-        let outcome = match greg_modstore::client::ModStoreClient::new(urls) {
-            Ok(client) => match rt.block_on(client.check_updates(installed)) {
-                Ok(response) => {
-                    let payload = serde_json::to_string(&response.updates).unwrap_or_default();
-                    JobOutcome {
-                        success: true,
-                        message: format!("UPDATES:{payload}"),
+        let outcome =
+            match greg_modstore::client::ModStoreClient::new(urls).map(|client| match token {
+                Some(token) => client.with_token(token),
+                None => client,
+            }) {
+                Ok(client) => match rt.block_on(client.check_updates(installed)) {
+                    Ok(response) => {
+                        let payload = serde_json::to_string(&response.updates).unwrap_or_default();
+                        JobOutcome {
+                            success: true,
+                            message: format!("UPDATES:{payload}"),
+                        }
                     }
-                }
-                Err(e) => {
-                    sink.log(e.to_string());
-                    JobOutcome {
-                        success: false,
-                        message: e.to_string(),
+                    Err(e) => {
+                        sink.log(e.to_string());
+                        JobOutcome {
+                            success: false,
+                            message: e.to_string(),
+                        }
                     }
-                }
-            },
-            Err(e) => JobOutcome {
-                success: false,
-                message: e.to_string(),
-            },
-        };
+                },
+                Err(e) => JobOutcome {
+                    success: false,
+                    message: e.to_string(),
+                },
+            };
         let _ = sink;
         outcome
     });
