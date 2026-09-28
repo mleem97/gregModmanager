@@ -1,0 +1,206 @@
+// TerminalCore theme (ported from the Avalonia Styles): fixed geometry,
+// no auto-sizing surprises. All colors are constants — never magic values.
+
+export global Palette {
+    out property <color> surface: #051424;
+    out property <color> container-low: #0D1C2D;
+    out property <color> container: #122131;
+    out property <color> container-high: #1C2B3C;
+    out property <color> primary: #8AEBFF;
+    out property <color> on-primary: #062235;
+    out property <color> secondary: #4DE082;
+    out property <color> on-surface: #D4E4FA;
+    out property <color> on-variant: #BBC9CD;
+    out property <color> outline: #3C494C;
+    out property <color> error: #FFB4AB;
+    out property <color> error-container: #3C1B22;
+    out property <color> led-ok: #4DE082;
+    out property <color> led-bad: #D7383B;
+    out property <color> avatar-bg: #17364A;
+    out property <length> radius: 6px;
+}
+
+// Fixed 56x56 icon button with a 3px active indicator on the left edge.
+export component IconButton inherits Rectangle {
+    in property <string> glyph;
+    in property <string> tip;
+    in property <bool> active;
+    in property <bool> enabled <=> touch.enabled;
+    callback clicked();
+
+    width: 56px;
+    height: 56px;
+    background: active ? Palette.container-high : transparent;
+    border-radius: Palette.radius;
+
+    touch := TouchArea {
+        enabled: true;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    // Active indicator: fixed 3x28 bar, vertically centered.
+    if active: Rectangle {
+        x: 4px;
+        y: (parent.height - self.height) / 2;
+        width: 3px;
+        height: 28px;
+        background: Palette.primary;
+        border-radius: 2px;
+    }
+
+    Text {
+        text: root.glyph;
+        font-size: 22px;
+        color: !root.enabled ? Palette.outline : (root.active ? Palette.primary : Palette.on-variant);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    @children
+}
+
+// Full-width navigation row, fixed 36px height, active = primary fill.
+export component NavButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    callback clicked();
+
+    height: 36px;
+    background: active ? Palette.primary : transparent;
+    border-radius: Palette.radius;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        x: 12px;
+        text: root.label;
+        font-size: 13px;
+        font-weight: active ? 700 : 400;
+        color: active ? Palette.on-primary : Palette.on-surface;
+        vertical-alignment: center;
+    }
+}
+
+// NOTE: text buttons intentionally use std-widgets `Button` (auto-sizing).
+// Custom Rectangle buttons cannot measure their label and collapse to zero
+// width inside layouts — that was the "misplaced icons" class of bug.
+
+// Fixed 34x28 titlebar window button (custom chrome, no native frame).
+export component WinBtn inherits Rectangle {
+    in property <string> glyph;
+    in property <bool> danger;
+    callback clicked();
+
+    width: 34px;
+    height: 28px;
+    // Slint has no :hover selector — TouchArea state drives the fill.
+    background: touch.has-hover ? (root.danger ? #7A1F1F : Palette.container) : transparent;
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: root.glyph;
+        font-size: 12px;
+        color: touch.has-hover && root.danger ? #FFFFFF : Palette.on-variant;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+// 8px status LED + label, fixed height.
+export component StatusLed inherits HorizontalLayout {
+    in property <bool> ok;
+    in property <string> text;
+
+    spacing: 8px;
+    alignment: start;
+
+    Rectangle {
+        width: 8px;
+        height: 8px;
+        y: (parent.height - self.height) / 2;
+        border-radius: 4px;
+        background: root.ok ? Palette.led-ok : Palette.led-bad;
+    }
+    Text {
+        text: root.text;
+        font-size: 11px;
+        color: Palette.on-variant;
+        vertical-alignment: center;
+    }
+}
+
+// Section headline with accent bar.
+export component SectionTitle inherits HorizontalLayout {
+    in property <string> text;
+
+    spacing: 10px;
+
+    Rectangle {
+        width: 22px;
+        height: 2px;
+        y: (parent.height - self.height) / 2;
+        background: Palette.primary;
+    }
+    Text {
+        text: root.text;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: Palette.primary;
+        vertical-alignment: center;
+    }
+}
+
+// Form row: fixed 130px label + stretching field.
+export component FieldRow inherits HorizontalLayout {
+    in property <string> label;
+
+    spacing: 8px;
+
+    Text {
+        width: 130px;
+        text: root.label;
+        font-size: 12px;
+        color: Palette.on-variant;
+        vertical-alignment: center;
+    }
+
+    @children
+}
+
+// Dark card container.
+export component Card inherits Rectangle {
+    background: Palette.container;
+    border-radius: Palette.radius;
+    border-width: 1px;
+    border-color: Palette.outline;
+
+    @children
+}
+
+// List thumbnail: fixed box with a subtle placeholder behind the image.
+// An empty image renders nothing, so rows without artwork show the box.
+export component Thumb inherits Rectangle {
+    in-out property <image> src;
+    in-out property <length> px: 40px;
+
+    width: root.px;
+    height: root.px;
+    background: Palette.container-high;
+    border-radius: 4px;
+    clip: true;
+    Image {
+        source: root.src;
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+    }
+}

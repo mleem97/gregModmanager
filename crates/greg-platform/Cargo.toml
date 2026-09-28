@@ -1,0 +1,23 @@
+[package]
+name = "greg-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Filesystem, OS integration and workspace management for gregModmanager"
+
+[dependencies]
+greg-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+dirs.workspace = true
+open.workspace = true
+walkdir.workspace = true
+sha2.workspace = true
+hex.workspace = true
+zip.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+
+[dev-dependencies]
+filetime = "0.2"

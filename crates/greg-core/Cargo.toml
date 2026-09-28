@@ -1,0 +1,12 @@
+[package]
+name = "greg-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Domain models and pure logic for gregModmanager (no UI, no Steam client)"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+semver.workspace = true

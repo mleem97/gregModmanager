@@ -1,0 +1,113 @@
+import { LineEdit, Button } from "std-widgets.slint";
+import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { LocalRow } from "models.slint";
+
+// Local content page (My Mods / My Plugins / My Libs). One component, the
+// title and rows differ per kind. Enable/disable renames .dll files,
+// removal goes through the shell confirm dialog.
+export component LocalPage inherits VerticalLayout {
+    in-out property <string> title;
+    in-out property <string> search;
+    in-out property <[LocalRow]> rows;
+    in-out property <string> status;
+
+    callback refresh();
+    callback toggle(int);
+    callback remove(int);
+    callback open-folder();
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: root.title; }
+
+    // Fixed height: bare input/button rows balloon vertically otherwise.
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Filter…";
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Rescan";
+                clicked => { root.refresh(); }
+            }
+            Button {
+                text: "Open folder";
+                clicked => { root.open-folder(); }
+            }
+        }
+    }
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+
+    // Compact list: no vertical-stretch here — stretch on fixed-content
+    // containers never grows them (max-capped) but propagates upward and
+    // makes the whole page tall, misplacing the void above the list.
+    // (Explicit max-height does NOT uncap: the child content cap wins.)
+    Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+            VerticalLayout {
+                padding: 6px;
+                spacing: 2px;
+                for row in root.rows: Rectangle {
+                    height: 44px;
+                    background: Palette.container;
+                    border-radius: Palette.radius;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 8px;
+                        spacing: 8px;
+                        Thumb {
+                            src: row.thumb;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 4px;
+                            background: row.enabled ? Palette.secondary : Palette.outline;
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            Text {
+                                text: row.name;
+                                font-size: 12px;
+                                font-weight: 700;
+                                color: row.enabled ? Palette.on-surface : Palette.on-variant;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.detail;
+                                font-size: 10px;
+                                color: Palette.on-variant;
+                                overflow: elide;
+                            }
+                        }
+                        Button {
+                            text: row.enabled ? "Disable" : "Enable";
+                            clicked => { root.toggle(row.index); }
+                        }
+                        Button {
+                            text: "Remove";
+                            clicked => { root.remove(row.index); }
+                        }
+                    }
+                }
+            }
+    }
+}

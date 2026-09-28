@@ -1,0 +1,33 @@
+[package]
+name = "greg-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Desktop UI for gregModmanager (Slint)"
+
+[[bin]]
+name = "gregmodmanager"
+path = "src/main.rs"
+
+[dependencies]
+greg-core.workspace = true
+greg-platform.workspace = true
+greg-steam.workspace = true
+greg-modstore.workspace = true
+greg-loader.workspace = true
+slint = "1.18.1"
+tokio.workspace = true
+rfd.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+getrandom = "0.3"
+
+[build-dependencies]
+slint-build = "1.18.1"
+
+[dev-dependencies]
+image = "0.25"

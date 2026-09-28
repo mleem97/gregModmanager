@@ -117,7 +117,7 @@ tests/GregModmanager.Tests/      xUnit test project
 build/                           interactive builders, release scripts, installers
 docker/                          Linux build/test container and Windows-container notes
 docs/                            repository documentation (the tracked wiki content)
-.forgejo/workflows/              CI pipelines (Forgejo Actions; GitHub is a read-only mirror)
+.forgejo/workflows/ + .gitea/workflows/   CI pipelines, byte-identical (Forgejo + Gitea Actions; GitHub is a read-only archive mirror)
 VERSION                          single source of truth for the version (.csproj is the fallback)
 LICENSE                          Apache 2.0
 ```

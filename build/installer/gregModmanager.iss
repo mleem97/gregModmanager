@@ -16,7 +16,9 @@
 
 #define MyAppName "gregModmanager"
 #define MyAppPublisher "GregFramework"
+#ifndef MyAppExeName
 #define MyAppExeName "GregModmanager.exe"
+#endif
 #define MyAppURL "https://github.com/mleem97/gregFramework"
 
 [Setup]
@@ -67,7 +69,11 @@ german.WelcomeLabel2=Hiermit wird {#MyAppName} {#MyAppVersion} auf Ihrem Compute
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 
 [Files]
+#ifdef SourceDir
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#else
 Source: "..\..\src\GregModmanager.Avalonia\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
 
 [InstallDelete]
 Type: filesandordirs; Name: "{app}\*"
@@ -159,6 +165,8 @@ var
 begin
   if CurStep = ssInstall then
   begin
+#ifndef SkipVCRedist
+    // .NET builds need the VC++ runtime; Rust gnu builds link it statically.
     if not IsVCRedistInstalled() then
     begin
       VCRedistPath := ExpandConstant('{tmp}\vc_redist.x64.exe');
@@ -184,5 +192,6 @@ begin
         WizardForm.ProgressGauge.Style := npbstNormal;
       end;
     end;
+#endif
   end;
 end;

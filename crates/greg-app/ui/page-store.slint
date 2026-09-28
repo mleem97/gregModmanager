@@ -1,0 +1,169 @@
+import { LineEdit, Button, ProgressIndicator } from "std-widgets.slint";
+import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { StoreRow, UpdateRow } from "models.slint";
+
+// Modstore needs no side navigation — Catalog / Updates tabs suffice.
+export component StorePage inherits VerticalLayout {
+    in-out property <string> search;
+    in-out property <[StoreRow]> items;
+    in-out property <[UpdateRow]> updates;
+    in-out property <float> progress;
+    in-out property <bool> busy;
+    in-out property <string> status;
+
+    callback refresh();
+    callback check-updates();
+    callback cancel();
+    callback install(int);
+    callback install-update(int);
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: "MODSTORE"; }
+
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: center;
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Search Modstore…";
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: "Refresh";
+                enabled: !root.busy;
+                clicked => { root.refresh(); }
+            }
+            Button {
+                text: "Updates";
+                enabled: !root.busy;
+                clicked => { root.check-updates(); }
+            }
+            if root.busy: Button {
+                text: "Cancel";
+                clicked => { root.cancel(); }
+            }
+        }
+    }
+    if root.busy: ProgressIndicator {
+        progress: root.progress;
+    }
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+
+    // Custom tabs: TabWidget sizes content to preferred (Flickable
+    // reports 0), leaving the content invisible. Buttons + conditional
+    // Rectangles give the Flickable a real viewport instead.
+    in-out property <bool> show-updates;
+    Rectangle {
+        height: 36px;
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: start;
+            Button {
+                text: "Catalog";
+                clicked => { root.show-updates = false; }
+            }
+            Button {
+                text: "Updates (" + root.updates.length + ")";
+                clicked => { root.show-updates = true; }
+            }
+        }
+    }
+
+    if !root.show-updates: Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        Flickable {
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+                for item[idx] in root.items: Rectangle {
+                        background: Palette.container-low;
+                        border-radius: Palette.radius;
+                        border-width: 1px;
+                        border-color: Palette.outline;
+                        HorizontalLayout {
+                            padding: 8px;
+                            spacing: 8px;
+                            Thumb {
+                                src: item.thumb;
+                                y: (parent.height - self.height) / 2;
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: item.title;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                    color: Palette.on-surface;
+                                }
+                                Text {
+                                    text: item.meta;
+                                    font-size: 11px;
+                                    color: Palette.on-variant;
+                                }
+                            }
+                            Button {
+                                text: "Install";
+                                clicked => { root.install(idx); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    if root.show-updates: Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        Flickable {
+                VerticalLayout {
+                    padding: 6px;
+                    spacing: 4px;
+                    for update[idx] in root.updates: Rectangle {
+                        background: Palette.container-low;
+                        border-radius: Palette.radius;
+                        border-width: 1px;
+                        border-color: Palette.outline;
+                        HorizontalLayout {
+                            padding: 8px;
+                            spacing: 8px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: update.title;
+                                    font-size: 13px;
+                                    font-weight: 700;
+                                    color: Palette.on-surface;
+                                }
+                                Text {
+                                    text: update.versions;
+                                    font-size: 11px;
+                                    color: Palette.on-variant;
+                                }
+                            }
+                            Button {
+                                text: "Update";
+                                clicked => { root.install-update(idx); }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+}

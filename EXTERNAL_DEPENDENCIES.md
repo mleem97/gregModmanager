@@ -12,6 +12,7 @@ a release.
 | Avalonia 12.1.1 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
 | Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
 | Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
+| Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (Rust restart, `greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
 | xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |
 
 ## Redistributables and platform assets
@@ -20,6 +21,7 @@ a release.
 | --- | --- | --- |
 | Steam native library (Windows `steam_api64.dll`) | Windows x64 publish output | governed by Valve Steamworks terms; do not present it as open source |
 | Steam native library (Linux `libsteam_api.so` / `libsteam_api64.so`, Steamworks SDK 1.61 interface set: `SteamApps_v008`/`SteamFriends_v017`) | Linux x64 publish output, sourced from the `Facepunch.Steamworks.Dll 1.61.0` NuGet redistributable (`runtimes/linux-x64/native/libsteam_api.so`) to match `Cherry.Facepunch.Steamworks 2.5.0` | governed by Valve Steamworks terms; do not present it as open source. Newer SDK builds (e.g. 1.62.0 with `SteamApps_v009`) are **not** compatible with the managed wrapper and break `SteamClient.Init` on Linux |
+| Steam native libraries via `steamworks-sys` (Rust restart): Windows `steam_api64.dll`, Linux `libsteam_api.so`, macOS `libsteam_api.dylib` | staged next to the binaries by `cargo xtask dist` (rpath/`$ORIGIN` on Unix, DLL search on Windows) | governed by Valve Steamworks terms; do not present them as open source. `steam_appid.txt` (`4170200`) ships alongside |
 | `steam_appid.txt` | platform publish output where configured | project configuration, not a library |
 | bundled fonts | desktop resources | see the licence files beside the vendored fonts |
 | Visual C++ Redistributable | Windows when required by the installed runtime/components | governed by Microsoft terms |
@@ -38,7 +40,7 @@ signing, and notarization.
 | nfpm and native package tools | DEB, RPM, APK, and Arch packages |
 | WSL | optional Windows-host Linux package adapter |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Forgejo Actions (`.forgejo/workflows/`) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the Forgejo API, one Discord notification per run. GitHub is a read-only mirror with no workflows. |
+| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the instance API, one Discord notification per run. GitHub is a read-only archive mirror with no workflows. |
 
 ## Release formats
 

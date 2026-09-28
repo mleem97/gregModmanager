@@ -1,0 +1,89 @@
+// Shared row models between the shell and the pages.
+
+export struct NavItem {
+    id: string,
+    label: string,
+}
+
+export struct ProjectRow {
+    name: string,
+    title: string,
+    meta: string,
+    state: string,
+    state-ok: bool,
+    root: string,
+    fileid: string,
+    // Empty when the project has no preview file.
+    thumb: image,
+}
+
+export struct CheckRow {
+    label: string,
+    detail: string,
+    ok: bool,
+}
+
+export struct BrowseRow {
+    // Workshop file id as string (u64 does not fit Slint int).
+    id: string,
+    title: string,
+    score: string,
+    // Cached remote preview; empty until downloaded.
+    thumb: image,
+}
+
+export struct StoreRow {
+    title: string,
+    meta: string,
+    slug: string,
+    // Cached remote preview; empty until downloaded.
+    thumb: image,
+}
+
+export struct UpdateRow {
+    title: string,
+    versions: string,
+}
+
+export struct HealthRow {
+    label: string,
+    detail: string,
+    ok: bool,
+}
+
+export struct LocalRow {
+    name: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the Rust cache (paths never cross into Slint).
+    index: int,
+    // Sibling preview next to the file; empty when absent.
+    thumb: image,
+}
+
+export struct ProblemRow {
+    // "error" | "warning" | "info".
+    severity: string,
+    source: string,
+    message: string,
+    has-action: bool,
+    action-label: string,
+    // Opaque index into the Rust cache.
+    index: int,
+}
+
+export struct PackRow {
+    name: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the Rust cache.
+    index: int,
+}
+
+export struct PackEntryRow {
+    title: string,
+    detail: string,
+    enabled: bool,
+    // Opaque index into the pack's entries.
+    index: int,
+}

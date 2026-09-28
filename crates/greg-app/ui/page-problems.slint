@@ -1,0 +1,80 @@
+import { Button } from "std-widgets.slint";
+import { Palette, SectionTitle } from "theme.slint";
+import { ProblemRow } from "models.slint";
+
+// Problems inbox: aggregated diagnostics (game root, Steam, GregApi,
+// health checks, unpublished project changes). Each row can jump to the
+// responsible page via its action.
+export component ProblemsPage inherits VerticalLayout {
+    in-out property <[ProblemRow]> rows;
+    in-out property <string> status;
+
+    callback refresh();
+    callback act(int);
+
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: "PROBLEMS"; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        Button {
+            text: "Re-check";
+            clicked => { root.refresh(); }
+        }
+    }
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+
+    Rectangle {
+        background: Palette.container-low;
+        border-radius: Palette.radius;
+        border-width: 1px;
+        border-color: Palette.outline;
+        Flickable {
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+                for row in root.rows: Rectangle {
+                    background: Palette.container;
+                    border-radius: Palette.radius;
+                    HorizontalLayout {
+                        padding: 8px;
+                        spacing: 10px;
+                        Text {
+                            text: row.severity == "error" ? "✗" : (row.severity == "warning" ? "!" : "i");
+                            font-size: 14px;
+                            font-weight: 700;
+                            color: row.severity == "error" ? Palette.error : (row.severity == "warning" ? #E8B93E : Palette.primary);
+                            vertical-alignment: center;
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            Text {
+                                text: row.source;
+                                font-size: 11px;
+                                font-weight: 700;
+                                letter-spacing: 1px;
+                                color: Palette.on-variant;
+                            }
+                            Text {
+                                text: row.message;
+                                font-size: 12px;
+                                color: Palette.on-surface;
+                                wrap: word-wrap;
+                            }
+                        }
+                        if row.has-action: Button {
+                            text: row.action-label;
+                            clicked => { root.act(row.index); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -7,8 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Modstore E2E (live `datacentermods.com` verified 2026-09-28): catalog
+  (`GET /api/v1/mods`), updates (`POST /api/v1/mods/updates/check`),
+  collections (`GET /api/collections`), upload (`POST /api/upload-url` +
+  `POST /api/mods/submit`, 401 without Bearer) and the OAuth browser flow
+  (`GET /auth/login` → 307, `POST /auth/token`, `POST /auth/logout`)
+  match the desktop client. Store is live but empty
+  (`{"schemaVersion":1,"mods":[]}`).
+- OAuth session restore no longer accepts a `200 null` get-session body:
+  `BetterAuthClient::verify_session` is fail-closed and accepts both the
+  flat `{id, email}` shape and BetterAuth's `{user, session}` wrapper.
+  Expired/invalid tokens now force a fresh browser login instead of a
+  stale session.
+
+## [1.7.0] - 2026-09-28
+
 ### Added
 
+- Modmanager core loop: My Mods/Plugins/Libs (enable/disable/remove),
+  local Modpacks (create, apply, export/import) and shareable Steam-like
+  Collections, Problems inbox with jump actions, Report-a-Bug tracker link.
+  Browse unifies Browse/Subscribed/Favorited with auto-load (My Uploads
+  removed — own uploads live in Projects).
+- `cargo xtask dist`: portable release packages with native Steam libraries
+  staged next to the binaries — Windows `steam_api64.dll` (`.zip`),
+  Linux `libsteam_api.so` (`.tar.gz`), macOS `libsteam_api.dylib` (`.tar.gz`),
+  plus `steam_appid.txt`, docs, and SHA-256 sidecars. Cross-builds via
+  `--target` (win-x64 verified with mingw).
+- Rust workspace restart (`feat/rust-workspace`): `greg-core` (models, Keep a
+  Changelog/SemVer, Markdown→Steam-BBCode, upload checks, l10n en/de),
+  `greg-platform` (workspace, prefs, logs, protocol, repro bundles, telemetry),
+  `greg-steam` (`steamworks` crate backend with publish/browse/subscribe/
+  download), `greg-modstore` (catalog, updates, atomic installs, intents,
+  auth), `greg-loader` (game adapters, health checks, sync, channels,
+  installers, templates), `greg-cli` headless publish/status/list, `greg-app`
+  Slint main window (icon bar, conditional navigation, Steam/GregApi status
+  bar with Modstore gating), and `xtask`. C# sources moved to
+  `.reference/modmanager-old/`.
+
+- Dual CI: `.gitea/workflows/` added as byte-identical copy of
+  `.forgejo/workflows/` (Gitea Actions alongside Forgejo Actions, guarded by a
+  `parity` job). GitHub has no workflows directory and runs no automation —
+  it is a read-only archive mirror only.
 - File-based project docs: `README.md` (Markdown) is the description source and
   `CHANGELOG.md` (Keep a Changelog + SemVer) is the changelog source. Steam
   uploads get converted BBCode/plain text automatically — the Modstore keeps
@@ -16,6 +58,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   auto-read, so updates need no manual input in the app or `--changelog` flag.
   New template projects ship both files; upload checks validate SemVer and the
   Keep a Changelog format.
+- Workshop gallery upload: editor screenshots (`additional_previews`) are
+  attached in a second update after publish (≤ 1 MiB each, larger/missing
+  files logged and skipped). Steam appends gallery files (no replace API).
+- Workshop gallery download: import fetches an item's gallery into
+  `screenshots/` and records it in `additional_previews`.
+- Modstore API calls use the OAuth session: catalog and update checks send
+  the access token as Bearer when logged in (release downloads stay
+  unsigned CDN URLs).
+- List thumbnails: My Mods shows sibling previews (`Foo.png`/`.jpg` next
+  to the file), Projects shows the project preview file, the editor shows
+  a large preview box, and Browse/Modstore download remote previews into
+  a cache in the background (placeholder box until loaded).
 
 ### Changed
 
@@ -24,6 +78,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 ### Fixed
+
+- Main-window page layout: content pages are compact and top-anchored again
+  (no void above lists, no bottom-anchored rows). Root causes: the content
+  wrapper packed stretch-less pages at the end, `vertical-stretch` on
+  fixed-content list containers only propagated tallness upward while bare
+  status texts absorbed the free space mid-page, and `TabWidget` sized its
+  `Flickable` tab content to zero height. The Modstore now uses custom tab
+  buttons with conditional content panels instead of `TabWidget`.
+- My Mods auto-scan: reopening/refreshing a local page re-scans the content
+  directories on change (signature-based change detection).
+- Upload freeze fixed: project sync-state hashing (SHA-256 over every
+  `content/` byte) ran synchronously on the UI thread on every Projects
+  refresh/save/Upload click, freezing the app for large mods. Hashing now
+  runs in a background job with a sync-state cache — lists paint instantly
+  ("?" while unknown) and flip to SYNCED/UPDATED! when the job drains.
+  Covered by the `project_sync_hashes_off_ui_thread` regression test.
+- Empty changelog no longer blocks the first publish (warning only), and
+  a blocked Save & Upload now names the failing checks in the status line
+  instead of doing nothing. Worker panics surface as failed outcomes.
+- Health check looks for `Mods/gregCore.dll` (renamed assembly).
+- OAuth session flow: `greg://auth/callback` (plus legacy `greg://v1/…`)
+  handled at startup and forwarded from second instances (single-instance
+  guard + handoff file), request-id validation, session restore on boot,
+  profile card + session menu (My Mods, Upload, Settings, Logout).
+- Rust CI (`rust.yml`, byte-identical in `.forgejo/` + `.gitea/`): fmt,
+  clippy, tests, Linux dist build, Windows cross-build.
 
 ### Security
 

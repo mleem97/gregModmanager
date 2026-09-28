@@ -1,13 +1,16 @@
-# AGENTS.md — gregModmanager
+# AGENTS.md — gregModmanager (Rust restart)
 
 This file is the short entry point for agent-oriented repository instructions. Read the referenced companion files before changing code, builds, documentation, or pull requests.
 
 ## Important Note
 
-- All Linux/Unix relevant changes that cannot be mixed with the other OS need to go in "./src/GregModmanager.Unix"
-- All Windows relevant changes that cannot be mixed with the other OS need to go in "./src/GregModmanager.Windows"
-- All MacOs Related changes that cannot be mixed with the other os need to go in "./src/GregModmanager.MacOs"
-- There will be/is a Companion Plugin for Melonloader to integrate the Modmanager into the game. (Maybe with overlays? Plan with atomic tasks) - Located here: "./src/GregModmanager.Melons/gregPlugin.ModmanagerCompanion"
+- The C# / Avalonia implementation is frozen under `./.reference/modmanager-old/` (buildable via `GregModmanager.sln`). Do not extend it; the active app is Rust.
+- The active workspace plan (crates, dependencies, C# → Rust mapping) lives in `./RUST_GRAPH.md`. Consult it before adding crates or dependencies.
+- All Linux/Unix relevant changes that cannot be mixed with the other OS go behind `cfg(target_os = "linux")` in `crates/greg-platform` (or a `#[cfg(unix)]` module).
+- All Windows relevant changes that cannot be mixed with the other OS go behind `cfg(target_os = "windows")` in `crates/greg-platform`.
+- All macOS related changes that cannot be mixed with the other OS go behind `cfg(target_os = "macos")` in `crates/greg-platform`.
+- MelonLoader plugins (`SubDirectoryFixer`, `gregPlugin.ModmanagerCompanion`) stay .NET 6 — they load inside MelonLoader and are never rewritten in Rust. Frozen sources: `./.reference/modmanager-old/src/GregModmanager.Melons/`. If the Rust app must build them, shell out to the `dotnet` CLI via `xtask`.
+- There will be/is a Companion Plugin for Melonloader to integrate the Modmanager into the game. (Maybe with overlays? Plan with atomic tasks)
 - Always use Orchestration of several Agents if possible to
 
 ## Companion files
@@ -20,11 +23,11 @@ This file is the short entry point for agent-oriented repository instructions. R
 ## Project context
 
 - Application: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI: Latest Avalonia if possible.
-- Target framework: Latest Stable .net for the desktop app; runtime-facing helper projects stay compatible with .NET 6 unless explicitly requested and validated, but only for Melonloader Integrations.
-- Solution: `GregModmanager.sln`.
-- Executable project: `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`.
-- Shared library: `src/GregModmanager.Core/GregModmanager.Core.csproj`.
+- UI: `slint`/`slint-build` (retained mode, single binary); see `RUST_GRAPH.md` for the chosen stack and alternatives.
+- Target language: latest stable Rust (rustup toolchain); MSRV is "latest stable" unless the maintainer pins one.
+- Workspace root: `Cargo.toml` with members under `crates/*` plus `xtask/`.
+- Executable crates: `crates/greg-app` (desktop UI), `crates/greg-cli` (headless `publish`/`status`/`list`).
+- Domain crates: `crates/greg-core`, `crates/greg-steam`, `crates/greg-modstore`, `crates/greg-loader`, `crates/greg-platform`.
 
 ## Required workflow
 
@@ -36,33 +39,33 @@ This file is the short entry point for agent-oriented repository instructions. R
 
 ## Architecture guardrails
 
-- Core should not reference Avalonia. If a required fix appears to need that dependency, stop and ask for maintainer confirmation.
-- Avalonia may depend on Core through `<ProjectReference>`.
-- Use dependency injection in `Program.cs` for services.
-- Prefer `Path.Combine`, `Environment.SpecialFolder`, known paths, or validated user paths over hard-coded platform paths.
-- Guard platform-specific code with compile-time or runtime platform checks unless the maintainer explicitly confirms a platform-only change.
+- `greg-core` must not depend on UI crates (`slint`). If a required fix appears to need that dependency, stop and ask for maintainer confirmation.
+- `greg-app` / `greg-cli` may depend on domain crates; they stay thin (composition root + presentation).
+- Wire services via constructor injection in the binary `main.rs` composition roots.
+- Prefer the `dirs` crate, known paths, or validated user paths over hard-coded platform paths.
+- Guard platform-specific code with `cfg(target_os = …)` in `greg-platform` unless the maintainer explicitly confirms a platform-only change.
 
 ## Steam Workshop guardrails
 
-- Check `SteamPublishRateLimiter.Shared.TryAcquire(out retryAfter)` before `SubmitAsync()` unless the maintainer explicitly confirms a controlled test path.
+- Enforce the publish rate limiter before submitting an item update unless the maintainer explicitly confirms a controlled test path.
 - Display cooldown timers in seconds when the UI exposes rate-limit state unless the UX owner confirms a different copy format.
-- Keep `steam_api64.dll` out of Authenticode signing loops unless the vendor changes the binary format and the maintainer confirms the change.
+- Keep the vendor Steam native library (`steam_api64` / `libsteam_api`) out of Authenticode signing loops unless the vendor changes the binary format and the maintainer confirms the change.
 
 ## Build and release guardrails
 
-- Keep PowerShell build scripts and Forgejo Actions workflows (`.forgejo/workflows/`) aligned unless a PR intentionally stages a migration and explains the temporary divergence. GitHub is a read-only mirror — no CI lives in `.github/`.
-- Preserve publish-size settings unless a measured, reviewed change requires otherwise.
+- Keep `xtask` commands and CI workflows aligned unless a PR intentionally stages a migration and explains the temporary divergence. `.forgejo/workflows/` (Forgejo Actions) and `.gitea/workflows/` (Gitea Actions) must stay byte-identical — the `parity` job fails the run on drift. GitHub is a read-only archive mirror — no CI lives in `.github/`.
+- Preserve binary-size settings unless a measured, reviewed change requires otherwise.
 - Breaking changes normally require a major SemVer bump; ask the maintainer before applying a different release policy.
 - Manual release promotion is allowed only when the automated workflow is unavailable or the maintainer requests it.
 
 ## JSON and localization
 
-- Register serialized DTOs in `src/GregModmanager.Core/Models/AppJsonContext.cs` unless the type is intentionally excluded and documented.
-- Add UI strings to `AppStrings.resx` and `AppStrings.de.resx` at minimum unless the maintainer explicitly limits localization scope.
+- Derive `serde::Serialize` / `Deserialize` on DTOs; keep wire formats backward compatible unless the change is versioned and documented.
+- Keep UI strings in the localization module with English plus German at minimum unless the maintainer explicitly limits localization scope.
 - Repository documentation should be English unless the user or maintainer explicitly requests another language for the artifact.
 
 ## Final checks
 
-- Run the most relevant build, test, or static check available in the environment.
+- Run the most relevant check available: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`.
 - If a check cannot be run, state that limitation in the PR or final response.
 - Verify whether relevant wiki pages need updates; list follow-up pages when the wiki is not available in the working environment.
