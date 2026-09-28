@@ -6,16 +6,23 @@ name: Build & Release
 # .github/workflows/ does not exist on purpose: GitHub is a read-only
 # archive mirror, so no automation runs there.
 #
+# Rust restart: the C# / Avalonia sources are frozen under
+# .reference/modmanager-old/ and no longer build on main — all build jobs
+# below compile the Rust workspace (crates/* + xtask). Portable artifacts
+# come straight out of `cargo xtask dist`.
+# macOS has no runner on this instance (all jobs run ubuntu-latest) and
+# cannot be cross-built from Linux without the Apple SDK — macOS assets
+# are pending a macOS runner, they are NOT faked.
+#
 # No hardcoded instance URL is needed — links use github.server_url, and the
 # container registry host is derived from it. Secrets to configure per
 # instance (Forgejo AND Gitea):
 #   TELEMETRY_ENDPOINT / TELEMETRY_USER / TELEMETRY_API_KEY / TELEMETRY_TENANT,
 #   DISCORD_WEBHOOK_URL (single notification per run, see `notify` job).
 #
-# Windows artifacts are cross-built on Linux (dotnet publish -r win-x64):
-#   - portable ZIP: always
-#   - Inno Setup EXE: best-effort when Wine + ISCC are available, else skipped
-#   - WiX MSI: skipped on Linux (needs a Windows host)
+# Windows installer is best-effort (Wine + ISCC); the portable ZIP always
+# ships. The Inno script registers the `greg://` protocol and skips the
+# VC++ redist for Rust builds (/DSkipVCRedist).
 
 on:
   push:
@@ -37,12 +44,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  DOTNET_VERSION: '10.0.x'
-  AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
-  CORE_PROJECT: 'src/GregModmanager.Core/GregModmanager.Core.csproj'
-  SOLUTION: 'GregModmanager.sln'
-
 permissions:
   contents: read
 
@@ -61,17 +62,17 @@ jobs:
       - id: resolve
         shell: bash
         run: |
-          # VERSION file is the single source of truth, .csproj is the fallback.
+          # VERSION file is the single source of truth, workspace Cargo.toml is the fallback.
           ver="$(cat VERSION 2>/dev/null | tr -d '\r' | xargs)"
           if [ -z "$ver" ]; then
-            ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+            ver=$(sed -n 's:^version = "\(.*\)":\1:p' Cargo.toml | head -n 1 | tr -d '\r' | xargs)
           fi
-          [ -n "$ver" ] || ver='1.5.0'
+          [ -n "$ver" ] || ver='1.6.1'
           numeric="${ver%%-*}"
           if [[ "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             numeric="$numeric.0"
           elif [[ ! "$numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            numeric='1.5.0.0'
+            numeric='1.6.1.0'
           fi
           is_release=false
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9] ]] && is_release=true
@@ -104,76 +105,48 @@ jobs:
     name: Test
     needs: [version, parity]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
-      - run: dotnet restore ${{ env.SOLUTION }}
-      - run: dotnet build ${{ env.SOLUTION }} --no-restore -c Release
-      - run: dotnet test ${{ env.SOLUTION }} --no-build -c Release --verbosity normal
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Slint system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libfontconfig1-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
 
   build-windows-cross:
     name: Build Windows (cross-compiled on Linux)
     needs: [version, test]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      setup_name: ${{ steps.package.outputs.setup_name }}
-      portable_name: ${{ steps.package.outputs.portable_name }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v6
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          targets: x86_64-pc-windows-gnu
 
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
-
-      - name: Telemetry Injection
-        shell: bash
-        env:
-          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
-          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
-          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
-          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+      - name: Install mingw + zip
         run: |
-          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
-          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
-            echo "Injecting telemetry secrets..."
-            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
-            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
-            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
-            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
-          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 zip
 
-      - name: Publish Windows x64 (cross-compile)
-        run: |
-          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r win-x64 \
-            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
-            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
-            -o ./publish/win-x64
-          rm -f ./publish/win-x64/libsteam_api.so ./publish/win-x64/libsteam_api64.so
-          if [ -f "src/GregModmanager.Core/steam_api64.dll" ]; then
-            cp "src/GregModmanager.Core/steam_api64.dll" ./publish/win-x64/steam_api64.dll
-          fi
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Dist Windows x64
+        run: cargo run -p xtask -- dist --target x86_64-pc-windows-gnu
 
       - name: Self-sign (osslsigncode, best-effort)
         if: ${{ inputs.signing == 'self-signed' }}
         run: |
+          STAGE="$(ls -d dist/gregmodmanager-*-win-x64 | head -n 1)"
           if command -v osslsigncode >/dev/null 2>&1 && [ -n "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" ]; then
             echo "${{ secrets.WINDOWS_SIGN_PFX_B64 }}" | base64 -d > /tmp/sign.pfx
             # Primary project URL (Forgejo main repo); GitHub archive mirror as fallback.
@@ -181,54 +154,41 @@ jobs:
             # Fallback: https://github.com/mleem97/gregModmanager
             osslsigncode sign -pkcs12 /tmp/sign.pfx -pass "${{ secrets.WINDOWS_SIGN_PASSWORD }}" \
               -n "gregModmanager" -i "$info_url" \
-              -in ./publish/win-x64/GregModmanager.exe -out ./publish/win-x64/GregModmanager-signed.exe
-            mv ./publish/win-x64/GregModmanager-signed.exe ./publish/win-x64/GregModmanager.exe
+              -in "$STAGE/gregmodmanager.exe" -out "$STAGE/gregmodmanager-signed.exe"
+            mv "$STAGE/gregmodmanager-signed.exe" "$STAGE/gregmodmanager.exe"
             rm -f /tmp/sign.pfx
+            # Re-zip (the xtask archive predates signing) + refresh the hash sidecar.
+            (cd dist && rm -f ./*.zip ./*.sha256 && zip -r "$(basename "$STAGE").zip" "$(basename "$STAGE")" && sha256sum "$(basename "$STAGE").zip" > "$(basename "$STAGE").zip.sha256")
           else
             echo "::warning::self-signed requested but osslsigncode or WINDOWS_SIGN_PFX_B64 secret missing — shipping unsigned."
           fi
 
       - name: Inno Setup EXE (Wine, best-effort)
         run: |
-          if command -v wine >/dev/null 2>&1 && { command -v iscc >/dev/null 2>&1 || [ -f "$HOME/.wine/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then
+          STAGE="$(ls -d dist/gregmodmanager-*-win-x64 | head -n 1)"
+          if command -v wine >/dev/null 2>&1 && { command -v iscc >/dev/null 2>&1 || [ -f "$HOME/.wine/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; }; then
             echo "Attempting Inno Setup build under Wine..."
             ISCC_BIN="$(command -v iscc || echo "$HOME/.wine/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
+            SRC_WIN="$(winepath -w "$PWD/$STAGE")"
             wine "$ISCC_BIN" "build/installer/gregModmanager.iss" \
               "/DAppVersion=${{ needs.version.outputs.version }}" \
               "/DAppNumericVersion=${{ needs.version.outputs.numeric_version }}" \
-              "/DSourceDir=$PWD/publish/win-x64" || echo "::warning::Inno Setup build failed — shipping portable ZIP only."
+              "/DSourceDir=${SRC_WIN}" \
+              "/DMyAppExeName=gregmodmanager.exe" \
+              "/DSkipVCRedist" || echo "::warning::Inno Setup build failed — shipping portable ZIP only."
           else
             echo "::notice::Wine/ISCC not available — skipping installer EXE, shipping portable ZIP only."
           fi
         shell: bash
-
-      - name: Package
-        id: package
-        env:
-          IS_PRE: ${{ needs.version.outputs.is_pre }}
-        run: |
-          mkdir -p ./artifacts
-          preSuffix=""
-          if [ "$IS_PRE" = "true" ]; then preSuffix="-pre"; fi
-          zipName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Windows.zip"
-          cd ./publish/win-x64 && zip -r "../../artifacts/${zipName}" . && cd ../..
-          echo "portable_name=${zipName}" >> "$GITHUB_OUTPUT"
-          setup="$(ls build/installer/Output/gregModmanager-*${preSuffix}-Windows.exe 2>/dev/null | head -n 1 || true)"
-          if [ -n "$setup" ]; then
-            cp "$setup" ./artifacts/
-            echo "setup_name=$(basename "$setup")" >> "$GITHUB_OUTPUT"
-          else
-            echo "setup_name=" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Portable: ${zipName}, Setup: ${setup:-none}"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
         with:
           name: windows-portable
           path: |
-            artifacts/gregModmanager-*-Windows.zip
-            artifacts/gregModmanager-*-Windows.exe
+            dist/gregmodmanager-*-win-x64.zip
+            dist/gregmodmanager-*-win-x64.zip.sha256
+            build/installer/Output/*.exe
           if-no-files-found: error
 
   build-linux:
@@ -236,94 +196,40 @@ jobs:
     needs: [version, test]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      tar_name: ${{ steps.package.outputs.tar_name }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
-
-      - name: Telemetry Injection
-        shell: bash
-        env:
-          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
-          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
-          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
-          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
+      - name: Install Slint system dependencies
         run: |
-          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
-          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
-            echo "Injecting telemetry secrets..."
-            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
-            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
-            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
-            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
-          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libfontconfig1-dev
 
-      - name: Publish Linux x64
-        run: |
-          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
-            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
-            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
-            -o ./publish/linux-x64
-          rm -f ./publish/linux-x64/steam_api64.dll
-          for steam_library in libsteam_api64.so libsteam_api.so; do
-            if [ -f "src/GregModmanager.Core/${steam_library}" ]; then
-              cp "src/GregModmanager.Core/${steam_library}" "./publish/linux-x64/${steam_library}"
-            fi
-          done
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Create tarball
-        id: package
-        env:
-          IS_PRE: ${{ needs.version.outputs.is_pre }}
-        run: |
-          mkdir -p ./artifacts
-          chmod +x ./publish/linux-x64/GregModmanager
-          preSuffix=""
-          if [ "$IS_PRE" = "true" ]; then preSuffix="-pre"; fi
-          tarName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.tar.gz"
-          tar -czf "./artifacts/${tarName}" -C ./publish/linux-x64 .
-          echo "tar_name=${tarName}" >> "$GITHUB_OUTPUT"
-          zipName="gregModmanager-${{ needs.version.outputs.version }}${preSuffix}-Linux.zip"
-          cd ./publish/linux-x64 && zip -r "../../artifacts/${zipName}" . && cd ../..
-          echo "zip_name=${zipName}" >> "$GITHUB_OUTPUT"
+      - name: Dist Linux x64
+        run: cargo run -p xtask -- dist
 
       - name: Upload tarball
         uses: actions/upload-artifact@v7
         with:
           name: linux-portable
           path: |
-            artifacts/gregModmanager-*-Linux.tar.gz
-            artifacts/gregModmanager-*-Linux.zip
+            dist/gregmodmanager-*-linux-x64.tar.gz
+            dist/gregmodmanager-*-linux-x64.tar.gz.sha256
           if-no-files-found: error
 
   build-linux-packages:
-    name: Build Linux Packages (DEB/RPM/APK/Arch)
+    name: Build Linux Packages (DEB/RPM)
     needs: [version, build-linux]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
 
       - name: Install nfpm
         run: |
@@ -332,40 +238,24 @@ jobs:
           sudo apt install -y nfpm
           nfpm --version
 
-      - name: Telemetry Injection
-        shell: bash
-        env:
-          TELEMETRY_ENDPOINT: ${{ secrets.TELEMETRY_ENDPOINT }}
-          TELEMETRY_USER: ${{ secrets.TELEMETRY_USER }}
-          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
-          TELEMETRY_TENANT: ${{ secrets.TELEMETRY_TENANT }}
-        run: |
-          secrets_path='src/GregModmanager.Core/Services/TelemetrySecrets.cs'
-          if [ -n "$TELEMETRY_ENDPOINT" ] && [ -f "$secrets_path" ]; then
-            echo "Injecting telemetry secrets..."
-            sed -i "s|__LOKI_URL__|$TELEMETRY_ENDPOINT|g" "$secrets_path"
-            [ -n "$TELEMETRY_USER" ] && sed -i "s|__LOKI_USER__|$TELEMETRY_USER|g" "$secrets_path"
-            [ -n "$TELEMETRY_API_KEY" ] && sed -i "s|__LOKI_PASS__|$TELEMETRY_API_KEY|g" "$secrets_path"
-            [ -n "$TELEMETRY_TENANT" ] && sed -i "s|__LOKI_TENANT__|$TELEMETRY_TENANT|g" "$secrets_path"
-          fi
-
-      - name: Publish Linux x64
-        run: |
-          dotnet publish ${{ env.AVALONIA_PROJECT }} -c Release -r linux-x64 \
-            --self-contained true /p:PublishTrimmed=true /p:TrimMode=full \
-            /p:PublishSingleFile=true /p:DebugType=none /p:DebugSymbols=false \
-            -o ./artifacts/publish
+      - name: Download Linux portable
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-portable
+          path: ./artifacts/dl
 
       - name: Build packages
         run: |
-          chmod +x ./build/scripts/linux/build-avalonia-packages.sh
-          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
+          mkdir -p ./artifacts/stage ./artifacts/packages
+          tar -xzf ./artifacts/dl/gregmodmanager-*-linux-x64.tar.gz -C ./artifacts/stage
+          chmod +x ./build/scripts/linux/build-rust-packages.sh
+          ./build/scripts/linux/build-rust-packages.sh ./artifacts/stage ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }} ./artifacts/packages
 
       - name: Upload packages
         uses: actions/upload-artifact@v7
         with:
           name: linux-packages
-          path: artifacts/packages/gregModmanager-*
+          path: artifacts/packages/gregmodmanager-*
           if-no-files-found: error
 
       - name: Build & Push Container (instance registry)
@@ -376,11 +266,12 @@ jobs:
           IMAGE="oci://${REGISTRY_HOST}/${{ github.repository_owner }}/gregmodmanager"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY_HOST" -u ${{ github.actor }} --password-stdin
           docker build -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}" -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest" -f - . <<'EOF'
-          FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends fontconfig libfreetype6 && rm -rf /var/lib/apt/lists/*
           WORKDIR /opt/gregmodmanager
-          COPY artifacts/publish/ ./
-          RUN chmod +x /opt/gregmodmanager/GregModmanager
-          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
+          COPY artifacts/stage/ ./
+          RUN chmod +x /opt/gregmodmanager/gregmodmanager
+          ENTRYPOINT ["/opt/gregmodmanager/gregmodmanager"]
           EOF
           docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}"
           docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest"

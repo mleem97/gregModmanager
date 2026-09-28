@@ -1,4 +1,4 @@
-name: Avalonia Linux Packages
+name: Rust Linux Packages
 
 # Dual CI (Forgejo + Gitea) — see build-and-release.yml header for instance notes.
 # Manual or path-triggered detailed package build (no release, no notify).
@@ -8,8 +8,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/GregModmanager.Avalonia/**'
-      - 'src/GregModmanager.Core/**'
+      - 'crates/**'
       - 'build/scripts/linux/**'
       - '.forgejo/workflows/linux-packages.yml'
       - '.gitea/workflows/linux-packages.yml'
@@ -17,10 +16,6 @@ on:
 permissions:
   contents: read
   packages: write
-
-env:
-  DOTNET_VERSION: '10.0.x'
-  AVALONIA_PROJECT: 'src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -38,12 +33,12 @@ jobs:
       - id: resolve
         shell: bash
         run: |
-          # VERSION file is the single source of truth, .csproj is the fallback.
+          # VERSION file is the single source of truth, workspace Cargo.toml is the fallback.
           ver="$(cat VERSION 2>/dev/null | tr -d '\r' | xargs)"
           if [ -z "$ver" ]; then
-            ver=$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$AVALONIA_PROJECT" | head -n 1 | tr -d '\r' | xargs)
+            ver=$(sed -n 's:^version = "\(.*\)":\1:p' Cargo.toml | head -n 1 | tr -d '\r' | xargs)
           fi
-          [ -n "$ver" ] || ver='1.5.0'
+          [ -n "$ver" ] || ver='1.6.1'
           is_pre='false'
           [[ "$ver" == *-* || "$GITHUB_REF_NAME" != "main" ]] && is_pre='true'
           {
@@ -54,22 +49,23 @@ jobs:
   build-packages:
     needs: [version]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: nuget-${{ runner.os }}-
+      - name: Install Slint system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxkbcommon-dev libfontconfig1-dev
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install nfpm
         run: |
@@ -80,14 +76,16 @@ jobs:
 
       - name: Build packages
         run: |
-          chmod +x ./build/scripts/linux/build-avalonia-packages.sh
-          ./build/scripts/linux/build-avalonia-packages.sh ./artifacts/avalonia-linux ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }}
+          cargo run -p xtask -- dist
+          STAGE="$(ls -d dist/gregmodmanager-*-linux-x64 | head -n 1)"
+          chmod +x ./build/scripts/linux/build-rust-packages.sh
+          ./build/scripts/linux/build-rust-packages.sh "$STAGE" ${{ needs.version.outputs.version }} ${{ needs.version.outputs.is_pre }} ./artifacts/rust-linux/packages
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: linux-packages-detailed
-          path: artifacts/avalonia-linux/packages/gregModmanager-*
+          path: artifacts/rust-linux/packages/gregmodmanager-*
           if-no-files-found: error
 
       - name: Build container (instance registry)
@@ -95,12 +93,15 @@ jobs:
         run: |
           REGISTRY_HOST="$(echo "${{ github.server_url }}" | sed -e 's|^https\?://||' -e 's|/.*$||')"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY_HOST" -u ${{ github.actor }} --password-stdin
+          STAGE="$(ls -d dist/gregmodmanager-*-linux-x64 | head -n 1)"
+          mkdir -p publish && cp -r "$STAGE/"* publish/
           docker build -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}" -t "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest" -f - . <<'EOF'
-          FROM mcr.microsoft.com/dotnet/runtime-deps:9.0
+          FROM debian:bookworm-slim
+          RUN apt-get update && apt-get install -y --no-install-recommends fontconfig libfreetype6 && rm -rf /var/lib/apt/lists/*
           WORKDIR /opt/gregmodmanager
-          COPY artifacts/avalonia-linux/publish/ ./
-          RUN chmod +x /opt/gregmodmanager/GregModmanager
-          ENTRYPOINT ["/opt/gregmodmanager/GregModmanager"]
+          COPY publish/ ./
+          RUN chmod +x /opt/gregmodmanager/gregmodmanager
+          ENTRYPOINT ["/opt/gregmodmanager/gregmodmanager"]
           EOF
           docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:${{ needs.version.outputs.version }}"
           docker push "$REGISTRY_HOST/${{ github.repository_owner }}/gregmodmanager:latest"
