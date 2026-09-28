@@ -25,12 +25,33 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let ui = MainWindow::new()?;
+    // Single instance: a second launch forwards `greg://` URLs to the
+    // primary through the handoff file and exits (OAuth browser roundtrip).
+    let _instance = match greg_platform::instance::InstanceGuard::acquire("gregmodmanager") {
+        Ok(guard) => Some(guard),
+        Err(_) => {
+            for arg in std::env::args().skip(1) {
+                if arg.starts_with("greg://") {
+                    actions::forward_to_primary(&arg);
+                }
+            }
+            std::process::exit(0);
+        }
+    };
     let state = AppState::new(ui.as_weak());
     wire(&ui, &state);
     AppState::append_log(&state, "gregModmanager started.");
+    // Session restore + protocol URLs from our own launch arguments.
+    actions::restore_session(&state);
+    for arg in std::env::args().skip(1) {
+        if arg.starts_with("greg://") {
+            actions::handle_protocol_url(&state, &arg);
+        }
+    }
     // Repeating UI tick (kept alive until the event loop exits).
     let weak_state = std::sync::Arc::downgrade(&state);
     let _timer = slint::Timer::default();
+    let mut tick_count: u64 = 0;
     _timer.start(
         slint::TimerMode::Repeated,
         std::time::Duration::from_millis(150),
@@ -38,6 +59,11 @@ fn main() -> anyhow::Result<()> {
             if let Some(state) = weak_state.upgrade() {
                 if let Ok(mut guard) = state.lock() {
                     actions::tick(&mut guard);
+                }
+                // Second-instance `greg://` handoffs (~2 s cadence).
+                tick_count += 1;
+                if tick_count.is_multiple_of(13) {
+                    actions::drain_handoff(&state);
                 }
             }
         },
@@ -69,6 +95,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_profile_clicked(move || actions::profile_clicked(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_profile_menu_clicked(move |id| actions::profile_menu(&state, &id));
     }
     // Custom window chrome.
     {

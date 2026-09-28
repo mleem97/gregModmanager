@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use greg_core::l10n;
+use greg_core::models::ActiveSession;
 use greg_core::models::{ProjectSyncState, WorkshopMetadata};
 use greg_core::prefs::Preferences;
 use greg_platform::filelog::FileLog;
@@ -31,6 +32,10 @@ pub enum UiEvent {
     BackendReady(Arc<dyn SteamBackend>),
     /// GregApi reachability tick.
     Probe { gregapi_ok: bool },
+    /// OAuth browser flow completed (exchange succeeded).
+    AuthSessionEstablished(ActiveSession),
+    /// OAuth browser flow failed (message for the log).
+    AuthSessionFailed(String),
 }
 
 /// Shared application state (behind the Slint callbacks).
@@ -84,6 +89,10 @@ pub struct AppState {
     pub pending_remove: Option<std::path::PathBuf>,
     /// Last scan signature of the visible local page (change detection).
     pub local_sig: String,
+    /// Active Modstore session (OAuth browser flow).
+    pub session: Option<ActiveSession>,
+    /// OAuth request id awaiting the `greg://` callback (replay guard).
+    pub pending_request_id: Option<String>,
 
     /// Problem actions cache: (action id, target) parallel to the rows.
     pub problem_actions: Vec<(String, String)>,
@@ -177,6 +186,8 @@ impl AppState {
             local_entries: Vec::new(),
             pending_remove: None,
             local_sig: String::new(),
+            session: None,
+            pending_request_id: None,
             problem_actions: Vec::new(),
             pack_service: crate::actions::load_packs(),
             selected_pack: None,
@@ -381,6 +392,18 @@ impl AppState {
     pub fn request_probe(state: &Arc<Mutex<Self>>) {
         let flag = state.lock().expect("state").probe_wake.clone();
         flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Logs to buffer + file.
+    /// Appends a log line from `&mut self` contexts (tick/drains).
+    pub fn push_log(&mut self, line: &str) {
+        if let Ok(mut lines) = self.log_lines.lock() {
+            lines.push(line.to_string());
+            if lines.len() > 500 {
+                lines.remove(0);
+            }
+        }
+        self.file_log.info(line);
     }
 
     /// Logs to buffer + file.

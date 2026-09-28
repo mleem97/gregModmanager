@@ -137,6 +137,9 @@ export component MainWindow inherits Window {
     // --- bug report dialog (all Greg mods & programs) ---
     in-out property <bool> show-bug-dialog: false;
 
+    // --- profile session menu ---
+    in-out property <bool> show-profile-menu: false;
+
     // --- settings page state ---
     in-out property <string> se-workspace;
     in-out property <string> se-gameroot;
@@ -153,6 +156,7 @@ export component MainWindow inherits Window {
     callback start-game(string);
     callback login-clicked();
     callback profile-clicked();
+    callback profile-menu-clicked(string);
     callback window-minimize();
     callback window-maximize();
     callback window-close();
@@ -746,6 +750,52 @@ export component MainWindow inherits Window {
                     Button {
                         text: "Cancel";
                         clicked => { root.bug-close(); }
+                    }
+                }
+            }
+        }
+        if root.show-profile-menu && root.profile-visible: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.profile-clicked(); }
+            }
+            Rectangle {
+                width: 220px;
+                // Explicit height: Rectangle children fill, so the card and
+                // its buttons need fixed geometry (4 x 32px + padding/gaps).
+                height: 164px;
+                // Header height + card: anchored top-right under the profile card.
+                x: parent.width - self.width - 70px;
+                y: 44px;
+                background: Palette.container;
+                border-radius: Palette.radius;
+                border-width: 1px;
+                border-color: Palette.outline;
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 4px;
+                    alignment: start;
+                    Button {
+                        height: 32px;
+                        text: "My Mods";
+                        clicked => { root.profile-menu-clicked("mymods"); }
+                    }
+                    Button {
+                        height: 32px;
+                        text: "Upload";
+                        clicked => { root.profile-menu-clicked("upload"); }
+                    }
+                    Button {
+                        height: 32px;
+                        text: "Settings";
+                        clicked => { root.profile-menu-clicked("settings"); }
+                    }
+                    Button {
+                        height: 32px;
+                        text: "Logout";
+                        clicked => { root.profile-menu-clicked("logout"); }
                     }
                 }
             }

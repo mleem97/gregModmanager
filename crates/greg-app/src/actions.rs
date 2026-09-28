@@ -54,6 +54,14 @@ pub fn tick(state: &mut AppState) {
                 };
                 AppState::apply_probe(&ui, ok, user, hint, gregapi_ok);
             }
+            UiEvent::AuthSessionEstablished(session) => {
+                apply_auth_session(state, session);
+            }
+            UiEvent::AuthSessionFailed(message) => {
+                state.push_log(&format!("Login failed: {message}"));
+                let ui = state.ui();
+                ui.set_ed_status(format!("Login failed: {message}").into());
+            }
         }
     }
     // Steam re-check roughly every 60 s (400 × 150 ms).
@@ -231,31 +239,6 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
     }
 }
 
-/// Opens the login URL in a browser (session completes via `greg://` later).
-pub fn login(state: &Arc<std::sync::Mutex<AppState>>) {
-    let request_id = format!(
-        "{:x}{:x}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0),
-        std::process::id()
-    );
-    let formats = login_url_formats();
-    let redirect = percent_encode(greg_modstore::auth_client::AUTH_CALLBACK_REDIRECT_URI);
-    let candidate = formats.first().map(|f| {
-        f.replacen("{0}", &redirect, 1)
-            .replacen("{1}", &percent_encode(&request_id), 1)
-    });
-    match candidate {
-        Some(url) => {
-            AppState::append_log(state, &format!("Opening login: {url}"));
-            let _ = greg_platform::process::open_url(&url);
-        }
-        None => AppState::append_log(state, "Login: no auth endpoint configured."),
-    }
-}
-
 fn login_url_formats() -> Vec<String> {
     greg_core::models::settings::auth_endpoint_candidates()
         .into_iter()
@@ -280,9 +263,350 @@ fn percent_encode(value: &str) -> String {
     out
 }
 
-/// Profile click (logout arrives with the session flow).
+/// Opens the login URL in a browser (session completes via `greg://` later).
+pub fn login(state: &Arc<std::sync::Mutex<AppState>>) {
+    let request_id = format!(
+        "{:x}{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0),
+        std::process::id()
+    );
+    let formats = login_url_formats();
+    let redirect = percent_encode(greg_modstore::auth_client::AUTH_CALLBACK_REDIRECT_URI);
+    let candidate = formats.first().map(|f| {
+        f.replacen("{0}", &redirect, 1)
+            .replacen("{1}", &percent_encode(&request_id), 1)
+    });
+    match candidate {
+        Some(url) => {
+            state.lock().expect("state").pending_request_id = Some(request_id);
+            AppState::append_log(state, &format!("Opening login: {url}"));
+            let _ = greg_platform::process::open_url(&url);
+        }
+        None => AppState::append_log(state, "Login: no auth endpoint configured."),
+    }
+}
+
+/// Profile card click toggles the session menu (logout arrives with OAuth).
 pub fn profile_clicked(state: &Arc<std::sync::Mutex<AppState>>) {
-    AppState::append_log(state, "Profile: session management follows with OAuth.");
+    let guard = state.lock().expect("state");
+    let ui = guard.ui();
+    ui.set_show_profile_menu(!ui.get_show_profile_menu());
+}
+
+/// Session menu selection: navigation mirrors the icon bar, logout ends it.
+pub fn profile_menu(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_show_profile_menu(false);
+    }
+    match id {
+        "logout" => logout(state),
+        "mymods" => on_icon(state, ICON_MODMANAGER),
+        "upload" => on_icon(state, ICON_WORKSHOP),
+        "settings" => on_icon(state, ICON_SETTINGS),
+        _ => {}
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OAuth session flow (`greg://auth/callback` handling).
+// ---------------------------------------------------------------------------
+
+/// Persisted session keys (refresh via verify on boot; no refresh endpoint
+/// in the ported API, so the access token itself is stored).
+const PREF_ACCESS_TOKEN: &str = "greg_access_token";
+const PREF_SESSION_ID: &str = "greg_session_id";
+const PREF_DISPLAY_NAME: &str = "greg_display_name";
+const PREF_EMAIL: &str = "greg_email";
+const PREF_AVATAR_URL: &str = "greg_avatar_url";
+
+/// Parsed `greg://` URL.
+enum ProtocolUrl {
+    /// OAuth callback parameters.
+    AuthCallback {
+        request_id: String,
+        code: String,
+        state: String,
+        nonce: String,
+        signature: String,
+    },
+    /// Anything else (install intents, mod links): logged, not handled.
+    Other(String),
+}
+
+/// Parses a `greg://` URL. Accepts both `greg://auth/callback` and the
+/// legacy C# `greg://v1/auth/callback` path.
+fn parse_protocol_url(url: &str) -> Option<ProtocolUrl> {
+    let url = url.trim();
+    if !url.starts_with("greg://") {
+        return None;
+    }
+    let (path, query) = match url.split_once('?') {
+        Some((p, q)) => (p, q),
+        None => (url, ""),
+    };
+    let path = path.to_lowercase();
+    if path == "greg://auth/callback" || path == "greg://v1/auth/callback" {
+        let get = |key: &str| {
+            query.split('&').find_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                (k == key).then(|| percent_decode(v))
+            })
+        };
+        let oauth = get("requestId").or_else(|| get("request_id"));
+        return Some(ProtocolUrl::AuthCallback {
+            request_id: oauth.unwrap_or_default(),
+            code: get("code").unwrap_or_default(),
+            state: get("state").unwrap_or_default(),
+            nonce: get("nonce").unwrap_or_default(),
+            signature: get("sig").or_else(|| get("signature")).unwrap_or_default(),
+        });
+    }
+    Some(ProtocolUrl::Other(url.to_string()))
+}
+
+fn percent_decode(value: &str) -> String {
+    let mut out = Vec::with_capacity(value.len());
+    let bytes = value.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push(h << 4 | l);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(if bytes[i] == b'+' { b' ' } else { bytes[i] });
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hex(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// Handles one `greg://` URL (own argv or second-instance handoff).
+pub fn handle_protocol_url(state: &Arc<std::sync::Mutex<AppState>>, url: &str) {
+    let parsed = match parse_protocol_url(url) {
+        Some(parsed) => parsed,
+        None => return,
+    };
+    match parsed {
+        ProtocolUrl::Other(other) => {
+            AppState::append_log(state, &format!("Protocol URL ignored: {other}"));
+        }
+        ProtocolUrl::AuthCallback {
+            request_id,
+            code,
+            state: oauth_state,
+            nonce,
+            signature,
+        } => {
+            if code.trim().is_empty() {
+                AppState::append_log(state, "Login callback without code — ignored.");
+                return;
+            }
+            let (expected, formats, bases, tx, runtime_handle) = {
+                let guard = state.lock().expect("state");
+                (
+                    guard.pending_request_id.clone(),
+                    login_url_formats(),
+                    store_base_urls(&guard),
+                    guard.events_tx.clone(),
+                    guard.runtime.handle().clone(),
+                )
+            };
+            if let Some(expected) = expected {
+                if !request_id.is_empty() && request_id != expected {
+                    AppState::append_log(state, "Login callback request mismatch — ignored.");
+                    return;
+                }
+            } else {
+                AppState::append_log(
+                    state,
+                    "Login callback without pending request (restarted mid-flow?) — continuing.",
+                );
+            }
+            let request = greg_core::models::TokenExchangeRequest {
+                request_id,
+                code,
+                state: oauth_state,
+                nonce,
+                signature,
+                redirect_uri: None,
+            };
+            runtime_handle.spawn(async move {
+                let client = greg_modstore::auth_client::AuthApiClient::new(formats, bases);
+                let event = match client.exchange_callback_code(request).await {
+                    Ok(Some(session)) => UiEvent::AuthSessionEstablished(session),
+                    Ok(None) => UiEvent::AuthSessionFailed("empty session response".into()),
+                    Err(e) => UiEvent::AuthSessionFailed(e.to_string()),
+                };
+                let _ = tx.send(event);
+            });
+        }
+    }
+}
+
+/// Applies an established session: state, persisted token, profile UI.
+pub fn apply_auth_session(state: &mut AppState, session: greg_core::models::ActiveSession) {
+    state.pending_request_id = None;
+    state.session = Some(session.clone());
+    state
+        .prefs
+        .set_string(PREF_ACCESS_TOKEN, &session.access_token);
+    state.prefs.set_string(PREF_SESSION_ID, &session.session_id);
+    state
+        .prefs
+        .set_string(PREF_DISPLAY_NAME, &session.identity.display_name);
+    state.prefs.set_string(PREF_EMAIL, &session.identity.email);
+    state.prefs.set_string(
+        PREF_AVATAR_URL,
+        session.identity.avatar_url.as_deref().unwrap_or(""),
+    );
+    let ui = state.ui();
+    ui.set_profile_visible(true);
+    ui.set_profile_name(session.identity.display_name.clone().into());
+    ui.set_profile_hint(if session.identity.email.is_empty() {
+        "Modstore session".into()
+    } else {
+        session.identity.email.clone().into()
+    });
+    // Login is only offered when no session exists.
+    ui.set_login_visible(false);
+    state.push_log(&format!("Logged in as {}.", session.identity.display_name));
+}
+
+/// Restores a persisted session on boot (verify, then rebuild identity).
+pub fn restore_session(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (token, session_id, display_name, email, avatar_url, bases, tx, runtime_handle) = {
+        let guard = state.lock().expect("state");
+        (
+            guard.prefs.get_string(PREF_ACCESS_TOKEN, ""),
+            guard.prefs.get_string(PREF_SESSION_ID, ""),
+            guard.prefs.get_string(PREF_DISPLAY_NAME, ""),
+            guard.prefs.get_string(PREF_EMAIL, ""),
+            guard.prefs.get_string(PREF_AVATAR_URL, ""),
+            store_base_urls(&guard),
+            guard.events_tx.clone(),
+            guard.runtime.handle().clone(),
+        )
+    };
+    if token.trim().is_empty() {
+        return;
+    }
+    runtime_handle.spawn(async move {
+        let client = greg_modstore::auth_client::BetterAuthClient::new(bases);
+        if !client.verify_session(&token).await {
+            let _ = tx.send(UiEvent::AuthSessionFailed("stored session expired".into()));
+            return;
+        }
+        let _ = tx.send(UiEvent::AuthSessionEstablished(
+            greg_core::models::ActiveSession {
+                access_token: token,
+                session_id,
+                identity: greg_core::models::AccountIdentity {
+                    subject_id: String::new(),
+                    email,
+                    display_name: if display_name.is_empty() {
+                        "User".to_string()
+                    } else {
+                        display_name
+                    },
+                    avatar_url: if avatar_url.is_empty() {
+                        None
+                    } else {
+                        Some(avatar_url)
+                    },
+                    roles: vec!["user".to_string()],
+                    tenant: String::new(),
+                },
+            },
+        ));
+    });
+}
+
+/// Ends the session (server call in background, local state cleared now).
+pub fn logout(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (token, bases, runtime_handle) = {
+        let mut guard = state.lock().expect("state");
+        let token = guard.session.as_ref().map(|s| s.access_token.clone());
+        let bases = store_base_urls(&guard);
+        let handle = guard.runtime.handle().clone();
+        guard.session = None;
+        guard.pending_request_id = None;
+        for key in [
+            PREF_ACCESS_TOKEN,
+            PREF_SESSION_ID,
+            PREF_DISPLAY_NAME,
+            PREF_EMAIL,
+            PREF_AVATAR_URL,
+        ] {
+            guard.prefs.remove(key);
+        }
+        let ui = guard.ui();
+        ui.set_profile_visible(false);
+        ui.set_profile_name("".into());
+        ui.set_profile_hint("".into());
+        ui.set_show_profile_menu(false);
+        ui.set_login_visible(ui.get_modstore_available());
+        (token, bases, handle)
+    };
+    AppState::append_log(state, "Logged out.");
+    if let Some(token) = token {
+        runtime_handle.spawn(async move {
+            let client = greg_modstore::auth_client::AuthApiClient::new(Vec::new(), bases);
+            client.end_session(&token).await;
+        });
+    }
+}
+
+/// Handoff file for `greg://` URLs from second instances.
+fn handoff_path() -> std::path::PathBuf {
+    std::env::temp_dir().join("gregmodmanager-protocol")
+}
+
+/// Forwards one protocol URL to the running primary instance.
+pub fn forward_to_primary(url: &str) {
+    use std::fmt::Write as _;
+    let mut content = String::new();
+    if let Ok(existing) = std::fs::read_to_string(handoff_path()) {
+        content.push_str(&existing);
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+    }
+    let _ = writeln!(content, "{url}");
+    let _ = std::fs::write(handoff_path(), content);
+}
+
+/// Picks up second-instance handoffs (called from the main timer with the
+/// shared state — handling a URL may spawn work and lock separately).
+pub fn drain_handoff(state: &Arc<std::sync::Mutex<AppState>>) {
+    let path = handoff_path();
+    let content = match std::fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(_) => return,
+    };
+    let _ = std::fs::remove_file(&path);
+    for url in content
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        AppState::append_log(state, &format!("Protocol handoff: {url}"));
+        handle_protocol_url(state, url);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2552,5 +2876,46 @@ impl AppState {
             }
         }
         state.file_log.info(line);
+    }
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::{parse_protocol_url, ProtocolUrl};
+
+    #[test]
+    fn accepts_both_callback_paths() {
+        for url in [
+            "greg://auth/callback?requestId=abc&code=CODE&state=s&nonce=n&sig=S",
+            "greg://v1/auth/callback?requestId=abc&code=CODE&state=s&nonce=n&sig=S",
+        ] {
+            match parse_protocol_url(url) {
+                Some(ProtocolUrl::AuthCallback {
+                    request_id, code, ..
+                }) => {
+                    assert_eq!(request_id, "abc");
+                    assert_eq!(code, "CODE");
+                }
+                other => panic!("expected callback for {url}, got {}", other.is_some()),
+            }
+        }
+    }
+
+    #[test]
+    fn rejects_foreign_urls_and_routes_other() {
+        assert!(parse_protocol_url("https://example.com/?code=x").is_none());
+        assert!(parse_protocol_url("not a url").is_none());
+        match parse_protocol_url("greg://install/intent?modId=5") {
+            Some(ProtocolUrl::Other(_)) => {}
+            _ => panic!("expected Other"),
+        }
+    }
+
+    #[test]
+    fn decodes_percent_encoding() {
+        match parse_protocol_url("greg://auth/callback?code=AB%2FC%20D&requestId=r") {
+            Some(ProtocolUrl::AuthCallback { code, .. }) => assert_eq!(code, "AB/C D"),
+            _ => panic!("expected callback"),
+        }
     }
 }

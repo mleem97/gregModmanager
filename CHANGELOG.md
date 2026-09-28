@@ -69,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a blocked Save & Upload now names the failing checks in the status line
   instead of doing nothing. Worker panics surface as failed outcomes.
 - Health check looks for `Mods/gregCore.dll` (renamed assembly).
+- OAuth session flow: `greg://auth/callback` (plus legacy `greg://v1/…`)
+  handled at startup and forwarded from second instances (single-instance
+  guard + handoff file), request-id validation, session restore on boot,
+  profile card + session menu (My Mods, Upload, Settings, Logout).
+- Rust CI (`rust.yml`, byte-identical in `.forgejo/` + `.gitea/`): fmt,
+  clippy, tests, Linux dist build, Windows cross-build.
 
 ### Security
 

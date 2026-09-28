@@ -395,6 +395,15 @@ fn screenshots() {
     page_modpacks(&ui, &window);
     page_settings(&ui, &window);
     page_bugdialog(&ui, &window);
+    // Profile session menu (logged-in header state).
+    page_mymods(&ui, &window);
+    ui.set_show_bug_dialog(false);
+    ui.set_login_visible(false);
+    ui.set_profile_visible(true);
+    ui.set_profile_name("Tester".into());
+    ui.set_profile_hint("tester@example.com".into());
+    ui.set_show_profile_menu(true);
+    shot(&ui, &window, "10-profile-menu");
 }
 
 /// Regression test for the upload freeze: project sync-state hashing must
