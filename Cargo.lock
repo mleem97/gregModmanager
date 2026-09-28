@@ -2122,7 +2122,7 @@ dependencies = [
 
 [[package]]
 name = "greg-app"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "getrandom 0.3.4",
@@ -2145,7 +2145,7 @@ dependencies = [
 
 [[package]]
 name = "greg-cli"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2162,7 +2162,7 @@ dependencies = [
 
 [[package]]
 name = "greg-core"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "semver",
  "serde",
@@ -2172,7 +2172,7 @@ dependencies = [
 
 [[package]]
 name = "greg-loader"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "async-trait",
  "greg-core",
@@ -2188,7 +2188,7 @@ dependencies = [
 
 [[package]]
 name = "greg-modstore"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "greg-core",
  "hex",
@@ -2204,9 +2204,10 @@ dependencies = [
 
 [[package]]
 name = "greg-platform"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "dirs",
+ "filetime",
  "greg-core",
  "hex",
  "open",
@@ -2222,7 +2223,7 @@ dependencies = [
 
 [[package]]
 name = "greg-steam"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "greg-core",
  "greg-platform",
@@ -7480,7 +7481,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "anyhow",
  "flate2",

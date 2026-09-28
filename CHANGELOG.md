@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-28
+
 ### Fixed
 
 - Modstore E2E (live `datacentermods.com` verified 2026-09-28): catalog
