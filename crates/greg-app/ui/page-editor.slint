@@ -26,6 +26,8 @@ export component EditorPage inherits VerticalLayout {
     in-out property <[string]> deps;
     in-out property <string> dep-add-text;
     in-out property <string> preview-text;
+    // Empty when no preview file is set.
+    in-out property <image> preview-image;
     in-out property <[string]> shots;
     in-out property <float> progress;
     in-out property <bool> publishing;
@@ -190,6 +192,20 @@ export component EditorPage inherits VerticalLayout {
             }
 
             SectionTitle { text: "ASSETS"; }
+            Rectangle {
+                height: 120px;
+                background: Palette.container-low;
+                border-radius: Palette.radius;
+                border-width: 1px;
+                border-color: Palette.outline;
+                clip: true;
+                Image {
+                    source: root.preview-image;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: contain;
+                }
+            }
             HorizontalLayout {
                 spacing: 8px;
                 Text {

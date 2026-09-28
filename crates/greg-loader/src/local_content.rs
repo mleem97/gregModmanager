@@ -69,6 +69,26 @@ fn folders(game_root: &Path, kind: LocalContentKind) -> Vec<PathBuf> {
     }
 }
 
+/// Sibling preview image next to an installed file (`Foo.png`/`Foo.jpg`
+/// next to `Foo.dll`, stem match, `.disabled` suffix ignored).
+pub fn sibling_preview(file: &Path) -> Option<PathBuf> {
+    let dir = file.parent()?;
+    let name = file.file_name()?.to_str()?;
+    let stem = name
+        .strip_suffix(".disabled")
+        .unwrap_or(name)
+        .rsplit_once('.')
+        .map(|(s, _)| s)
+        .unwrap_or(name);
+    if stem.is_empty() {
+        return None;
+    }
+    ["png", "jpg", "jpeg"]
+        .into_iter()
+        .map(|ext| dir.join(format!("{stem}.{ext}")))
+        .find(|p| p.is_file())
+}
+
 /// Scans installed entries (`.dll` + `.dll.disabled`; libs: any file).
 pub fn scan(game_root: &Path, kind: LocalContentKind) -> Vec<LocalContentEntry> {
     let mut entries = Vec::new();
@@ -269,6 +289,25 @@ mod tests {
         let a = mods.iter().find(|e| e.name == "a.dll").unwrap();
         remove(a).unwrap();
         assert!(!a.path.exists());
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn finds_sibling_previews() {
+        let root = game_root("preview");
+        let dir = root.join("Mods");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.dll"), b"12345").unwrap();
+        std::fs::write(dir.join("a.png"), b"png").unwrap();
+        std::fs::write(dir.join("b.dll.disabled"), b"12").unwrap();
+        std::fs::write(dir.join("b.jpg"), b"jpg").unwrap();
+        std::fs::write(dir.join("c.dll"), b"1").unwrap();
+        assert_eq!(sibling_preview(&dir.join("a.dll")), Some(dir.join("a.png")));
+        assert_eq!(
+            sibling_preview(&dir.join("b.dll.disabled")),
+            Some(dir.join("b.jpg"))
+        );
+        assert_eq!(sibling_preview(&dir.join("c.dll")), None);
         std::fs::remove_dir_all(&root).ok();
     }
 }

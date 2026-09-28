@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modstore API calls use the OAuth session: catalog and update checks send
   the access token as Bearer when logged in (release downloads stay
   unsigned CDN URLs).
+- List thumbnails: My Mods shows sibling previews (`Foo.png`/`.jpg` next
+  to the file), Projects shows the project preview file, the editor shows
+  a large preview box, and Browse/Modstore download remote previews into
+  a cache in the background (placeholder box until loaded).
 
 ### Changed
 

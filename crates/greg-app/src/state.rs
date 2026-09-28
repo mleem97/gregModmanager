@@ -66,6 +66,12 @@ pub struct AppState {
     pub project_sync: HashMap<PathBuf, (u64, ProjectSyncState)>,
     /// Background sync-state computation.
     pub sync_job: Option<JobHandle>,
+    /// Thumbnail cache: row key (workshop id / store slug) -> local file.
+    pub thumb_done: HashMap<String, PathBuf>,
+    /// Thumbnail download queue: (key, url), drained by the thumb job.
+    pub thumb_pending: Vec<(String, String)>,
+    /// Background thumbnail downloads.
+    pub thumb_job: Option<JobHandle>,
 
     /// Editor state.
     pub editor_root: Option<PathBuf>,
@@ -172,6 +178,9 @@ impl AppState {
             project_rows: Vec::new(),
             project_sync: HashMap::new(),
             sync_job: None,
+            thumb_done: HashMap::new(),
+            thumb_pending: Vec::new(),
+            thumb_job: None,
             editor_root: None,
             editor_meta: WorkshopMetadata::default(),
             editor_changelog: String::new(),

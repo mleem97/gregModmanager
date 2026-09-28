@@ -624,7 +624,7 @@ fn fetch_preview_image(url: &str, dest_root: &Path, log: &dyn Fn(&str)) -> Strin
 
 /// Steam gallery limit per preview file (mirrors the C# `SteamConstants`).
 /// Image extension sniffed from magic bytes (shared with preview fetch).
-fn image_ext(bytes: &[u8]) -> &'static str {
+pub fn image_ext(bytes: &[u8]) -> &'static str {
     if bytes.len() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 {
         ".jpg"
     } else if bytes.len() >= 8 && bytes[0..4] == [0x89, 0x50, 0x4E, 0x47] {

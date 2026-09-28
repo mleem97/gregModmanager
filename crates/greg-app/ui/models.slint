@@ -13,6 +13,8 @@ export struct ProjectRow {
     state-ok: bool,
     root: string,
     fileid: string,
+    // Empty when the project has no preview file.
+    thumb: image,
 }
 
 export struct CheckRow {
@@ -26,12 +28,16 @@ export struct BrowseRow {
     id: string,
     title: string,
     score: string,
+    // Cached remote preview; empty until downloaded.
+    thumb: image,
 }
 
 export struct StoreRow {
     title: string,
     meta: string,
     slug: string,
+    // Cached remote preview; empty until downloaded.
+    thumb: image,
 }
 
 export struct UpdateRow {
@@ -51,6 +57,8 @@ export struct LocalRow {
     enabled: bool,
     // Opaque index into the Rust cache (paths never cross into Slint).
     index: int,
+    // Sibling preview next to the file; empty when absent.
+    thumb: image,
 }
 
 export struct ProblemRow {

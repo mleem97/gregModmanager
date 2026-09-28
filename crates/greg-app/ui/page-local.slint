@@ -1,5 +1,5 @@
 import { LineEdit, Button } from "std-widgets.slint";
-import { Palette, SectionTitle } from "theme.slint";
+import { Palette, SectionTitle, Thumb } from "theme.slint";
 import { LocalRow } from "models.slint";
 
 // Local content page (My Mods / My Plugins / My Libs). One component, the
@@ -70,6 +70,10 @@ export component LocalPage inherits VerticalLayout {
                         padding-left: 10px;
                         padding-right: 8px;
                         spacing: 8px;
+                        Thumb {
+                            src: row.thumb;
+                            y: (parent.height - self.height) / 2;
+                        }
                         Rectangle {
                             width: 8px;
                             height: 8px;

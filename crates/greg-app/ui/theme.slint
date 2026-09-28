@@ -185,3 +185,22 @@ export component Card inherits Rectangle {
 
     @children
 }
+
+// List thumbnail: fixed box with a subtle placeholder behind the image.
+// An empty image renders nothing, so rows without artwork show the box.
+export component Thumb inherits Rectangle {
+    in-out property <image> src;
+    in-out property <length> px: 40px;
+
+    width: root.px;
+    height: root.px;
+    background: Palette.container-high;
+    border-radius: 4px;
+    clip: true;
+    Image {
+        source: root.src;
+        width: 100%;
+        height: 100%;
+        image-fit: cover;
+    }
+}

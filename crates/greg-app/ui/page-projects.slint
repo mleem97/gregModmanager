@@ -1,5 +1,5 @@
 import { LineEdit, Button, ComboBox } from "std-widgets.slint";
-import { Palette, SectionTitle } from "theme.slint";
+import { Palette, SectionTitle, Thumb } from "theme.slint";
 import { ProjectRow } from "models.slint";
 
 export component ProjectsPage inherits VerticalLayout {
@@ -74,6 +74,10 @@ export component ProjectsPage inherits VerticalLayout {
                             font-weight: 700;
                             color: row.state-ok ? Palette.secondary : Palette.on-variant;
                             vertical-alignment: center;
+                        }
+                        Thumb {
+                            src: row.thumb;
+                            y: (parent.height - self.height) / 2;
                         }
                         VerticalLayout {
                             horizontal-stretch: 1;

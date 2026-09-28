@@ -76,6 +76,7 @@ pub fn tick(state: &mut AppState) {
     }
     drain_publish(state);
     drain_sync(state);
+    drain_thumb(state);
     drain_browse(state);
     drain_store(state);
     // Language switch watch (ComboBox has no change callback wired).
@@ -699,6 +700,13 @@ pub fn refresh_projects(state: &mut AppState) {
             } else {
                 meta.published_file_id.to_string().into()
             },
+            thumb: if meta.preview_image_relative_path.trim().is_empty() {
+                slint::Image::default()
+            } else {
+                thumb_of(Some(
+                    &project.root_path.join(&meta.preview_image_relative_path),
+                ))
+            },
         });
         cache.push((project.root_path.clone(), meta.published_file_id));
     }
@@ -835,6 +843,21 @@ pub fn open_project(state: &Arc<std::sync::Mutex<AppState>>, root: &str) {
 /// Pushes editor state into properties.
 fn push_editor(state: &mut AppState) {
     let ui = &state.ui();
+    let preview = match state.editor_root.clone() {
+        Some(root)
+            if !state
+                .editor_meta
+                .preview_image_relative_path
+                .trim()
+                .is_empty() =>
+        {
+            thumb_of(Some(
+                &root.join(&state.editor_meta.preview_image_relative_path),
+            ))
+        }
+        _ => slint::Image::default(),
+    };
+    ui.set_ed_preview_image(preview);
     let meta = &state.editor_meta;
     ui.set_ed_title(meta.title.clone().into());
     ui.set_ed_version(meta.version.clone().into());
@@ -1482,12 +1505,20 @@ fn drain_browse(state: &mut AppState) {
                     .iter()
                     .map(|i| (i.published_file_id, i.title.clone()))
                     .collect();
+                queue_thumbs(
+                    state,
+                    items
+                        .iter()
+                        .map(|i| (i.published_file_id.to_string(), i.preview_image_url.clone()))
+                        .collect(),
+                );
                 let rows: Vec<BrowseRow> = items
                     .into_iter()
                     .map(|i| BrowseRow {
                         id: i.published_file_id.to_string().into(),
                         title: i.title.into(),
                         score: format!("★ {:.1}", i.score).into(),
+                        thumb: slint::Image::default(),
                     })
                     .collect();
                 state
@@ -1738,6 +1769,13 @@ fn drain_store(state: &mut AppState) {
             serde_json::from_str::<Vec<greg_modstore::models::ModStoreCatalogItem>>(payload)
         {
             state.store_items = items.clone();
+            queue_thumbs(
+                state,
+                items
+                    .iter()
+                    .map(|i| (i.slug.clone(), i.image_url.clone().unwrap_or_default()))
+                    .collect(),
+            );
             let rows: Vec<StoreRow> = items
                 .into_iter()
                 .map(|i| StoreRow {
@@ -1745,6 +1783,7 @@ fn drain_store(state: &mut AppState) {
                     meta: format!("by {} · v{} · {}", i.author, i.release.version, i.category)
                         .into(),
                     slug: i.slug.into(),
+                    thumb: slint::Image::default(),
                 })
                 .collect();
             // Search filter applies live in tick via the stored query.
@@ -1835,6 +1874,7 @@ pub fn local_refresh(state: &mut AppState) {
             detail: e.detail.clone().into(),
             enabled: e.enabled,
             index: i as i32,
+            thumb: thumb_of(greg_loader::local_content::sibling_preview(&e.path).as_deref()),
         })
         .collect();
     // NOTE: row indices address the full cache; toggle/remove resolve
@@ -2887,6 +2927,170 @@ where
     T: Clone + 'static,
 {
     ModelRc::from(Rc::new(VecModel::from(rows)))
+}
+
+/// Loads a thumbnail (empty image when missing/unreadable — the UI shows
+/// the placeholder box). Local files only; remote previews go through the
+/// thumbnail cache first.
+fn thumb_of(path: Option<&std::path::Path>) -> slint::Image {
+    path.and_then(|p| slint::Image::load_from_path(p).ok())
+        .unwrap_or_default()
+}
+
+/// Thumbnail cache dir for remote previews.
+fn thumb_cache_dir() -> PathBuf {
+    let dir = std::env::temp_dir().join("gregmodmanager-thumbs");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
+/// Queues missing thumbnails (key -> url), skipping cached/queued ones.
+fn queue_thumbs(state: &mut AppState, items: Vec<(String, String)>) {
+    for (key, url) in items {
+        if url.trim().is_empty()
+            || state.thumb_done.contains_key(&key)
+            || state.thumb_pending.iter().any(|(k, _)| k == &key)
+        {
+            continue;
+        }
+        state.thumb_pending.push((key, url));
+    }
+    pump_thumb_job(state);
+}
+
+/// Starts the download job when idle with pending items.
+fn pump_thumb_job(state: &mut AppState) {
+    if state.thumb_job.is_some() || state.thumb_pending.is_empty() {
+        return;
+    }
+    let batch = std::mem::take(&mut state.thumb_pending);
+    let dir = thumb_cache_dir();
+    let job = JobHandle::spawn(move |sink| {
+        let mut out = Vec::new();
+        for (key, url) in &batch {
+            if sink.cancelled().load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            match download_thumb(&dir, key, url) {
+                Some(path) => out.push(format!("{key}\x1f{}", path.display())),
+                None => sink.log(format!("Thumbnail failed: {url}")),
+            }
+        }
+        crate::worker::JobOutcome {
+            success: true,
+            message: out.join("\x1e"),
+        }
+    });
+    state.thumb_job = Some(job);
+}
+
+/// Downloads one preview into the cache (blocking — background only).
+fn download_thumb(dir: &std::path::Path, key: &str, url: &str) -> Option<PathBuf> {
+    let bytes = reqwest::blocking::get(url)
+        .and_then(|r| r.bytes())
+        .ok()?
+        .to_vec();
+    if bytes.is_empty() {
+        return None;
+    }
+    let safe: String = key
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if safe.is_empty() {
+        return None;
+    }
+    let path = dir.join(format!("{safe}{}", greg_steam::service::image_ext(&bytes)));
+    if path.is_file() {
+        return Some(path);
+    }
+    std::fs::write(&path, &bytes).ok()?;
+    Some(path)
+}
+
+/// Applies finished thumbnail downloads to the cache and repaints rows.
+fn drain_thumb(state: &mut AppState) {
+    let messages = match state.thumb_job.as_mut() {
+        Some(job) => job.drain(),
+        None => return,
+    };
+    let finished = state
+        .thumb_job
+        .as_ref()
+        .is_some_and(|job| job.is_finished());
+    let mut done: Option<JobOutcome> = None;
+    for msg in messages {
+        if let JobMessage::Done(outcome) = msg {
+            done = Some(outcome);
+        }
+    }
+    let Some(outcome) = done else {
+        if finished {
+            state.thumb_job = None;
+            pump_thumb_job(state);
+        }
+        return;
+    };
+    state.thumb_job = None;
+    if outcome.success {
+        for record in outcome.message.split('\x1e') {
+            let mut parts = record.splitn(2, '\x1f');
+            let (Some(key), Some(path)) = (parts.next(), parts.next()) else {
+                continue;
+            };
+            let path = PathBuf::from(path);
+            if path.is_file() {
+                state.thumb_done.insert(key.to_string(), path);
+            }
+        }
+    }
+    repaint_browse_thumbs(state);
+    repaint_store_thumbs(state);
+    pump_thumb_job(state);
+}
+
+/// Repaints browse rows with cached thumbnails (in place, keeps selection).
+fn repaint_browse_thumbs(state: &mut AppState) {
+    let model = state.ui().get_br_items();
+    let Some(view) = model.as_any().downcast_ref::<VecModel<BrowseRow>>() else {
+        return;
+    };
+    for i in 0..view.row_count() {
+        let Some(mut row) = view.row_data(i) else {
+            continue;
+        };
+        if let Some(path) = state
+            .thumb_done
+            .get(row.id.as_str())
+            .filter(|p| p.is_file())
+            .cloned()
+        {
+            row.thumb = thumb_of(Some(&path));
+            view.set_row_data(i, row);
+        }
+    }
+}
+
+/// Repaints modstore rows with cached thumbnails (in place).
+fn repaint_store_thumbs(state: &mut AppState) {
+    let model = state.ui().get_st_items();
+    let Some(view) = model.as_any().downcast_ref::<VecModel<StoreRow>>() else {
+        return;
+    };
+    for i in 0..view.row_count() {
+        let Some(mut row) = view.row_data(i) else {
+            continue;
+        };
+        if let Some(path) = state
+            .thumb_done
+            .get(row.slug.as_str())
+            .filter(|p| p.is_file())
+            .cloned()
+        {
+            row.thumb = thumb_of(Some(&path));
+            view.set_row_data(i, row);
+        }
+    }
 }
 
 // AppState helper used by drain_store (avoids borrow issues).

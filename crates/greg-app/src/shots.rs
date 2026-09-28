@@ -78,6 +78,12 @@ fn strings(items: &[&str]) -> ModelRc<SharedString> {
     model(items.iter().map(|s| SharedString::from(*s)).collect())
 }
 
+/// Sample thumbnail: the repo logo (missing file degrades to placeholder).
+fn sample_thumb() -> slint::Image {
+    let logo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../G.svg");
+    slint::Image::load_from_path(&logo).unwrap_or_default()
+}
+
 fn sample_ui() -> crate::MainWindow {
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
@@ -155,6 +161,11 @@ fn page_mymods(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
                 detail: "1.2 MB · Mods".into(),
                 enabled: i % 2 == 0,
                 index: i,
+                thumb: if i == 0 {
+                    sample_thumb()
+                } else {
+                    slint::Image::default()
+                },
             })
             .collect(),
     ));
@@ -218,6 +229,11 @@ fn page_projects(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
                 state_ok: i % 2 != 0,
                 root: format!("/ws/mod{i}").into(),
                 fileid: format!("{i}").into(),
+                thumb: if i == 0 {
+                    sample_thumb()
+                } else {
+                    slint::Image::default()
+                },
             })
             .collect(),
     ));
@@ -237,6 +253,7 @@ fn page_editor(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
     ui.set_ed_changelog_hint("CHANGELOG.md [1.1.0] → v1.1.0".into());
     ui.set_ed_desc_hint("123 / 8000".into());
     ui.set_ed_preview_text("preview.png".into());
+    ui.set_ed_preview_image(sample_thumb());
     ui.set_ed_checks(model(vec![
         CheckRow {
             label: "Title".into(),
@@ -277,6 +294,11 @@ fn page_browse(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
                 id: format!("{i}").into(),
                 title: format!("Workshop Item {i} With A Reasonably Long Title").into(),
                 score: "★ 4.5".into(),
+                thumb: if i == 0 {
+                    sample_thumb()
+                } else {
+                    slint::Image::default()
+                },
             })
             .collect(),
     ));
@@ -303,6 +325,11 @@ fn page_modstore(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
                 title: format!("Store Mod {i}").into(),
                 meta: format!("by Author{i} · v1.0.{i} · decoration").into(),
                 slug: format!("mod-{i}").into(),
+                thumb: if i == 0 {
+                    sample_thumb()
+                } else {
+                    slint::Image::default()
+                },
             })
             .collect(),
     ));
@@ -396,8 +423,8 @@ fn screenshots() {
     page_settings(&ui, &window);
     page_bugdialog(&ui, &window);
     // Profile session menu (logged-in header state).
-    page_mymods(&ui, &window);
     ui.set_show_bug_dialog(false);
+    page_mymods(&ui, &window);
     ui.set_login_visible(false);
     ui.set_profile_visible(true);
     ui.set_profile_name("Tester".into());

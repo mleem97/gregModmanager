@@ -1,5 +1,5 @@
 import { LineEdit, ComboBox, Button } from "std-widgets.slint";
-import { Palette, SectionTitle } from "theme.slint";
+import { Palette, SectionTitle, Thumb } from "theme.slint";
 import { BrowseRow } from "models.slint";
 
 export component BrowsePage inherits VerticalLayout {
@@ -127,6 +127,11 @@ export component BrowsePage inherits VerticalLayout {
                             padding-left: 8px;
                             padding-right: 8px;
                             spacing: 8px;
+                            alignment: center;
+                            Thumb {
+                                src: item.thumb;
+                                px: 30px;
+                            }
                             Text {
                                 text: item.title;
                                 font-size: 12px;

@@ -3,7 +3,7 @@ name = "greg-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Desktop UI for gregModmanager (eframe/egui)"
+description = "Desktop UI for gregModmanager (Slint)"
 
 [[bin]]
 name = "gregmodmanager"

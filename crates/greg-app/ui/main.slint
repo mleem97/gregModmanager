@@ -76,6 +76,7 @@ export component MainWindow inherits Window {
     in-out property <[string]> ed-deps;
     in-out property <string> ed-dep-add-text;
     in-out property <string> ed-preview-text;
+    in-out property <image> ed-preview-image;
     in-out property <[string]> ed-shots;
     in-out property <float> ed-progress;
     in-out property <bool> ed-publishing;
@@ -554,6 +555,7 @@ export component MainWindow inherits Window {
                                 deps <=> root.ed-deps;
                                 dep-add-text <=> root.ed-dep-add-text;
                                 preview-text <=> root.ed-preview-text;
+                                preview-image <=> root.ed-preview-image;
                                 shots <=> root.ed-shots;
                                 progress <=> root.ed-progress;
                                 publishing <=> root.ed-publishing;
