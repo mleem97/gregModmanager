@@ -1091,6 +1091,7 @@ pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     guard.ui().set_ed_publishing(true);
     guard.ui().set_ed_progress(0.0);
     guard.ui().set_ed_status("Uploading…".into());
+    AppState::append_log(state, &format!("Upload started: {}", root.display()));
     let job = JobHandle::spawn(move |sink| {
         let outcome = steam.publish(
             &root,
@@ -1103,8 +1104,20 @@ pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
             },
             sink.cancelled(),
         );
+        // File-log the lifecycle (the UI log alone is lost on a hang/kill).
         if outcome.success {
             let _ = greg_platform::workspace::save_metadata(&root, &meta);
+            greg_platform::filelog::FileLog::shared().info(&format!(
+                "Upload finished: {} -> file id {}",
+                root.display(),
+                outcome.published_file_id
+            ));
+        } else {
+            greg_platform::filelog::FileLog::shared().info(&format!(
+                "Upload failed: {}: {}",
+                root.display(),
+                outcome.message
+            ));
         }
         crate::worker::JobOutcome {
             success: outcome.success,
