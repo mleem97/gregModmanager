@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs in a background job with a sync-state cache — lists paint instantly
   ("?" while unknown) and flip to SYNCED/UPDATED! when the job drains.
   Covered by the `project_sync_hashes_off_ui_thread` regression test.
+- Empty changelog no longer blocks the first publish (warning only), and
+  a blocked Save & Upload now names the failing checks in the status line
+  instead of doing nothing. Worker panics surface as failed outcomes.
+- Health check looks for `Mods/gregCore.dll` (renamed assembly).
 
 ### Security
 
