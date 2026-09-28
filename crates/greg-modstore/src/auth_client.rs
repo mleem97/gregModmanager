@@ -161,8 +161,7 @@ impl AuthApiClient {
     pub async fn end_session(&self, access_token: &str) -> bool {
         for base in &self.api_base_urls {
             for url in logout_urls(base) {
-                if let Ok(resp) = self.http.post(&url).bearer_auth(access_token).send().await
-                {
+                if let Ok(resp) = self.http.post(&url).bearer_auth(access_token).send().await {
                     if resp.status().is_success() {
                         return true;
                     }

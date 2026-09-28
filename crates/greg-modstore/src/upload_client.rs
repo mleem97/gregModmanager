@@ -181,7 +181,12 @@ impl ModStoreUploadClient {
     }
 
     /// Step 2: PUTs raw bytes to the presigned URL.
-    pub async fn put_bytes(&self, upload_url: &str, content_type: &str, bytes: &[u8]) -> Result<()> {
+    pub async fn put_bytes(
+        &self,
+        upload_url: &str,
+        content_type: &str,
+        bytes: &[u8],
+    ) -> Result<()> {
         let resp = self
             .http
             .put(upload_url)

@@ -448,7 +448,12 @@ fn check_security_preflight(project_root: &Path, results: &mut Vec<UploadCheckRe
             "Security preflight",
             format!(
                 "Remove credential files before uploading: {}.",
-                secrets.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                secrets
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         ));
     }
@@ -457,7 +462,12 @@ fn check_security_preflight(project_root: &Path, results: &mut Vec<UploadCheckRe
             "Security preflight",
             format!(
                 "Blocked executables in content/ (ship .dll/.zip/.lua/.py/.go only): {}.",
-                blocked.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                blocked
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         ));
     }
@@ -466,7 +476,12 @@ fn check_security_preflight(project_root: &Path, results: &mut Vec<UploadCheckRe
             "Security preflight",
             format!(
                 "Symlinks are not uploaded (extraction risk): {}.",
-                symlinks.iter().take(5).cloned().collect::<Vec<_>>().join(", ")
+                symlinks
+                    .iter()
+                    .take(5)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
         ));
     }
@@ -662,8 +677,7 @@ mod tests {
         let mut results = Vec::new();
         check_security_preflight(&dir, &mut results);
         assert!(results.iter().any(|r| {
-            r.label == "Security preflight"
-                && r.severity == crate::models::UploadCheckSeverity::Ok
+            r.label == "Security preflight" && r.severity == crate::models::UploadCheckSeverity::Ok
         }));
         std::fs::remove_dir_all(&dir).ok();
     }

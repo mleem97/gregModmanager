@@ -242,7 +242,8 @@ impl CollectionsClient {
 
     /// Fetches collection detail incl. mods.
     pub async fn detail(&self, id: &str) -> Result<CollectionDetailResponse> {
-        self.get_json(&format!("/api/collections/{id}"), false).await
+        self.get_json(&format!("/api/collections/{id}"), false)
+            .await
     }
 
     /// Adds a mod to a collection (auth + owner).
