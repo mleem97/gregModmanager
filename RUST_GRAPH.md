@@ -14,9 +14,9 @@ crates/
   greg-steam/               # Steam Workshop via `steamworks` crate
   greg-modstore/            # Modstore REST client
   greg-loader/              # game/MelonLoader discovery, installs, adapters
-  greg-platform/            # cfg(target_os) shims (replaces Unix/Windows/MacOs projects)
-  greg-app/                 # desktop UI binary (eframe/egui)
-  greg-cli/                 # headless publish/status/list binary
+   greg-platform/            # cfg(target_os) shims (replaces Unix/Windows/MacOs projects)
+   greg-app/                 # desktop UI binary (Slint)
+   greg-cli/                 # headless publish/status/list binary
 xtask/                      # build orchestration (`cargo xtask …`)
 ```
 
@@ -25,7 +25,7 @@ xtask/                      # build orchestration (`cargo xtask …`)
 ```mermaid
 graph TD
     subgraph ui["UI layer"]
-        APP["greg-app<br/>(eframe/egui binary)"]
+        APP["greg-app<br/>(Slint binary)"]
         CLI["greg-cli<br/>(clap binary)"]
     end
     subgraph domain["Domain layer"]
@@ -41,7 +41,7 @@ graph TD
         SERDE["serde / serde_json"]
         ERR["thiserror / anyhow"]
         CLAP["clap"]
-        EFRAME["eframe / egui"]
+        SLINT["slint / slint-build"]
         DIRS["dirs"]
         SEMVER["semver"]
         SW["steamworks"]
@@ -72,17 +72,16 @@ graph TD
     STORE --> REQWEST
     STORE --> TOKIO
     LOADER --> TOKIO
-    APP --> EFRAME
-    APP --> TOKIO
     CLI --> CLAP
     CLI --> TOKIO
+    APP --> SLINT
     APP --> MISC
     LOADER --> MISC
 ```
 
 Rules:
 
-- `greg-core` must never depend on UI crates (`eframe`/`egui`) or binaries.
+- `greg-core` must never depend on UI crates (`slint`) or binaries.
   If a fix seems to need that, stop and ask the maintainer.
 - `greg-app` / `greg-cli` are thin shells: composition root + presentation.
   All logic lives in the domain crates.
@@ -93,7 +92,7 @@ Rules:
 
 | Crate | Use | Replaces (C#) |
 | --- | --- | --- |
-| `eframe` / `egui` | desktop UI, immediate mode, single binary | Avalonia views/viewmodels |
+| `slint` / `slint-build` | desktop UI, retained mode, single binary | Avalonia views/viewmodels |
 | `tokio` | async runtime (downloads, polling, publish) | `async/await` + callbacks |
 | `reqwest` (rustls) | Modstore REST, update checks | `HttpClient` wrappers |
 | `serde` / `serde_json` | models, metadata, manifests | `System.Text.Json` + `AppJsonContext` |
@@ -115,7 +114,7 @@ ported as small internal modules in `greg-core` (logic owned, no dependency).
 | Archived (C#, `.reference/modmanager-old/`) | New (Rust) |
 | --- | --- |
 | `GregModmanager.Core` (models + services) | `greg-core` (+ `greg-steam`, `greg-modstore`, `greg-loader`) |
-| `GregModmanager.Avalonia` (views, VMs, styles) | `greg-app` (`eframe`/`egui`) |
+| `GregModmanager.Avalonia` (views, VMs, styles) | `greg-app` (Slint) |
 | `GregModmanager.{Unix,Windows,MacOs}` | `greg-platform` (`cfg(target_os)`) |
 | `HeadlessRunner` (`--mode publish/status/list`) | `greg-cli` (`clap`) |
 | `GregModmanager.Tests` (xUnit) | `cargo test` per crate + integration tests |
@@ -154,9 +153,19 @@ timeouts and DNS failures never count as online.
 Fixed-geometry rules (the old "misplaced icons" class of bug): icon buttons
 are fixed 56×56 with centered glyphs and a 3 px active bar; text buttons use
 std-widgets `Button` (auto-sizing — custom rectangles collapse to zero width
-in layouts); pages stretch to fill via an explicit fill layout; `Rectangle`
-uses `background:` (not deprecated `color:`); Workshop u64 ids travel as
-strings (Slint `int` is 32-bit). Window dragging uses the native
+in layouts); `Rectangle` uses `background:` (not deprecated `color:`);
+Workshop u64 ids travel as strings (Slint `int` is 32-bit). Content pages
+stay compact and top-anchored (`alignment: start` on the content wrapper —
+the default packs stretch-less content at the end, leaving the void on top).
+`vertical-stretch` on fixed-content list containers never grows them
+(max-capped) but propagates tallness upward while bare status `Text`s absorb
+the free space mid-page — so no vertical stretch on such containers, and no
+free space for absorbers. `Rectangle` children fill (no auto preferred size):
+overlay cards and menu popups need explicit geometry (fixed heights, e.g.
+input rows 36px, menu buttons 32px). `Flickable` reports preferred 0, so it
+collapses anywhere without distributed area — `TabWidget` sizes content to
+preferred and leaves `Flickable` tabs invisible; use custom tab buttons with
+conditional panels instead. Window dragging uses the native
 `WindowMoveArea` element and resizing the native border handling
 (`resize-border-width`) — both compositor-side and Wayland-safe; manual
 `set_position`/`set_size` dragging does not work on Wayland.
@@ -167,6 +176,9 @@ strings (Slint `int` is 32-bit). Window dragging uses the native
 - [x] `greg-cli` headless publish against a fixture workspace.
 - [x] `greg-steam` (`steamworks` crate) publish/browse behind rate limiter.
 - [x] `greg-app` (Slint) shell + editor + upload flow.
-- [ ] OAuth session flow (`greg://auth/callback` handling, profile menu).
-- [ ] Gallery screenshots up/download via Steam (out of `steamworks` scope).
-- [ ] Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.
+- [x] OAuth session flow (`greg://auth/callback` handling, profile menu).
+- [x] Gallery screenshots upload via Steam (second update with
+  `AddItemPreviewFile` over `steamworks-sys`; safe 0.13.1 API has no
+  wrappers). Gallery download/sync still open (no additional-preview
+  getters in the safe API).
+- [x] Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.

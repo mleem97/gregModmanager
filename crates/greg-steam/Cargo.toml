@@ -7,7 +7,7 @@ description = "Steam Workshop integration for gregModmanager"
 
 [features]
 default = ["steam"]
-steam = ["dep:steamworks"]
+steam = ["dep:steamworks", "dep:steamworks-sys"]
 
 [dependencies]
 greg-core.workspace = true
@@ -18,3 +18,5 @@ thiserror.workspace = true
 tokio.workspace = true
 reqwest.workspace = true
 steamworks = { workspace = true, optional = true }
+# Raw gallery FFI (AddItemPreviewFile): the safe 0.13.1 API has no wrappers.
+steamworks-sys = { version = "0.13", optional = true }

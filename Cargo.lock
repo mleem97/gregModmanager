@@ -2229,6 +2229,7 @@ dependencies = [
  "serde",
  "serde_json",
  "steamworks",
+ "steamworks-sys",
  "thiserror 2.0.21",
  "tokio",
 ]

@@ -169,6 +169,7 @@ impl WorkshopService {
         }
 
         let change_note = self.resolve_changelog(project_root, meta, manual_changelog);
+        let screenshots = resolve_screenshots(project_root, &meta.additional_previews, log);
         let req = UpdateRequest {
             file_id: limits::is_usable_workshop_id(meta.published_file_id)
                 .then_some(meta.published_file_id),
@@ -188,6 +189,7 @@ impl WorkshopService {
             } else {
                 Some(change_note)
             },
+            screenshots,
         };
 
         // Submit, with one replication-wait retry on backend "not found" errors.
@@ -207,6 +209,26 @@ impl WorkshopService {
         let outcome = outcome_from_submit(outcome);
         if !outcome.success {
             return Err(SteamError::PublishFailed(outcome.message));
+        }
+        // Gallery second phase (mirrors the C# UploadAdditionalPreviewsAsync):
+        // failures here never fail the publish itself, they are reported.
+        if !req.screenshots.is_empty() {
+            match self.backend.upload_gallery(
+                outcome.published_file_id,
+                &req.screenshots,
+                log,
+                cancel,
+            ) {
+                Ok(attached) => {
+                    if attached < req.screenshots.len() {
+                        log(&format!(
+                            "Gallery partially attached ({attached}/{}).",
+                            req.screenshots.len()
+                        ));
+                    }
+                }
+                Err(e) => log(&format!("Gallery upload skipped: {e}")),
+            }
         }
         meta.published_file_id = outcome.published_file_id;
         meta.last_published_hash =
@@ -556,5 +578,85 @@ fn fetch_preview_image(url: &str, dest_root: &Path, log: &dyn Fn(&str)) -> Strin
             name
         }
         Err(_) => "preview.png".into(),
+    }
+}
+
+/// Steam gallery limit per preview file (mirrors the C# `SteamConstants`).
+pub const MAX_PREVIEW_FILE_BYTES: u64 = 1024 * 1024;
+
+/// Resolves gallery screenshots to absolute, attachable paths.
+///
+/// Skips missing files and anything over [`MAX_PREVIEW_FILE_BYTES`] with a
+/// log line (Steam rejects those server-side; failing loudly per file keeps
+/// one bad screenshot from blocking the gallery).
+fn resolve_screenshots(
+    project_root: &Path,
+    additional_previews: &[String],
+    log: &dyn Fn(&str),
+) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for rel in additional_previews {
+        let rel = rel.trim();
+        if rel.is_empty() {
+            continue;
+        }
+        let path = project_root.join(rel);
+        match std::fs::metadata(&path) {
+            Ok(meta) if meta.is_file() => {
+                if meta.len() > MAX_PREVIEW_FILE_BYTES {
+                    log(&format!(
+                        "Gallery skipped (over 1 MiB): {rel} ({}).",
+                        greg_core::util::format_bytes(meta.len() as i64)
+                    ));
+                    continue;
+                }
+                out.push(path);
+            }
+            _ => log(&format!("Gallery skipped (not found): {rel}.")),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod gallery_tests {
+    use super::resolve_screenshots;
+    use std::path::PathBuf;
+
+    fn project_with(files: &[(&str, usize)]) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "greg-gallery-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmp");
+        for (name, size) in files {
+            std::fs::write(dir.join(name), vec![1u8; *size]).expect("file");
+        }
+        dir
+    }
+
+    #[test]
+    fn keeps_small_files_skips_missing_and_oversize() {
+        use std::cell::RefCell;
+        let dir = project_with(&[("a.png", 100), ("big.png", 2 * 1024 * 1024)]);
+        let logged = RefCell::new(Vec::new());
+        let out = resolve_screenshots(
+            &dir,
+            &[
+                "a.png".to_string(),
+                "missing.png".to_string(),
+                "big.png".to_string(),
+                "  ".to_string(),
+            ],
+            &|line| logged.borrow_mut().push(line.to_string()),
+        );
+        assert_eq!(out, vec![dir.join("a.png")]);
+        assert_eq!(logged.borrow().len(), 2, "missing + oversize logged");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

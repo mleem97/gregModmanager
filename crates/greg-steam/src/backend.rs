@@ -37,6 +37,10 @@ pub struct UpdateRequest {
     pub visibility: String,
     /// Steam change note.
     pub change_note: Option<String>,
+    /// Gallery screenshots (absolute paths, validated ≤ 1 MiB each).
+    /// Uploaded in a second update after the main submit; Steam appends
+    /// (no delete/replace API), so re-uploads add, never swap.
+    pub screenshots: Vec<PathBuf>,
 }
 
 /// Outcome of [`SteamBackend::submit`].
@@ -120,6 +124,15 @@ pub trait SteamBackend: Send + Sync {
         progress: &dyn Fn(f32),
         cancel: &AtomicBool,
     ) -> Result<SubmitOutcome>;
+    /// Attach gallery screenshots to an existing item (second update flow).
+    /// Returns the number of attached files.
+    fn upload_gallery(
+        &self,
+        file_id: u64,
+        screenshots: &[PathBuf],
+        log: &dyn Fn(&str),
+        cancel: &AtomicBool,
+    ) -> Result<usize>;
     /// Download an item into the Steam-managed folder.
     fn download(&self, id: u64, progress: &dyn Fn(f32), cancel: &AtomicBool) -> Result<PathBuf>;
     /// Install info, if downloaded.
@@ -181,6 +194,15 @@ impl SteamBackend for UnavailableBackend {
         self.err()
     }
     fn download(&self, _id: u64, _progress: &dyn Fn(f32), _cancel: &AtomicBool) -> Result<PathBuf> {
+        self.err()
+    }
+    fn upload_gallery(
+        &self,
+        _file_id: u64,
+        _screenshots: &[PathBuf],
+        _log: &dyn Fn(&str),
+        _cancel: &AtomicBool,
+    ) -> Result<usize> {
         self.err()
     }
     fn install_info(&self, _id: u64) -> Option<InstallDir> {
@@ -626,6 +648,123 @@ pub(crate) mod real {
                     return Err(SteamError::Timeout("submit produced no result".into()));
                 }
             }
+        }
+
+        /// Gallery screenshots via a second update (`AddItemPreviewFile`).
+        ///
+        /// The safe `steamworks` 0.13.1 API exposes neither
+        /// `AddItemPreviewFile` nor additional-preview query getters, so this
+        /// flow drops to `steamworks::sys` FFI for the update calls only.
+        /// Completion is polled through
+        /// `ManualDispatch_GetAPICallResult` (read side; no manual vtables):
+        /// the regular `run_callbacks` pump in the loop keeps dispatching the
+        /// pipe, and the deadline bounds the wait — worst case is a timeout
+        /// error, never corruption. Interface version must match the one the
+        /// `steamworks` crate binds (v021); a version bump fails loudly at
+        /// link time, not silently at runtime.
+        fn upload_gallery(
+            &self,
+            file_id: u64,
+            screenshots: &[PathBuf],
+            log: &dyn Fn(&str),
+            cancel: &AtomicBool,
+        ) -> Result<usize> {
+            use std::ffi::CString;
+            use steamworks_sys as sys;
+
+            if screenshots.is_empty() {
+                return Ok(0);
+            }
+            let mut files: Vec<CString> = Vec::new();
+            for path in screenshots {
+                match CString::new(path.to_string_lossy().as_bytes()) {
+                    Ok(c) => files.push(c),
+                    Err(_) => log(&format!("Gallery skipped (bad path): {}", path.display())),
+                }
+            }
+            if files.is_empty() {
+                return Ok(0);
+            }
+            let attached = unsafe {
+                let ugc = sys::SteamAPI_SteamUGC_v021();
+                if ugc.is_null() {
+                    return Err(SteamError::Api("Steam UGC interface unavailable".into()));
+                }
+                let handle = sys::SteamAPI_ISteamUGC_StartItemUpdate(ugc, self.app_id.0, file_id);
+                if handle == sys::k_UGCUpdateHandleInvalid {
+                    return Err(SteamError::Api("Steam rejected the gallery update".into()));
+                }
+                let mut attached = 0usize;
+                for file in &files {
+                    let ok = sys::SteamAPI_ISteamUGC_AddItemPreviewFile(
+                        ugc,
+                        handle,
+                        file.as_ptr(),
+                        sys::EItemPreviewType::k_EItemPreviewType_Image,
+                    );
+                    if ok {
+                        attached += 1;
+                    } else {
+                        log("Gallery attach rejected by Steam for one file.");
+                    }
+                }
+                if attached == 0 {
+                    return Err(SteamError::Api("Steam attached no gallery files".into()));
+                }
+                let note = CString::new("gallery").expect("static cstring");
+                let call = sys::SteamAPI_ISteamUGC_SubmitItemUpdate(ugc, handle, note.as_ptr());
+                if call == 0 {
+                    return Err(SteamError::Api("gallery submit rejected".into()));
+                }
+                let pipe = sys::SteamAPI_GetHSteamPipe();
+                let deadline = Instant::now() + Duration::from_secs(240);
+                loop {
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(SteamError::Cancelled);
+                    }
+                    self.client.run_callbacks();
+                    let mut result: sys::SubmitItemUpdateResult_t = std::mem::zeroed();
+                    let mut failed = false;
+                    let ready = sys::SteamAPI_ManualDispatch_GetAPICallResult(
+                        pipe,
+                        call,
+                        &mut result as *mut _ as *mut std::os::raw::c_void,
+                        std::mem::size_of::<sys::SubmitItemUpdateResult_t>() as std::os::raw::c_int,
+                        sys::SubmitItemUpdateResult_t_k_iCallback as std::os::raw::c_int,
+                        &mut failed,
+                    );
+                    if ready {
+                        if failed {
+                            return Err(SteamError::Api(
+                                "gallery submit failed (transport)".into(),
+                            ));
+                        }
+                        if result.m_eResult != sys::EResult::k_EResultOK {
+                            return Err(SteamError::Api(format!(
+                                "gallery submit failed: {:?}",
+                                result.m_eResult
+                            )));
+                        }
+                        // Packed FFI struct: unaligned read for the u64 field.
+                        let returned_id =
+                            std::ptr::addr_of!(result.m_nPublishedFileId).read_unaligned();
+                        if returned_id != file_id {
+                            return Err(SteamError::Api(format!(
+                                "gallery submit returned wrong item {returned_id}"
+                            )));
+                        }
+                        break attached;
+                    }
+                    if Instant::now() >= deadline {
+                        return Err(SteamError::Timeout(
+                            "gallery submit produced no result".into(),
+                        ));
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            };
+            log(&format!("Gallery: {attached} screenshot(s) attached."));
+            Ok(attached)
         }
 
         fn download(

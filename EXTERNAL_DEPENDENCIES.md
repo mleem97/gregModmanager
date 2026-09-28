@@ -12,6 +12,7 @@ a release.
 | Avalonia 12.1.1 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
 | Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
 | Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
+| Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (Rust restart, `greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
 | xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |
 
 ## Redistributables and platform assets

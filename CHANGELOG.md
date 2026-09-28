@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   auto-read, so updates need no manual input in the app or `--changelog` flag.
   New template projects ship both files; upload checks validate SemVer and the
   Keep a Changelog format.
+- Workshop gallery upload: editor screenshots (`additional_previews`) are
+  attached in a second update after publish (≤ 1 MiB each, larger/missing
+  files logged and skipped). Steam appends gallery files (no replace API).
 
 ### Changed
 
