@@ -27,7 +27,8 @@ fn main() -> anyhow::Result<()> {
     let ui = MainWindow::new()?;
     // Single instance: a second launch forwards `greg://` URLs to the
     // primary through the handoff file and exits (OAuth browser roundtrip).
-    let _instance = match greg_platform::instance::InstanceGuard::acquire("gregmodmanager") {
+    // Stale locks (killed predecessor) are taken over by the guard itself.
+    let instance = match greg_platform::instance::InstanceGuard::acquire("gregmodmanager") {
         Ok(guard) => Some(guard),
         Err(_) => {
             for arg in std::env::args().skip(1) {
@@ -39,6 +40,7 @@ fn main() -> anyhow::Result<()> {
         }
     };
     let state = AppState::new(ui.as_weak());
+    state.lock().expect("state").instance_guard = instance;
     wire(&ui, &state);
     AppState::append_log(&state, "gregModmanager started.");
     // Session restore + protocol URLs from our own launch arguments.
@@ -64,6 +66,14 @@ fn main() -> anyhow::Result<()> {
                 tick_count += 1;
                 if tick_count.is_multiple_of(13) {
                     actions::drain_handoff(&state);
+                }
+                // Single-instance heartbeat (~4.5 s cadence).
+                if tick_count.is_multiple_of(30) {
+                    if let Ok(guard) = state.lock() {
+                        if let Some(instance) = guard.instance_guard.as_ref() {
+                            instance.heartbeat();
+                        }
+                    }
                 }
             }
         },

@@ -119,6 +119,8 @@ pub struct AppState {
 
     /// Wakes the probe loop for an immediate live check.
     pub probe_wake: Arc<std::sync::atomic::AtomicBool>,
+    /// Single-instance guard (held for the process lifetime; heartbeated).
+    pub instance_guard: Option<greg_platform::instance::InstanceGuard>,
 
     /// Tick counter (Steam re-check every ~60 s).
     pub tick_count: u64,
@@ -205,6 +207,7 @@ impl AppState {
             events_tx,
             events_rx,
             probe_wake: Arc::clone(&probe_wake),
+            instance_guard: None,
             tick_count: 0,
         }));
 
