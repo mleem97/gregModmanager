@@ -1,4 +1,5 @@
 import { Button } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Palette, SectionTitle } from "theme.slint";
 import { ProblemRow } from "models.slint";
 
@@ -31,11 +32,16 @@ export component ProblemsPage inherits VerticalLayout {
     }
 
     Rectangle {
+        vertical-stretch: 1;
+        min-height: 96px;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
         border-color: Palette.outline;
-        Flickable {
+        clip: true;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
             VerticalLayout {
                 padding: 6px;
                 spacing: 4px;

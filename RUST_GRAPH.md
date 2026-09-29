@@ -151,24 +151,30 @@ on demand when heading for the Modstore): `GET {api}/api/v1/mods` must answer
 timeouts and DNS failures never count as online.
 
 Fixed-geometry rules (the old "misplaced icons" class of bug): icon buttons
-are fixed 56×56 with centered glyphs and a 3 px active bar; text buttons use
-std-widgets `Button` (auto-sizing — custom rectangles collapse to zero width
-in layouts); `Rectangle` uses `background:` (not deprecated `color:`);
-Workshop u64 ids travel as strings (Slint `int` is 32-bit). Content pages
-stay compact and top-anchored (`alignment: start` on the content wrapper —
-the default packs stretch-less content at the end, leaving the void on top).
-`vertical-stretch` on fixed-content list containers never grows them
-(max-capped) but propagates tallness upward while bare status `Text`s absorb
-the free space mid-page — so no vertical stretch on such containers, and no
-free space for absorbers. `Rectangle` children fill (no auto preferred size):
-overlay cards and menu popups need explicit geometry (fixed heights, e.g.
-input rows 36px, menu buttons 32px). `Flickable` reports preferred 0, so it
-collapses anywhere without distributed area — `TabWidget` sizes content to
-preferred and leaves `Flickable` tabs invisible; use custom tab buttons with
-conditional panels instead. Window dragging uses the native
-`WindowMoveArea` element and resizing the native border handling
-(`resize-border-width`) — both compositor-side and Wayland-safe; manual
-`set_position`/`set_size` dragging does not work on Wayland.
+are fixed 56×56 with centered glyphs and a 3 px active bar; in-page text
+buttons use std-widgets `Button` (auto-sizing — custom rectangles collapse
+to zero width in layouts); header buttons use the flat custom `TopBarButton`
+(fixed widths per label, transparent rest, `container-high` hover,
+`avatar-bg` pressed); `Rectangle` uses `background:` (not deprecated
+`color:`); Workshop u64 ids travel as strings (Slint `int` is 32-bit).
+List-scroll rule (lists must never grow past the window): every content
+page fills the viewport (`vertical-stretch: 1` on the page instance, no
+`alignment: start` on the content wrapper — under start-alignment stretch
+is ignored, pages render at preferred height and long lists overflow).
+Each list lives in a bordered `Rectangle` with `vertical-stretch: 1` +
+`min-height` + `clip: true`, containing a `ScrollView` bound to
+`width/height: parent.height` (a bare `Flickable`/layout inside the box
+sizes to content and overflows; `TabWidget` sizes content to preferred and
+leaves `Flickable` tabs invisible — use custom tab buttons with conditional
+panels instead). Two-pane rows (browse, packs) stretch the row and pin
+toolbars with explicit geometry while each pane scrolls. `Rectangle`
+children fill (no auto preferred size): overlay cards and menu popups need
+explicit geometry (fixed heights, e.g. input rows 36px, menu buttons 32px).
+Window dragging uses the native `WindowMoveArea` element and resizing the
+native border handling (`resize-border-width`) — both compositor-side and
+Wayland-safe; manual `set_position`/`set_size` dragging does not work on
+Wayland. Never bind `height: parent.height` from a layout child back to its
+layout (binding loop — Slint warns and may panic at runtime).
 
 ## Next steps
 

@@ -89,6 +89,37 @@ export component NavButton inherits Rectangle {
 // Custom Rectangle buttons cannot measure their label and collapse to zero
 // width inside layouts — that was the "misplaced icons" class of bug.
 
+// Flat topbar button: transparent at rest, slightly lighter on hover,
+// primary-tinted while pressed. Fixed width (labels are known) — custom
+// rectangles cannot measure text, so no auto-sizing here.
+export component TopBarButton inherits Rectangle {
+    in property <string> text;
+    in property <length> btn-width: 96px;
+    callback clicked();
+
+    width: root.btn-width;
+    height: 30px;
+    background: touch.has-hover ? (touch.pressed ? Palette.avatar-bg : Palette.container-high) : transparent;
+    border-radius: Palette.radius;
+    border-width: 1px;
+    border-color: touch.has-hover ? Palette.outline : transparent;
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: root.text;
+        font-size: 12px;
+        color: Palette.on-surface;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
 // Fixed 34x28 titlebar window button (custom chrome, no native frame).
 export component WinBtn inherits Rectangle {
     in property <string> glyph;

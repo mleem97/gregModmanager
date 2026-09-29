@@ -1,4 +1,5 @@
 import { LineEdit, Button, ProgressIndicator } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Palette, SectionTitle, Thumb } from "theme.slint";
 import { StoreRow, UpdateRow } from "models.slint";
 
@@ -82,88 +83,98 @@ export component StorePage inherits VerticalLayout {
     }
 
     if !root.show-updates: Rectangle {
+        vertical-stretch: 1;
+        min-height: 96px;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
         border-color: Palette.outline;
-        Flickable {
+        clip: true;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
             VerticalLayout {
                 padding: 6px;
                 spacing: 4px;
                 for item[idx] in root.items: Rectangle {
-                        background: Palette.container-low;
-                        border-radius: Palette.radius;
-                        border-width: 1px;
-                        border-color: Palette.outline;
-                        HorizontalLayout {
-                            padding: 8px;
-                            spacing: 8px;
-                            Thumb {
-                                src: item.thumb;
-                                y: (parent.height - self.height) / 2;
+                    background: Palette.container-low;
+                    border-radius: Palette.radius;
+                    border-width: 1px;
+                    border-color: Palette.outline;
+                    HorizontalLayout {
+                        padding: 8px;
+                        spacing: 8px;
+                        Thumb {
+                            src: item.thumb;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            Text {
+                                text: item.title;
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
                             }
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: item.title;
-                                    font-size: 13px;
-                                    font-weight: 700;
-                                    color: Palette.on-surface;
-                                }
-                                Text {
-                                    text: item.meta;
-                                    font-size: 11px;
-                                    color: Palette.on-variant;
-                                }
+                            Text {
+                                text: item.meta;
+                                font-size: 11px;
+                                color: Palette.on-variant;
                             }
-                            Button {
-                                text: "Install";
-                                clicked => { root.install(idx); }
-                            }
+                        }
+                        Button {
+                            text: "Install";
+                            clicked => { root.install(idx); }
                         }
                     }
                 }
             }
         }
+    }
 
     if root.show-updates: Rectangle {
+        vertical-stretch: 1;
+        min-height: 96px;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
         border-color: Palette.outline;
-        Flickable {
-                VerticalLayout {
-                    padding: 6px;
-                    spacing: 4px;
-                    for update[idx] in root.updates: Rectangle {
-                        background: Palette.container-low;
-                        border-radius: Palette.radius;
-                        border-width: 1px;
-                        border-color: Palette.outline;
-                        HorizontalLayout {
-                            padding: 8px;
-                            spacing: 8px;
-                            VerticalLayout {
-                                horizontal-stretch: 1;
-                                Text {
-                                    text: update.title;
-                                    font-size: 13px;
-                                    font-weight: 700;
-                                    color: Palette.on-surface;
-                                }
-                                Text {
-                                    text: update.versions;
-                                    font-size: 11px;
-                                    color: Palette.on-variant;
-                                }
+        clip: true;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
+            VerticalLayout {
+                padding: 6px;
+                spacing: 4px;
+                for update[idx] in root.updates: Rectangle {
+                    background: Palette.container-low;
+                    border-radius: Palette.radius;
+                    border-width: 1px;
+                    border-color: Palette.outline;
+                    HorizontalLayout {
+                        padding: 8px;
+                        spacing: 8px;
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            Text {
+                                text: update.title;
+                                font-size: 13px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
                             }
-                            Button {
-                                text: "Update";
-                                clicked => { root.install-update(idx); }
+                            Text {
+                                text: update.versions;
+                                font-size: 11px;
+                                color: Palette.on-variant;
                             }
+                        }
+                        Button {
+                            text: "Update";
+                            clicked => { root.install-update(idx); }
                         }
                     }
                 }
             }
         }
+    }
 }

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Layout: all list pages (My Mods/Plugins/Libs, Problems, Modpacks/
+  Collections, Projects, Workshop Browse, Modstore Catalog/Updates) fill
+  the viewport and scroll their list regions internally (`ScrollView` +
+  stretch) instead of growing past the window; verified with 30–40-row
+  headless screenshots. The content wrapper no longer uses
+  `alignment: start` (it ignored stretch and collapsed scroll boxes).
+
+### Changed
+
+- Header buttons (Start Game, With Mods, No Mods, Login) are now flat
+  custom `TopBarButton`s: transparent at rest, slightly lighter
+  (`container-high`) on hover.
+
 ## [1.7.1] - 2026-09-28
 
 ### Fixed

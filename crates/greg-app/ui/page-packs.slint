@@ -1,4 +1,5 @@
 import { LineEdit, Button } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Palette, SectionTitle } from "theme.slint";
 import { PackRow, PackEntryRow } from "models.slint";
 
@@ -32,154 +33,170 @@ export component PacksPage inherits VerticalLayout {
 
     HorizontalLayout {
         spacing: 8px;
+        vertical-stretch: 1;
+        min-height: 120px;
 
-        // Packs list.
+        // Packs list: header pinned, rows scroll below it. Explicit
+        // geometry — the pane height comes from the row (cross fill),
+        // so the ScrollView binds to it instead of content height.
         Rectangle {
             width: 280px;
             background: Palette.container-low;
             border-radius: Palette.radius;
             border-width: 1px;
             border-color: Palette.outline;
-            VerticalLayout {
-                padding: 6px;
-                spacing: 2px;
-                Rectangle {
-                    height: 36px;
-                    HorizontalLayout {
-                        width: parent.width;
-                        height: parent.height;
-                        spacing: 6px;
-                        alignment: center;
-                        LineEdit {
-                            text <=> root.new-name;
-                            placeholder-text: "New name…";
-                            horizontal-stretch: 1;
-                            min-width: 120px;
+            clip: true;
+            Rectangle {
+                x: 6px;
+                y: 6px;
+                width: parent.width - 12px;
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    spacing: 6px;
+                    alignment: center;
+                    LineEdit {
+                        text <=> root.new-name;
+                        placeholder-text: "New name…";
+                        horizontal-stretch: 1;
+                        min-width: 120px;
+                    }
+                    Button {
+                        text: "+";
+                        clicked => { root.create(); }
+                    }
+                    Button {
+                        text: "Import";
+                        clicked => { root.import-pack(); }
+                    }
+                }
+            }
+            ScrollView {
+                x: 6px;
+                y: 44px;
+                width: parent.width - 12px;
+                height: parent.height - 50px;
+                VerticalLayout {
+                    spacing: 2px;
+                    for pack in root.packs: Rectangle {
+                        height: 48px;
+                        background: pack.index == root.selected ? Palette.container-high : Palette.container;
+                        border-radius: Palette.radius;
+                        touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.select(pack.index); }
                         }
-                        Button {
-                            text: "+";
-                            clicked => { root.create(); }
-                        }
-                        Button {
-                            text: "Import";
-                            clicked => { root.import-pack(); }
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 6px;
+                            spacing: 6px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                Text {
+                                    text: pack.name;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                    color: pack.enabled ? Palette.on-surface : Palette.on-variant;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: pack.detail;
+                                    font-size: 10px;
+                                    color: Palette.on-variant;
+                                    overflow: elide;
+                                }
+                            }
+                            Button {
+                                text: pack.enabled ? "On" : "Off";
+                                clicked => { root.toggle-pack(pack.index); }
+                            }
                         }
                     }
                 }
-                    VerticalLayout {
-                        spacing: 2px;
-                        for pack in root.packs: Rectangle {
-                            height: 48px;
-                            background: pack.index == root.selected ? Palette.container-high : Palette.container;
-                            border-radius: Palette.radius;
-                            touch := TouchArea {
-                                mouse-cursor: pointer;
-                                clicked => { root.select(pack.index); }
-                            }
-                            HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 6px;
-                                spacing: 6px;
-                                VerticalLayout {
-                                    horizontal-stretch: 1;
-                                    alignment: center;
-                                    Text {
-                                        text: pack.name;
-                                        font-size: 12px;
-                                        font-weight: 700;
-                                        color: pack.enabled ? Palette.on-surface : Palette.on-variant;
-                                        overflow: elide;
-                                    }
-                                    Text {
-                                        text: pack.detail;
-                                        font-size: 10px;
-                                        color: Palette.on-variant;
-                                        overflow: elide;
-                                    }
-                                }
-                                Button {
-                                    text: pack.enabled ? "On" : "Off";
-                                    clicked => { root.toggle-pack(pack.index); }
-                                }
-                            }
-                        }
-                    }
-                }
+            }
         }
 
-        // Selected entries.
+        // Selected entries: toolbar pinned, entries scroll below it.
         Rectangle {
             horizontal-stretch: 1;
             background: Palette.container-low;
             border-radius: Palette.radius;
             border-width: 1px;
             border-color: Palette.outline;
-            VerticalLayout {
-                padding: 6px;
-                spacing: 4px;
-                Rectangle {
-                    height: 36px;
-                    HorizontalLayout {
-                        width: parent.width;
-                        height: parent.height;
-                        spacing: 6px;
-                        alignment: center;
-                        Button {
-                            text: "Apply";
-                            clicked => { root.apply-pack(root.selected); }
-                        }
-                        Button {
-                            text: "Add local file";
-                            clicked => { root.add-local-file(); }
-                        }
-                        Button {
-                            text: "Export";
-                            clicked => { root.export-pack(root.selected); }
-                        }
-                        Button {
-                            text: "Delete pack";
-                            clicked => { root.delete-pack(root.selected); }
-                        }
+            clip: true;
+            Rectangle {
+                x: 6px;
+                y: 6px;
+                width: parent.width - 12px;
+                height: 36px;
+                HorizontalLayout {
+                    width: parent.width;
+                    height: parent.height;
+                    spacing: 6px;
+                    alignment: center;
+                    Button {
+                        text: "Apply";
+                        clicked => { root.apply-pack(root.selected); }
+                    }
+                    Button {
+                        text: "Add local file";
+                        clicked => { root.add-local-file(); }
+                    }
+                    Button {
+                        text: "Export";
+                        clicked => { root.export-pack(root.selected); }
+                    }
+                    Button {
+                        text: "Delete pack";
+                        clicked => { root.delete-pack(root.selected); }
                     }
                 }
-                    VerticalLayout {
-                        spacing: 2px;
-                        for entry in root.entries: Rectangle {
-                            height: 40px;
-                            background: Palette.container;
-                            border-radius: Palette.radius;
-                            HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 6px;
-                                spacing: 6px;
-                                VerticalLayout {
-                                    horizontal-stretch: 1;
-                                    alignment: center;
-                                    Text {
-                                        text: entry.title;
-                                        font-size: 12px;
-                                        color: entry.enabled ? Palette.on-surface : Palette.on-variant;
-                                        overflow: elide;
-                                    }
-                                    Text {
-                                        text: entry.detail;
-                                        font-size: 10px;
-                                        color: Palette.on-variant;
-                                        overflow: elide;
-                                    }
+            }
+            ScrollView {
+                x: 6px;
+                y: 44px;
+                width: parent.width - 12px;
+                height: parent.height - 50px;
+                VerticalLayout {
+                    spacing: 2px;
+                    for entry in root.entries: Rectangle {
+                        height: 40px;
+                        background: Palette.container;
+                        border-radius: Palette.radius;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 6px;
+                            spacing: 6px;
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                Text {
+                                    text: entry.title;
+                                    font-size: 12px;
+                                    color: entry.enabled ? Palette.on-surface : Palette.on-variant;
+                                    overflow: elide;
                                 }
-                                Button {
-                                    text: entry.enabled ? "On" : "Off";
-                                    clicked => { root.toggle-entry(entry.index); }
+                                Text {
+                                    text: entry.detail;
+                                    font-size: 10px;
+                                    color: Palette.on-variant;
+                                    overflow: elide;
                                 }
-                                Button {
-                                    text: "Remove";
-                                    clicked => { root.remove-entry(entry.index); }
-                                }
+                            }
+                            Button {
+                                text: entry.enabled ? "On" : "Off";
+                                clicked => { root.toggle-entry(entry.index); }
+                            }
+                            Button {
+                                text: "Remove";
+                                clicked => { root.remove-entry(entry.index); }
                             }
                         }
                     }
                 }
+            }
         }
     }
 
