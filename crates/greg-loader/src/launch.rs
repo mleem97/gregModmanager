@@ -270,8 +270,11 @@ mod tests {
     use super::*;
 
     fn tmp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "greg-launch-test-{tag}-{}",
+        // Test scratch below the crate target dir (never the shared /tmp:
+        // unique per process + nanos, cleaned up by each test).
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/test-tmp/greg-launch-test-{tag}-{}-{}",
+            std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

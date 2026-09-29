@@ -294,7 +294,14 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
 /// session exists (the Windows zombie escape hatch). Restores a parked
 /// `Mods/` folder and reconnects Steamworks afterwards.
 pub fn stop_game(state: &Arc<std::sync::Mutex<AppState>>) {
-    // Tracked session first.
+    if stop_tracked_session(state) {
+        return;
+    }
+    stop_stale_processes(state);
+}
+
+/// Stops the tracked session. Returns `true` when one was stopped.
+fn stop_tracked_session(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
     let stopped = {
         let mut guard = state.lock().expect("state");
         let running = match guard.game_session.as_mut() {
@@ -319,15 +326,19 @@ pub fn stop_game(state: &Arc<std::sync::Mutex<AppState>>) {
             }
         }
     };
-    if stopped {
-        let mut guard = state.lock().expect("state");
-        guard.game_session = None;
-        reconnect_steam(&mut guard);
-        set_game_ui(&mut guard, false, None);
-        local_refresh(&mut guard);
-        return;
+    if !stopped {
+        return false;
     }
-    // No live session: kill stale processes by exe name.
+    let mut guard = state.lock().expect("state");
+    guard.game_session = None;
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
+    true
+}
+
+/// Kills stale game processes by exe name (no live session exists).
+fn stop_stale_processes(state: &Arc<std::sync::Mutex<AppState>>) {
     let stale = greg_loader::launch::stale_game_pids();
     if stale.is_empty() {
         AppState::append_log(state, "Stop: no game process running.");
@@ -342,13 +353,11 @@ pub fn stop_game(state: &Arc<std::sync::Mutex<AppState>>) {
         }
     }
     // A stale kill may have freed a vanilla parking: restore when idle.
-    {
-        let mut guard = state.lock().expect("state");
-        recover_parked_mods(&mut guard);
-        reconnect_steam(&mut guard);
-        set_game_ui(&mut guard, false, None);
-        local_refresh(&mut guard);
-    }
+    let mut guard = state.lock().expect("state");
+    recover_parked_mods(&mut guard);
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
 }
 
 /// Polls the tracked session (cheap non-blocking wait). On exit the

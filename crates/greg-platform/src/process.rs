@@ -258,17 +258,27 @@ mod tests {
     }
 
     #[test]
-    fn finds_own_process_by_exe_name() {
-        let exe = std::env::current_exe().expect("current exe");
-        let name = exe
-            .file_name()
-            .and_then(|n| n.to_str())
-            .expect("exe file name");
-        let pids = find_pids_by_exe(name);
-        // Our own pid is excluded by construction; the scan itself must
-        // simply not fail. A sibling check: an unknown name finds nothing.
+    fn finds_spawned_process_by_exe_name() {
+        // Spawn a sleeper, prove the scan sees its pid, then clean up.
+        // No `current_exe`: the scan must work for foreign processes.
+        #[cfg(target_os = "windows")]
+        let (prog, name, args) = (
+            Path::new("powershell.exe"),
+            "powershell.exe",
+            vec![
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "Start-Sleep -Seconds 30".to_string(),
+            ],
+        );
+        #[cfg(not(target_os = "windows"))]
+        let (prog, name, args) = (Path::new("/bin/sleep"), "sleep", vec!["30".to_string()]);
+        let mut tracked = spawn_tracked(prog, &args, None).expect("spawn sleeper");
+        let pid = tracked.pid();
+        assert!(find_pids_by_exe(name).contains(&pid));
         assert!(find_pids_by_exe("definitely-not-a-real-process-xyz123").is_empty());
-        let _ = pids;
+        let _ = tracked.stop_blocking(std::time::Duration::from_secs(5));
+        assert!(!tracked.is_running());
     }
 
     #[cfg(target_os = "windows")]
