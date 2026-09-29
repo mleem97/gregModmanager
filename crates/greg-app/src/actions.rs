@@ -73,6 +73,11 @@ pub fn tick(state: &mut AppState) {
     // visible and only when the folder actually changed (no flicker).
     if state.tick_count.is_multiple_of(66) {
         auto_refresh_local(state);
+        refresh_stale_game_ui(state);
+    }
+    // Game watchdog roughly every 1 s (cheap non-blocking poll).
+    if state.tick_count.is_multiple_of(7) {
+        poll_game_state(state);
     }
     drain_publish(state);
     drain_sync(state);
@@ -205,38 +210,364 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
     }
 }
 
-/// Launches the game: `steam`/`mods` via Steam URL, `vanilla` via exe.
+/// Launches the game as a supervised direct-exe child.
+///
+/// Modes: `steam` (quick start, mods as installed), `mods` (ensures the
+/// parked `Mods/` folder is restored first), `vanilla` (parks `Mods/`
+/// away for this session, restored on exit). The Steamworks session is
+/// released before the start — otherwise Steam keeps seeing the game as
+/// running through the manager and the next launch fails until
+/// everything is killed (Windows zombie case).
 pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
-    // Gathers the plan first so no lock is held during launches/logs.
-    let vanilla_plan = if mode == "vanilla" {
-        let registry = greg_loader::game::GameAdapterRegistry::with_defaults();
-        let game_root = std::env::var("GREG_GAME_ROOT").ok().map(PathBuf::from);
-        Some(match registry.detect(game_root.as_deref()) {
-            Some((adapter, installation)) => adapter.plan_launch(&installation.root_path, vec![]),
-            None => greg_loader::game::GameOperationPlan {
-                adapter_id: "datacenter".into(),
-                operation: "launch".into(),
-                game_root: PathBuf::new(),
-                executable: None,
-            },
-        })
-    } else {
-        None
+    poll_game_state(&mut state.lock().expect("state"));
+    let launch_mode = match mode {
+        "vanilla" => greg_loader::launch::LaunchMode::Vanilla,
+        _ => greg_loader::launch::LaunchMode::Mods,
     };
-    match vanilla_plan {
-        Some(plan) => match plan.executable {
-            Some(exe) => {
-                if let Err(e) = greg_platform::process::launch_app(&exe, &[]) {
-                    AppState::append_log(state, &format!("Launch failed: {e}"));
-                }
+    // Refuse while our own session runs.
+    if let Some(pid) = tracked_game_pid(&mut state.lock().expect("state")) {
+        let guard = state.lock().expect("state");
+        AppState::append_log(
+            state,
+            &l10n::format(&guard.lang, "Game_AlreadyRunning", &[&pid]),
+        );
+        return;
+    }
+    // Refuse while a stale game process lives (would disagree with Steam).
+    let stale = greg_loader::launch::stale_game_pids();
+    if let Some(pid) = stale.first() {
+        let guard = state.lock().expect("state");
+        AppState::append_log(
+            state,
+            &l10n::format(&guard.lang, "Game_StaleRunning", &[pid]),
+        );
+        let mut guard = state.lock().expect("state");
+        set_game_ui(&mut guard, false, None);
+        return;
+    }
+    // Detect the installation (explicit root or auto-detect).
+    let (game_root, exe) = {
+        let guard = state.lock().expect("state");
+        let root = game_root_of(&guard);
+        if root.as_os_str().is_empty() {
+            AppState::append_log(state, "Launch: game folder not found.");
+            return;
+        }
+        let registry = greg_loader::game::GameAdapterRegistry::with_defaults();
+        match registry.detect(Some(&root)) {
+            Some((adapter, installation)) => {
+                let plan = adapter.plan_launch(&installation.root_path, vec![]);
+                (installation.root_path, plan.executable)
             }
-            None => AppState::append_log(state, "Launch: game executable not found."),
-        },
-        None => {
-            if let Err(e) = greg_platform::process::open_url("steam://rungameid/4170200") {
-                AppState::append_log(state, &format!("Steam launch failed: {e}"));
+            None => {
+                AppState::append_log(state, "Launch: game installation not found.");
+                return;
             }
         }
+    };
+    let Some(exe) = exe else {
+        AppState::append_log(state, "Launch: game executable not found.");
+        return;
+    };
+    // Free the Steam session first so the play session owns the app state.
+    release_steam_for_game(&mut state.lock().expect("state"));
+    match greg_loader::launch::GameSession::start(&game_root, &exe, launch_mode) {
+        Ok(session) => {
+            let pid = session.pid();
+            let mut guard = state.lock().expect("state");
+            AppState::append_log(
+                state,
+                &l10n::format(&guard.lang, "Game_Started", &[&launch_mode.label(), &pid]),
+            );
+            guard.game_session = Some(session);
+            set_game_ui(&mut guard, true, Some(pid));
+        }
+        Err(e) => {
+            AppState::append_log(state, &format!("Launch failed: {e}"));
+            let mut guard = state.lock().expect("state");
+            reconnect_steam(&mut guard);
+        }
+    }
+}
+
+/// Stops the tracked game session, or kills stale game processes when no
+/// session exists (the Windows zombie escape hatch). Restores a parked
+/// `Mods/` folder and reconnects Steamworks afterwards.
+pub fn stop_game(state: &Arc<std::sync::Mutex<AppState>>) {
+    if stop_tracked_session(state) {
+        return;
+    }
+    stop_stale_processes(state);
+}
+
+/// Stops the tracked session. Returns `true` when one was stopped.
+fn stop_tracked_session(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    let stopped = {
+        let mut guard = state.lock().expect("state");
+        let running = match guard.game_session.as_mut() {
+            Some(session) => session.is_running(),
+            None => false,
+        };
+        if !running {
+            false
+        } else {
+            match guard.game_session.as_mut() {
+                Some(session) => match session.stop() {
+                    Ok(_) => {
+                        AppState::append_log(state, &l10n::get(&guard.lang, "Game_Stopped"));
+                        true
+                    }
+                    Err(e) => {
+                        AppState::append_log(state, &format!("Stop failed: {e}"));
+                        false
+                    }
+                },
+                None => false,
+            }
+        }
+    };
+    if !stopped {
+        return false;
+    }
+    let mut guard = state.lock().expect("state");
+    guard.game_session = None;
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
+    true
+}
+
+/// Kills stale game processes by exe name (no live session exists).
+fn stop_stale_processes(state: &Arc<std::sync::Mutex<AppState>>) {
+    let stale = greg_loader::launch::stale_game_pids();
+    if stale.is_empty() {
+        AppState::append_log(state, "Stop: no game process running.");
+        return;
+    }
+    for pid in &stale {
+        match greg_platform::process::kill_tree(*pid) {
+            Ok(()) => {
+                AppState::append_log(state, &format!("Stop: killed stale game process {pid}."))
+            }
+            Err(e) => AppState::append_log(state, &format!("Stop failed for pid {pid}: {e}")),
+        }
+    }
+    // A stale kill may have freed a vanilla parking: restore when idle.
+    let mut guard = state.lock().expect("state");
+    recover_parked_mods(&mut guard);
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
+}
+
+/// Polls the tracked session (cheap non-blocking wait). On exit the
+/// vanilla state is already unwound by the session; Steamworks reconnects
+/// and the UI flips back. Call regularly from the UI tick.
+pub fn poll_game_state(state: &mut AppState) {
+    let event = match state.game_session.as_mut() {
+        Some(session) => session.poll(),
+        None => return,
+    };
+    match event {
+        greg_loader::launch::SessionEvent::Running => {
+            let pid = state.game_session.as_ref().map(|s| s.pid()).unwrap_or(0);
+            let mode = state
+                .game_session
+                .as_ref()
+                .map(|s| s.mode().label().to_string())
+                .unwrap_or_default();
+            let text = l10n::format(&state.lang, "Game_StatusRunning", &[&mode, &pid]);
+            state.ui().set_game_text(text.into());
+        }
+        greg_loader::launch::SessionEvent::Exited { code } => {
+            let elapsed = match state.game_session.as_ref() {
+                Some(s) => format_duration(s.elapsed()),
+                None => String::new(),
+            };
+            let lang = state.lang.clone();
+            state.game_session = None;
+            reconnect_steam(state);
+            set_game_ui(state, false, None);
+            let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "?".into());
+            state.push_log(&l10n::format(&lang, "Game_Exited", &[&code_text, &elapsed]));
+            local_refresh(state);
+        }
+    }
+}
+
+/// Refreshes the game status UI for stale processes (no tracked session).
+/// Runs on the slow tick so the Stop button appears even when the game
+/// was started outside the manager (Windows zombie case).
+fn refresh_stale_game_ui(state: &mut AppState) {
+    let tracked_alive = match state.game_session.as_mut() {
+        Some(session) => session.is_running(),
+        None => false,
+    };
+    if tracked_alive {
+        return;
+    }
+    // Drop a dead session object the watchdog has not reaped yet.
+    if state.game_session.is_some() {
+        poll_game_state(state);
+        if state.game_session.is_some() {
+            return;
+        }
+    }
+    let stale = greg_loader::launch::stale_game_pids();
+    let ui = state.ui();
+    ui.set_game_running(!stale.is_empty());
+    if let Some(pid) = stale.first() {
+        ui.set_game_text(l10n::format(&state.lang, "Game_StaleRunning", &[pid]).into());
+    } else {
+        ui.set_game_text(l10n::get(&state.lang, "Game_StatusStopped").into());
+    }
+}
+
+/// True while a tracked session or any stale game process is alive.
+/// Mod changes are refused then (they would corrupt a running game).
+fn game_running(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    let mut guard = state.lock().expect("state");
+    if let Some(session) = guard.game_session.as_mut() {
+        if session.is_running() {
+            return true;
+        }
+    }
+    !greg_loader::launch::stale_game_pids().is_empty()
+}
+
+/// Logs the stop-first guard message. Returns `true` when blocked.
+fn guard_game_running(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    if game_running(state) {
+        let guard = state.lock().expect("state");
+        AppState::append_log(state, &l10n::get(&guard.lang, "Game_BlockedWhileRunning"));
+        return true;
+    }
+    false
+}
+/// restores a parked `Mods/` when the game is gone. A still-running game
+/// is intentionally left alive (with its vanilla parking, if any).
+pub fn finalize_game_state(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    // NLL-friendly: the session borrow ends before the log call.
+    let running_pid = match guard.game_session.as_mut() {
+        Some(session) => {
+            if session.is_running() {
+                Some(session.pid())
+            } else {
+                None
+            }
+        }
+        None => None,
+    };
+    if let Some(pid) = running_pid {
+        let msg = format!(
+            "manager exiting while the game still runs (pid {pid}) — vanilla parking restores at the next start"
+        );
+        guard.file_log.info(&msg);
+        return;
+    }
+    guard.game_session = None;
+    recover_parked_mods(&mut guard);
+}
+
+/// Restores a parked `Mods/` folder left by a killed vanilla session.
+/// Call at startup and after stale kills. Refreshes the local listing
+/// when something was actually restored.
+pub fn recover_parked_mods(state: &mut AppState) {
+    let root = game_root_of(state);
+    if root.as_os_str().is_empty() {
+        return;
+    }
+    if greg_loader::launch::ensure_mods_restored(
+        &root,
+        greg_loader::launch::any_game_process_running(),
+    ) {
+        state.push_log("Recovered the parked Mods folder from an unclean vanilla session.");
+        local_refresh(state);
+    }
+}
+
+/// Releases the Steamworks session so Steam stops seeing the game as
+/// running through the manager. In-flight jobs are cancelled first; the
+/// native shutdown lands when their handles drop.
+fn release_steam_for_game(state: &mut AppState) {
+    for job in [
+        state.store_job.as_ref(),
+        state.browse_job.as_ref(),
+        state.publish_job.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        job.cancel();
+    }
+    let backend: Arc<dyn greg_steam::backend::SteamBackend> = Arc::from(
+        greg_steam::backend::UnavailableBackend::new("released for game launch"),
+    );
+    state.backend = Arc::clone(&backend);
+    state.steam = Arc::new(greg_steam::service::WorkshopService::new(
+        backend,
+        state.lang.clone(),
+    ));
+    state.steam_released = true;
+    state.refresh_steam_status();
+    state.push_log("Steam session released for the game launch.");
+}
+
+/// Reconnects Steamworks after the play session via the existing
+/// `BackendReady` event flow (no-op unless a release happened).
+fn reconnect_steam(state: &mut AppState) {
+    if !state.steam_released {
+        return;
+    }
+    state.steam_released = false;
+    let tx = state.events_tx.clone();
+    std::thread::spawn(move || {
+        let backend = greg_steam::backend::connect(greg_core::models::settings::DATA_CENTER_APP_ID);
+        let _ = tx.send(UiEvent::BackendReady(Arc::from(backend)));
+    });
+    state.push_log("Reconnecting Steam...");
+}
+
+/// Tracked game pid when our own session is alive.
+fn tracked_game_pid(state: &mut AppState) -> Option<u32> {
+    let running = match state.game_session.as_mut() {
+        Some(session) => session.is_running(),
+        None => false,
+    };
+    if running {
+        state.game_session.as_ref().map(|s| s.pid())
+    } else {
+        None
+    }
+}
+
+/// Formats a play duration as `H:MM:SS`.
+fn format_duration(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    format!("{}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+}
+
+/// Applies the game status UI (header Stop button + status text).
+fn set_game_ui(state: &mut AppState, running: bool, pid: Option<u32>) {
+    let ui = state.ui();
+    ui.set_game_running(running);
+    if running {
+        let mode = state
+            .game_session
+            .as_ref()
+            .map(|s| s.mode().label().to_string())
+            .unwrap_or_default();
+        ui.set_game_text(
+            l10n::format(
+                &state.lang,
+                "Game_StatusRunning",
+                &[&mode, &pid.unwrap_or(0)],
+            )
+            .into(),
+        );
+    } else {
+        ui.set_game_text(l10n::get(&state.lang, "Game_StatusStopped").into());
     }
 }
 
@@ -1952,6 +2283,9 @@ fn local_filtered(state: &AppState) -> Vec<usize> {
 
 /// Toggles an entry by list index.
 pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let entry = {
         let guard = state.lock().expect("state");
         let filtered = local_filtered(&guard);
@@ -1979,6 +2313,9 @@ pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
 
 /// Opens the confirm dialog for a removal.
 pub fn local_remove(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let mut guard = state.lock().expect("state");
     let filtered = local_filtered(&guard);
     let entry = filtered
@@ -2014,6 +2351,12 @@ pub fn local_open_folder(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Confirm dialog: delete the pending file.
 pub fn confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
+    if guard_game_running(state) {
+        let mut guard = state.lock().expect("state");
+        guard.ui().set_show_confirm(false);
+        guard.pending_remove = None;
+        return;
+    }
     let pending = {
         let mut guard = state.lock().expect("state");
         guard.ui().set_show_confirm(false);
@@ -2147,6 +2490,48 @@ pub fn refresh_problems(state: &Arc<std::sync::Mutex<AppState>>) {
         });
     }
 
+    // Tracked game session.
+    {
+        let mut guard = state.lock().expect("state");
+        if let Some(session) = guard.game_session.as_mut() {
+            if session.is_running() {
+                let pid = session.pid();
+                let mode = session.mode().label().to_string();
+                problems.push(Problem {
+                    severity: "info",
+                    source: "Game".into(),
+                    message: l10n::format(&guard.lang, "Game_StatusRunning", &[&mode, &pid]),
+                    action: Some(("stop-game".into(), String::new(), "Stop game".into())),
+                });
+            }
+        }
+    }
+    // Stale game processes (started outside the manager, Windows zombies).
+    if state.lock().expect("state").game_session.is_none() {
+        let stale = greg_loader::launch::stale_game_pids();
+        if let Some(pid) = stale.first() {
+            let guard = state.lock().expect("state");
+            problems.push(Problem {
+                severity: "warning",
+                source: "Game".into(),
+                message: l10n::format(&guard.lang, "Game_StaleRunning", &[pid]),
+                action: Some(("stop-game".into(), String::new(), "Stop game".into())),
+            });
+        }
+    }
+    // Parked Mods/ from an unclean vanilla session.
+    if game_root.is_dir()
+        && greg_loader::launch::mods_state(&game_root)
+            == greg_loader::launch::ModsState::DisabledByManager
+        && !greg_loader::launch::any_game_process_running()
+    {
+        problems.push(Problem {
+            severity: "warning",
+            source: "Game".into(),
+            message: "Mods folder is parked (vanilla) — restore it to play with mods.".into(),
+            action: Some(("restore-mods".into(), String::new(), "Restore mods".into())),
+        });
+    }
     // Health checks (only with a game root; without one the game error above covers it).
     if game_root.is_dir() {
         let service = greg_loader::health::ModDependencyService::new(Some(game_root.clone()));
@@ -2266,6 +2651,14 @@ pub fn problems_act(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
     match action.0.as_str() {
         "settings" => on_icon(state, crate::state::ICON_SETTINGS),
         "editor" if !action.1.is_empty() => open_project(state, &action.1),
+        "stop-game" => stop_game(state),
+        "restore-mods" => {
+            {
+                let mut guard = state.lock().expect("state");
+                recover_parked_mods(&mut guard);
+            }
+            refresh_problems(state);
+        }
         _ => {}
     }
 }
@@ -2610,6 +3003,9 @@ type WorkshopLink<'a> = Option<&'a dyn Fn(u64) -> std::result::Result<(), String
 /// Applies the selected pack (local enable/disable + Workshop subscribe).
 /// The index argument mirrors the UI callback; selection is authoritative.
 pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let (pack, game_root, steam) = {
         let guard = state.lock().expect("state");
         let Some(id) = guard.selected_pack.clone() else {

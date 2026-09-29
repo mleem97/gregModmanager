@@ -148,6 +148,14 @@ static STRINGS_EN: &[(&str, &str)] = &[
     ("Error_Copied", "Copied to clipboard."),
     ("Error_Copy", "Copy error"),
     ("Error_CopyFailed", "Could not copy to clipboard."),
+    ("Game_AlreadyRunning", "Game is already running (PID {0}) — stop it first."),
+    ("Game_BlockedWhileRunning", "Stop the game first — mods cannot change while it runs."),
+    ("Game_Exited", "Game exited (code {0}) after {1}."),
+    ("Game_Started", "Game started {0} (PID {1})."),
+    ("Game_StatusRunning", "Game running {0} (PID {1})"),
+    ("Game_StatusStopped", "Game: stopped"),
+    ("Game_StaleRunning", "Game is already running outside the manager (PID {0}) — press Stop to kill it."),
+    ("Game_Stopped", "Game stopped."),
     ("Error_Language", "Language"),
     ("Error_LogPath", "Log path"),
     ("Error_OperatingSystem", "Operating system"),
@@ -503,6 +511,14 @@ static STRINGS_DE: &[(&str, &str)] = &[
     ("Error_Copied", "In die Zwischenablage kopiert."),
     ("Error_Copy", "Fehler kopieren"),
     ("Error_CopyFailed", "Konnte nicht in die Zwischenablage kopieren."),
+    ("Game_AlreadyRunning", "Das Spiel läuft bereits (PID {0}) – erst stoppen."),
+    ("Game_BlockedWhileRunning", "Erst das Spiel stoppen – Mods können währenddessen nicht geändert werden."),
+    ("Game_Exited", "Spiel beendet (Code {0}) nach {1}."),
+    ("Game_Started", "Spiel gestartet {0} (PID {1})."),
+    ("Game_StatusRunning", "Spiel läuft {0} (PID {1})"),
+    ("Game_StatusStopped", "Spiel: gestoppt"),
+    ("Game_StaleRunning", "Das Spiel läuft bereits außerhalb des Managers (PID {0}) – mit Stop beenden."),
+    ("Game_Stopped", "Spiel gestoppt."),
     ("Error_Language", "Sprache"),
     ("Error_LogPath", "Logpfad"),
     ("Error_OperatingSystem", "Betriebssystem"),
@@ -732,5 +748,5 @@ pub fn get_raw(lang: &str, key: &str) -> Option<&'static str> {
 
 /// Number of localized keys (same for both languages).
 pub fn key_count() -> usize {
-    352
+    360
 }
