@@ -1,5 +1,5 @@
 import { Button } from "std-widgets.slint";
-import { Palette, IconButton, NavButton, StatusLed, WinBtn } from "theme.slint";
+import { Palette, IconButton, NavButton, StatusLed, WinBtn, TopBarButton } from "theme.slint";
 import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow, PackRow, PackEntryRow } from "models.slint";
 import { LocalPage } from "page-local.slint";
 import { PacksPage } from "page-packs.slint";
@@ -361,11 +361,12 @@ export component MainWindow inherits Window {
                             vertical-alignment: center;
                         }
                         Rectangle { horizontal-stretch: 1; }
-                        Button { text: "Start Game"; clicked => { root.start-game("steam"); } }
-                        Button { text: "With Mods"; clicked => { root.start-game("mods"); } }
-                        Button { text: "No Mods"; clicked => { root.start-game("vanilla"); } }
-                        if root.login-visible: Button {
+                        TopBarButton { text: "Start Game"; btn-width: 96px; clicked => { root.start-game("steam"); } }
+                        TopBarButton { text: "With Mods"; btn-width: 96px; clicked => { root.start-game("mods"); } }
+                        TopBarButton { text: "No Mods"; btn-width: 84px; clicked => { root.start-game("vanilla"); } }
+                        if root.login-visible: TopBarButton {
                             text: "Login";
+                            btn-width: 72px;
                             clicked => { root.login-clicked(); }
                         }
                         if root.profile-visible: Rectangle {
@@ -467,12 +468,17 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             width: parent.width;
                             height: parent.height;
-                            // Top-anchor compact pages: the default packs
-                            // stretch-less content at the end (void on top).
-                            alignment: start;
+                            // No `alignment: start` here: every page fills
+                            // the viewport via vertical-stretch and scrolls
+                            // its list region internally (ScrollView). With
+                            // start-alignment, stretch is ignored, pages
+                            // render at preferred height and long lists grow
+                            // past the window (or stretched boxes collapse).
                             if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
-                                // No stretch: compact page, rows top + void below
-                                // (nested stretch + flexible status text mis-distributes).
+                                // Stretched to the viewport: the list box
+                                // inside takes the leftover space and scrolls
+                                // instead of growing past the window.
+                                vertical-stretch: 1;
                                 title <=> root.local-title;
                                 search <=> root.local-search;
                                 rows <=> root.local-rows;
@@ -483,12 +489,14 @@ export component MainWindow inherits Window {
                                 open-folder => { root.local-open-folder(); }
                             }
                             if root.current-page == "problems": ProblemsPage {
+                                vertical-stretch: 1;
                                 rows <=> root.problem-rows;
                                 status <=> root.problem-status;
                                 refresh => { root.problems-refresh(); }
                                 act(idx) => { root.problems-act(idx); }
                             }
                             if root.current-page == "modpacks" || root.current-page == "collections": PacksPage {
+                                vertical-stretch: 1;
                                 kind <=> root.pack-kind;
                                 title <=> root.pack-title;
                                 packs <=> root.pack-packs;
@@ -508,6 +516,7 @@ export component MainWindow inherits Window {
                                 apply-pack(idx) => { root.packs-apply(idx); }
                             }
                             if root.current-page == "projects": ProjectsPage {
+                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -520,6 +529,7 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "new": ProjectsPage {
+                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -532,6 +542,7 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "editor": EditorPage {
+                                vertical-stretch: 1;
                                 title <=> root.ed-title;
                                 version <=> root.ed-version;
                                 desc <=> root.ed-desc;
@@ -573,6 +584,7 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.ed-view-steam(); }
                             }
                             if root.current-page == "browse": BrowsePage {
+                                vertical-stretch: 1;
                                 list <=> root.br-list;
                                 lists <=> root.br-lists;
                                 sort <=> root.br-sort;
@@ -604,6 +616,7 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.br-view-steam(); }
                             }
                             if root.current-page == "modstore": StorePage {
+                                vertical-stretch: 1;
                                 search <=> root.st-search;
                                 items <=> root.st-items;
                                 updates <=> root.st-updates;
@@ -617,6 +630,7 @@ export component MainWindow inherits Window {
                                 install-update(idx) => { root.st-install-update(idx); }
                             }
                             if root.current-page == "settings": SettingsPage {
+                                vertical-stretch: 1;
                                 workspace <=> root.se-workspace;
                                 gameroot <=> root.se-gameroot;
                                 lang <=> root.se-lang;

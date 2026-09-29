@@ -1,4 +1,5 @@
 import { LineEdit, Button } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
 import { Palette, SectionTitle, Thumb } from "theme.slint";
 import { LocalRow } from "models.slint";
 
@@ -50,15 +51,21 @@ export component LocalPage inherits VerticalLayout {
         color: Palette.on-variant;
     }
 
-    // Compact list: no vertical-stretch here — stretch on fixed-content
-    // containers never grows them (max-capped) but propagates upward and
-    // makes the whole page tall, misplacing the void above the list.
-    // (Explicit max-height does NOT uncap: the child content cap wins.)
+    // Scroll box: fills the leftover page height (the page is fixed to
+    // the viewport in main.slint) and scrolls internally — long lists
+    // never grow past the window. min-height keeps a usable area on
+    // very short windows; clip keeps rows inside the border.
     Rectangle {
+        vertical-stretch: 1;
+        min-height: 96px;
         background: Palette.container-low;
         border-radius: Palette.radius;
         border-width: 1px;
         border-color: Palette.outline;
+        clip: true;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
             VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
@@ -109,5 +116,6 @@ export component LocalPage inherits VerticalLayout {
                     }
                 }
             }
+        }
     }
 }
