@@ -13,6 +13,8 @@ crates/
   greg-core/                # domain models, docs/changelog logic, errors — NO UI deps
   greg-steam/               # Steam Workshop via `steamworks` crate
   greg-modstore/            # Modstore REST client
+                          # (catalog, updates, atomic installs, intents,
+                          # auth, collections, publish: zip → upload-url → submit)
   greg-loader/              # game/MelonLoader discovery, installs, adapters
    greg-platform/            # cfg(target_os) shims (replaces Unix/Windows/MacOs projects)
    greg-app/                 # desktop UI binary (Slint)
@@ -149,6 +151,21 @@ Workshop remains. Liveness is probed live in the background every 30 s (plus
 on demand when heading for the Modstore): `GET {api}/api/v1/mods` must answer
 2xx + JSON, otherwise the API shows OFFLINE — redirects, error pages,
 timeouts and DNS failures never count as online.
+
+Game supervision (`greg-loader::launch`, `greg-platform::process`): all
+three header buttons start the game exe directly as a tracked child
+(`TrackedChild`: pid, non-blocking poll, kill) — never via
+`steam://rungameid`. Before the start the Steamworks session is released
+(backends swapped to unavailable, in-flight jobs cancelled; the native
+`SteamAPI_Shutdown` lands when the last `Client` clone drops) and
+reconnected after exit through the existing `BackendReady` flow, so Steam
+never mistakes the manager for a running game. `Vanilla` parks `Mods/`
+to `Mods.disabled-by-manager` and restores it on exit; leftovers recover
+at the next start when no game runs. A stale game process (exe-name scan:
+`/proc` on Unix, `tasklist` on Windows) blocks a new start; `Stop` kills
+the tracked child or the stale tree (`taskkill /T /F` on Windows). Mod
+mutations are refused while a game runs. A running game survives a manager
+exit on purpose (its vanilla parking restores at the next start).
 
 Fixed-geometry rules (the old "misplaced icons" class of bug): icon buttons
 are fixed 56×56 with centered glyphs and a 3 px active bar; in-page text

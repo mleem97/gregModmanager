@@ -41,6 +41,8 @@ export component MainWindow inherits Window {
     in-out property <string> gregapi-text: "gregAPI Offline";
     in-out property <bool> modstore-available: false;
     in-out property <bool> login-visible: false;
+    in-out property <bool> game-running: false;
+    in-out property <string> game-text: "Game: stopped";
     in-out property <bool> profile-visible: false;
     in-out property <string> profile-name: "";
     in-out property <string> profile-hint: "";
@@ -155,6 +157,7 @@ export component MainWindow inherits Window {
     callback icon-clicked(string);
     callback nav-clicked(string);
     callback start-game(string);
+    callback stop-game();
     callback login-clicked();
     callback profile-clicked();
     callback profile-menu-clicked(string);
@@ -200,6 +203,7 @@ export component MainWindow inherits Window {
     callback ed-changed();
     callback ed-save();
     callback ed-publish();
+    callback ed-publish-modstore();
     callback ed-cancel-publish();
     callback ed-pick-preview();
     callback ed-add-shot();
@@ -364,6 +368,11 @@ export component MainWindow inherits Window {
                         TopBarButton { text: "Start Game"; btn-width: 96px; clicked => { root.start-game("steam"); } }
                         TopBarButton { text: "With Mods"; btn-width: 96px; clicked => { root.start-game("mods"); } }
                         TopBarButton { text: "No Mods"; btn-width: 84px; clicked => { root.start-game("vanilla"); } }
+                        if root.game-running: TopBarButton {
+                            text: "Stop";
+                            btn-width: 72px;
+                            clicked => { root.stop-game(); }
+                        }
                         if root.login-visible: TopBarButton {
                             text: "Login";
                             btn-width: 72px;
@@ -668,6 +677,12 @@ export component MainWindow inherits Window {
                         StatusLed {
                             ok: root.gregapi-ok;
                             text: root.gregapi-text;
+                        }
+                        Text {
+                            text: root.game-text;
+                            font-size: 11px;
+                            color: Palette.on-variant;
+                            vertical-alignment: center;
                         }
                         Rectangle { horizontal-stretch: 1; }
                         Text {

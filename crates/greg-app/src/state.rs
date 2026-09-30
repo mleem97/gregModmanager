@@ -97,6 +97,10 @@ pub struct AppState {
     pub local_sig: String,
     /// Active Modstore session (OAuth browser flow).
     pub session: Option<ActiveSession>,
+    /// Tracked game session (supervised direct-exe launch).
+    pub game_session: Option<greg_loader::launch::GameSession>,
+    /// Steamworks session released for the play session (see actions).
+    pub steam_released: bool,
     /// OAuth request id awaiting the `greg://` callback (replay guard).
     pub pending_request_id: Option<String>,
 
@@ -198,6 +202,8 @@ impl AppState {
             pending_remove: None,
             local_sig: String::new(),
             session: None,
+            game_session: None,
+            steam_released: false,
             pending_request_id: None,
             problem_actions: Vec::new(),
             pack_service: crate::actions::load_packs(),
@@ -274,6 +280,13 @@ impl AppState {
             crate::actions::refresh_settings(&mut guard);
             // Initial scan so My Mods is populated from the first frame.
             crate::actions::local_refresh(&mut guard);
+            // Crash recovery: a parked Mods/ from a killed vanilla session
+            // is restored when no game process is running anymore.
+            crate::actions::recover_parked_mods(&mut guard);
+            // Game status starts stopped.
+            guard.ui().set_game_running(false);
+            let stopped = l10n::get(&guard.lang, "Game_StatusStopped").into();
+            guard.ui().set_game_text(stopped);
         }
         state
     }

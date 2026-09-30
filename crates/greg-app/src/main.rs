@@ -79,6 +79,7 @@ fn main() -> anyhow::Result<()> {
         },
     );
     ui.run()?;
+    actions::finalize_game_state(&state);
     log.end_session();
     Ok(())
 }
@@ -97,6 +98,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_start_game(move |mode| actions::start_game(&state, &mode));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_stop_game(move || actions::stop_game(&state));
     }
     {
         let state = Arc::clone(state);
@@ -259,6 +264,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_ed_publish(move || actions::editor_publish(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_publish_modstore(move || actions::editor_publish_modstore(&state));
     }
     {
         let state = Arc::clone(state);
