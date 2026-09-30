@@ -267,6 +267,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     }
     {
         let state = Arc::clone(state);
+        ui.on_ed_publish_modstore(move || actions::editor_publish_modstore(&state));
+    }
+    {
+        let state = Arc::clone(state);
         ui.on_ed_cancel_publish(move || actions::editor_cancel_publish(&state));
     }
     {

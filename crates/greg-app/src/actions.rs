@@ -1515,6 +1515,152 @@ pub fn editor_cancel_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     }
 }
 
+/// Starts a Modstore publish of the open project (presigned upload +
+/// submit, shared flow with the CLI). Reuses the publish job slot,
+/// progress bar and log; the outcome names mod, release and scan status.
+pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
+    use greg_modstore::publish::{PublishMetadata, PublishPayload, PublishPlan};
+    use greg_modstore::upload_client::ModStoreUploadClient;
+
+    editor_save(state);
+    let mut guard = state.lock().expect("state");
+    let ui = guard.ui();
+    let Some(root) = guard.editor_root.clone() else {
+        ui.set_ed_status("No project open.".into());
+        return;
+    };
+    if guard.publish_job.is_some() {
+        ui.set_ed_status("Upload already running…".into());
+        return;
+    }
+    if !ui.get_ed_ready() {
+        let blocking: Vec<String> = ui
+            .get_ed_checks()
+            .iter()
+            .filter(|row| !row.ok)
+            .map(|row| format!("{} — {}", row.label, row.detail))
+            .collect();
+        ui.set_ed_status(if blocking.is_empty() {
+            "Not ready to upload.".into()
+        } else {
+            format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
+        });
+        return;
+    }
+    let Some(token) = guard
+        .session
+        .as_ref()
+        .map(|s| s.access_token.clone())
+        .filter(|t| !t.trim().is_empty())
+    else {
+        ui.set_ed_status("Login required — connect the Modstore first.".into());
+        return;
+    };
+    let meta = guard.editor_meta.clone();
+    let manual = guard.editor_changelog.clone();
+    let urls = store_base_urls(&guard);
+    let rt = guard.runtime.handle().clone();
+    guard.ui().set_ed_publishing(true);
+    guard.ui().set_ed_progress(0.0);
+    guard
+        .ui()
+        .set_ed_status("Packaging for the Modstore…".into());
+    AppState::append_log(
+        state,
+        &format!("Modstore upload started: {}", root.display()),
+    );
+    let job = JobHandle::spawn(move |sink| {
+        let content = root.join("content");
+        let folder = root.file_name().and_then(|n| n.to_str()).unwrap_or("mod");
+        let payload = PublishPayload::Directory {
+            dir: content,
+            file_name: format!("{folder}.zip"),
+        };
+        let description =
+            greg_core::docs::project_docs::resolve_modstore_description(&root, &meta.description)
+                .text;
+        let changelog =
+            greg_core::docs::project_docs::resolve_modstore_changelog(&root, &meta.version, {
+                let manual = manual.trim();
+                (!manual.is_empty()).then_some(manual)
+            })
+            .text;
+        let plan = match PublishPlan::from_project(
+            &payload,
+            &PublishMetadata {
+                mod_id: (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()),
+                title: meta.title.clone(),
+                version: meta.version.clone(),
+                description,
+                changelog,
+                category: {
+                    let profile = meta.native_config_profile.trim();
+                    (!profile.is_empty()).then(|| profile.to_string())
+                },
+                license: None,
+                tags: meta.tags.clone(),
+                installation: None,
+                support_url: None,
+                min_game_version: None,
+                recommended_game_version: None,
+            },
+        ) {
+            Ok(plan) => plan,
+            Err(e) => {
+                return crate::worker::JobOutcome {
+                    success: false,
+                    message: format!("Packaging failed: {e}"),
+                }
+            }
+        };
+        let client = match ModStoreUploadClient::new(urls).map(|c| c.with_token(token)) {
+            Ok(client) => client,
+            Err(e) => {
+                return crate::worker::JobOutcome {
+                    success: false,
+                    message: e.to_string(),
+                }
+            }
+        };
+        let progress_sink = sink.clone();
+        let outcome = rt.block_on(plan.execute(&client, &|p| {
+            progress_sink.progress(f32::from(p) / 100.0);
+            progress_sink.status(format!("Modstore upload {p}%"));
+        }));
+        match outcome {
+            Ok(response) => {
+                if !response.mod_id.trim().is_empty() {
+                    let mut saved = meta.clone();
+                    saved.modstore_id = response.mod_id.clone();
+                    let _ = greg_platform::workspace::save_metadata(&root, &saved);
+                }
+                greg_platform::filelog::FileLog::shared().info(&format!(
+                    "Modstore upload finished: {} -> mod {} release {}",
+                    root.display(),
+                    response.mod_id,
+                    response.release_id
+                ));
+                crate::worker::JobOutcome {
+                    success: true,
+                    message: format!(
+                        "Modstore: mod {} · release {} · scan {}",
+                        response.mod_id, response.release_id, response.scan_status
+                    ),
+                }
+            }
+            Err(e) => {
+                greg_platform::filelog::FileLog::shared()
+                    .info(&format!("Modstore upload failed: {}: {e}", root.display()));
+                crate::worker::JobOutcome {
+                    success: false,
+                    message: format!("Modstore upload failed: {e}"),
+                }
+            }
+        }
+    });
+    guard.publish_job = Some(job);
+}
+
 fn drain_publish(state: &mut AppState) {
     let mut done = false;
     let mut finished = false;

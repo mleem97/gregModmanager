@@ -37,6 +37,7 @@ export component EditorPage inherits VerticalLayout {
     callback changed();
     callback save();
     callback publish();
+    callback publish-modstore();
     callback cancel-publish();
     callback pick-preview();
     callback add-shot();
@@ -303,6 +304,11 @@ export component EditorPage inherits VerticalLayout {
                     text: "Save & Upload";
                     enabled: !root.publishing;
                     clicked => { root.publish(); }
+                }
+                Button {
+                    text: "Modstore Upload";
+                    enabled: !root.publishing;
+                    clicked => { root.publish-modstore(); }
                 }
                 if root.publishing: Button {
                     text: "Cancel";
