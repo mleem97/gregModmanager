@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Lucide icons everywhere (`lucide-slint` 1.49.1 as build dependency,
+  `@lucide` Slint library in `build.rs`, shared `ui/icons.slint`
+  `AppIcon` wrapper): icon bar, window buttons, list rows, status and
+  check indicators, pager and toolbar buttons. All unicode glyphs and
+  emoji (icon bar, window controls, Prev/Next, check marks, severity
+  markers, workshop star ratings) are replaced by Lucide icons.
+- My Mods / Plugins / Libs are split into Active and Disabled sections,
+  each with its own count and a fixed-frame scroll box, so long mod
+  lists scroll inside their box instead of growing past the window.
+- Unified `GregButton` (ghost/primary/danger + optional Lucide icon)
+  and `ListCard` components in `ui/theme.slint`: all pages share the
+  same button, list, card and dropdown look, with a subtle neumorphic
+  touch (10px radius, faint top highlight, soft shadow).
+- Linux cleanup (`gregmodmanager-cleanup.sh`, runs on DEB pre/post
+  install) now also removes orphan `gregmodmanager-local-test` start
+  menu entries, binaries and `/opt` leftovers, plus stale user-level
+  `gregmodmanager.desktop` copies whose `Exec` no longer points at the
+  packaged `/usr/bin/gregmodmanager`. Only the DEB installation
+  remains in the start menu.
+
+### Added
+
 - Modstore publish: `gregcli publish --to modstore` (API token via
   `--token`/`GREG_MODSTORE_TOKEN`, `--mod-id`, `--category`, `--license`,
   `--api-url`, `--file`) and an editor "Modstore Upload" button sharing

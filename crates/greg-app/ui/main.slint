@@ -1,5 +1,6 @@
-import { Button } from "std-widgets.slint";
-import { Palette, IconButton, NavButton, StatusLed, WinBtn, TopBarButton } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, IconButton, NavButton, StatusLed, WinBtn, TopBarButton, GregButton } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow, PackRow, PackEntryRow } from "models.slint";
 import { LocalPage } from "page-local.slint";
 import { PacksPage } from "page-packs.slint";
@@ -117,7 +118,8 @@ export component MainWindow inherits Window {
     // --- local content page state (My Mods / Plugins / Libs) ---
     in-out property <string> local-title;
     in-out property <string> local-search;
-    in-out property <[LocalRow]> local-rows;
+    in-out property <[LocalRow]> local-active-rows;
+    in-out property <[LocalRow]> local-inactive-rows;
     in-out property <string> local-status;
 
     // --- problems page state ---
@@ -299,7 +301,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "▤";
+                            icon: IconSet.LayoutGrid;
                             tip: "Modmanager";
                             active: root.current-icon == "modmanager";
                             clicked => { root.icon-clicked("modmanager"); }
@@ -308,7 +310,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "⬆";
+                            icon: IconSet.Upload;
                             tip: "Workshop Upload";
                             active: root.current-icon == "workshop";
                             clicked => { root.icon-clicked("workshop"); }
@@ -317,7 +319,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "◈";
+                            icon: IconSet.ShoppingBag;
                             tip: "Modstore";
                             active: root.current-icon == "modstore";
                             enabled: root.modstore-available;
@@ -327,7 +329,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "⚙";
+                            icon: IconSet.Settings;
                             tip: "Settings";
                             active: root.current-icon == "settings";
                             clicked => { root.icon-clicked("settings"); }
@@ -399,12 +401,12 @@ export component MainWindow inherits Window {
                                     y: (parent.height - self.height) / 2;
                                     background: Palette.avatar-bg;
                                     border-radius: 12px;
-                                    Text {
-                                        text: "●";
-                                        font-size: 12px;
-                                        color: Palette.primary;
-                                        horizontal-alignment: center;
-                                        vertical-alignment: center;
+                                    AppIcon {
+                                        icon: IconSet.UserRound;
+                                        size: 14px;
+                                        stroke: Palette.primary;
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
                                     }
                                 }
                                 VerticalLayout {
@@ -426,15 +428,15 @@ export component MainWindow inherits Window {
                         HorizontalLayout {
                             spacing: 0px;
                             WinBtn {
-                                glyph: "—";
+                                icon: IconSet.Minus;
                                 clicked => { root.window-minimize(); }
                             }
                             WinBtn {
-                                glyph: root.maximized ? "❐" : "□";
+                                icon: root.maximized ? IconSet.Copy : IconSet.Square;
                                 clicked => { root.window-maximize(); }
                             }
                             WinBtn {
-                                glyph: "✕";
+                                icon: IconSet.X;
                                 danger: true;
                                 clicked => { root.window-close(); }
                             }
@@ -490,7 +492,8 @@ export component MainWindow inherits Window {
                                 vertical-stretch: 1;
                                 title <=> root.local-title;
                                 search <=> root.local-search;
-                                rows <=> root.local-rows;
+                                active-rows <=> root.local-active-rows;
+                                inactive-rows <=> root.local-inactive-rows;
                                 status <=> root.local-status;
                                 refresh => { root.local-refresh(); }
                                 toggle(idx) => { root.local-toggle(idx); }
@@ -725,12 +728,17 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         spacing: 10px;
                         alignment: center;
-                        Button {
+                        GregButton {
                             text: "Delete";
+                            has-icon: true;
+                            icon: IconSet.Trash2;
+                            variant: "danger";
                             clicked => { root.confirm-yes(); }
                         }
-                        Button {
+                        GregButton {
                             text: "Cancel";
+                            has-icon: true;
+                            icon: IconSet.Ban;
                             clicked => { root.confirm-no(); }
                         }
                     }
@@ -770,16 +778,22 @@ export component MainWindow inherits Window {
                         color: Palette.on-variant;
                         horizontal-alignment: center;
                     }
-                    Button {
+                    GregButton {
                         text: "gregModmanager (this app)";
+                        has-icon: true;
+                        icon: IconSet.LayoutGrid;
                         clicked => { root.bug-open-manager(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Other Greg mods & programs";
+                        has-icon: true;
+                        icon: IconSet.Package;
                         clicked => { root.bug-open-org(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Cancel";
+                        has-icon: true;
+                        icon: IconSet.Ban;
                         clicked => { root.bug-close(); }
                     }
                 }
@@ -808,24 +822,28 @@ export component MainWindow inherits Window {
                     padding: 8px;
                     spacing: 4px;
                     alignment: start;
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "My Mods";
+                        has-icon: true;
+                        icon: IconSet.Package;
                         clicked => { root.profile-menu-clicked("mymods"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Upload";
+                        has-icon: true;
+                        icon: IconSet.Upload;
                         clicked => { root.profile-menu-clicked("upload"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Settings";
+                        has-icon: true;
+                        icon: IconSet.Settings;
                         clicked => { root.profile-menu-clicked("settings"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Logout";
+                        has-icon: true;
+                        icon: IconSet.LogOut;
                         clicked => { root.profile-menu-clicked("logout"); }
                     }
                 }

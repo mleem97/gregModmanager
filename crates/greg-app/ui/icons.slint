@@ -1,0 +1,19 @@
+// Central Lucide icon wrapper for the gregModmanager UI.
+//
+// Every icon in the app goes through `AppIcon` (or a component built on it)
+// so stroke color, width and size stay consistent. Never use unicode glyphs
+// or emoji as icons — always pick a Lucide `IconSet` entry.
+//
+// Usage:
+//   import { AppIcon } from "icons.slint";
+//   import { IconSet } from "@lucide";
+//   AppIcon { icon: IconSet.RefreshCw; }
+
+import { IconDisplay, Icon } from "@lucide";
+import { Palette } from "theme.slint";
+
+export component AppIcon inherits IconDisplay {
+    size: 18px;
+    stroke: Palette.on-variant;
+    stroke-width: 1.8;
+}

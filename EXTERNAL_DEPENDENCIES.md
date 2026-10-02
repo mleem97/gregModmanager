@@ -13,6 +13,7 @@ a release.
 | Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
 | Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
 | Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (Rust restart, `greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
+| Rust `lucide-slint` 1.49.1 (build dependency, `greg-app`) + Slint 1.18.1 | all UI icons via `IconDisplay`/`IconSet` (`@lucide` library in `build.rs`); no unicode glyphs or emoji as icons | [MIT OR Apache-2.0](https://github.com/cnlancehu/lucide-slint) + [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) for the icon artwork |
 | xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |
 
 ## Redistributables and platform assets

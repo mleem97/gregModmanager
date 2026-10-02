@@ -28,6 +28,7 @@ getrandom = "0.3"
 
 [build-dependencies]
 slint-build = "1.18.1"
+lucide-slint.workspace = true
 
 [dev-dependencies]
 image = "0.25"

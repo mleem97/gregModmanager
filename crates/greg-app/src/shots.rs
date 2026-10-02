@@ -154,22 +154,26 @@ fn page_mymods(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
         "mymods",
     );
     ui.set_local_title("MY MODS".into());
-    ui.set_local_rows(model(
-        (0..6)
-            .map(|i| crate::LocalRow {
-                name: format!("SomeMod{i}.dll").into(),
-                detail: "1.2 MB · Mods".into(),
-                enabled: i % 2 == 0,
-                index: i,
-                thumb: if i == 0 {
-                    sample_thumb()
-                } else {
-                    slint::Image::default()
-                },
-            })
-            .collect(),
+    let sample: Vec<crate::LocalRow> = (0..6)
+        .map(|i| crate::LocalRow {
+            name: format!("SomeMod{i}.dll").into(),
+            detail: "1.2 MB · Mods".into(),
+            enabled: i % 2 == 0,
+            index: i,
+            thumb: if i == 0 {
+                sample_thumb()
+            } else {
+                slint::Image::default()
+            },
+        })
+        .collect();
+    ui.set_local_active_rows(model(
+        sample.iter().filter(|r| r.enabled).cloned().collect(),
     ));
-    ui.set_local_status("6 entries".into());
+    ui.set_local_inactive_rows(model(
+        sample.iter().filter(|r| !r.enabled).cloned().collect(),
+    ));
+    ui.set_local_status("3 active, 3 disabled".into());
     shot(ui, window, "01-mymods");
 }
 
@@ -293,7 +297,7 @@ fn page_browse(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
             .map(|i| BrowseRow {
                 id: format!("{i}").into(),
                 title: format!("Workshop Item {i} With A Reasonably Long Title").into(),
-                score: "★ 4.5".into(),
+                score: "4.5 / 5".into(),
                 thumb: if i == 0 {
                     sample_thumb()
                 } else {
@@ -304,7 +308,7 @@ fn page_browse(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
     ));
     ui.set_br_has_detail(true);
     ui.set_br_d_title("Workshop Item 0 With A Reasonably Long Title".into());
-    ui.set_br_d_meta("by SomeAuthor · ★ 4.5 · 123456 bytes".into());
+    ui.set_br_d_meta("by SomeAuthor · 4.5 / 5 · 123456 bytes".into());
     ui.set_br_d_tags("economy, shop".into());
     ui.set_br_d_desc(
         "A longer description of the workshop item spanning a couple of lines for layout testing."

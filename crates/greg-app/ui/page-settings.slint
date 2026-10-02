@@ -1,5 +1,7 @@
-import { LineEdit, ComboBox, Button } from "std-widgets.slint";
-import { Palette, SectionTitle, FieldRow } from "theme.slint";
+import { LineEdit, ComboBox } from "std-widgets.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, FieldRow, GregButton, ListCard } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { HealthRow } from "models.slint";
 
 export component SettingsPage inherits VerticalLayout {
@@ -49,12 +51,17 @@ export component SettingsPage inherits VerticalLayout {
                         text <=> root.workspace;
                         horizontal-stretch: 1;
                     }
-                    Button {
-                        text: "…";
+                    GregButton {
+                        text: "Browse";
+                        has-icon: true;
+                        icon: IconSet.FolderOpen;
                         clicked => { root.browse-workspace(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Apply";
+                        has-icon: true;
+                        icon: IconSet.Check;
+                        variant: "primary";
                         clicked => { root.apply-workspace(); }
                     }
                 }
@@ -68,12 +75,17 @@ export component SettingsPage inherits VerticalLayout {
                         text <=> root.gameroot;
                         horizontal-stretch: 1;
                     }
-                    Button {
-                        text: "…";
+                    GregButton {
+                        text: "Browse";
+                        has-icon: true;
+                        icon: IconSet.FolderOpen;
                         clicked => { root.browse-gameroot(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Apply";
+                        has-icon: true;
+                        icon: IconSet.Check;
+                        variant: "primary";
                         clicked => { root.apply-gameroot(); }
                     }
                 }
@@ -87,8 +99,11 @@ export component SettingsPage inherits VerticalLayout {
                         text <=> root.modstore-url;
                         horizontal-stretch: 1;
                     }
-                    Button {
+                    GregButton {
                         text: "Apply";
+                        has-icon: true;
+                        icon: IconSet.Check;
+                        variant: "primary";
                         clicked => { root.apply-modstore-url(); }
                     }
                 }
@@ -100,18 +115,18 @@ export component SettingsPage inherits VerticalLayout {
             }
 
             SectionTitle { text: "DIAGNOSTICS"; }
-            Button {
+            GregButton {
                 text: "Run checks";
+                has-icon: true;
+                icon: IconSet.Stethoscope;
                 clicked => { root.run-checks(); }
             }
             for check in root.health: HorizontalLayout {
                 spacing: 8px;
-                Text {
-                    text: check.ok ? "✓" : "✗";
-                    font-size: 12px;
-                    font-weight: 700;
-                    color: check.ok ? Palette.secondary : Palette.error;
-                    vertical-alignment: center;
+                AppIcon {
+                    icon: check.ok ? IconSet.CircleCheck : IconSet.CircleX;
+                    size: 16px;
+                    stroke: check.ok ? Palette.secondary : Palette.error;
                 }
                 VerticalLayout {
                     horizontal-stretch: 1;
@@ -138,16 +153,22 @@ export component SettingsPage inherits VerticalLayout {
                     height: parent.height;
                     spacing: 8px;
                     alignment: center;
-                    Button {
+                    GregButton {
                         text: "Open log folder";
+                        has-icon: true;
+                        icon: IconSet.FolderOpen;
                         clicked => { root.open-logs(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Support bundle";
+                        has-icon: true;
+                        icon: IconSet.Package;
                         clicked => { root.make-bundle(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Register greg://";
+                        has-icon: true;
+                        icon: IconSet.Plug;
                         clicked => { root.register-protocol(); }
                     }
                 }

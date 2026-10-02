@@ -1,5 +1,10 @@
 // TerminalCore theme (ported from the Avalonia Styles): fixed geometry,
 // no auto-sizing surprises. All colors are constants — never magic values.
+//
+// Icons: unicode glyphs / emoji are banned. Every icon is a Lucide `Icon`
+// rendered through `IconDisplay` (see `icons.slint` / `@lucide`).
+
+import { IconDisplay, Icon } from "@lucide";
 
 export global Palette {
     out property <color> surface: #051424;
@@ -7,6 +12,7 @@ export global Palette {
     out property <color> container: #122131;
     out property <color> container-high: #1C2B3C;
     out property <color> primary: #8AEBFF;
+    out property <color> primary-dim: #8AEBFF1F;
     out property <color> on-primary: #062235;
     out property <color> secondary: #4DE082;
     out property <color> on-surface: #D4E4FA;
@@ -17,12 +23,17 @@ export global Palette {
     out property <color> led-ok: #4DE082;
     out property <color> led-bad: #D7383B;
     out property <color> avatar-bg: #17364A;
+    // Soft neumorphism helpers (subtle on purpose): light edge on top,
+    // faint dark lift below. Keep alpha low — flat first, depth second.
+    out property <color> top-highlight: #FFFFFF0D;
+    out property <color> soft-shadow: #00000045;
     out property <length> radius: 6px;
+    out property <length> radius-lg: 10px;
 }
 
 // Fixed 56x56 icon button with a 3px active indicator on the left edge.
 export component IconButton inherits Rectangle {
-    in property <string> glyph;
+    in property <Icon> icon;
     in property <string> tip;
     in property <bool> active;
     in property <bool> enabled <=> touch.enabled;
@@ -49,12 +60,91 @@ export component IconButton inherits Rectangle {
         border-radius: 2px;
     }
 
-    Text {
-        text: root.glyph;
-        font-size: 22px;
-        color: !root.enabled ? Palette.outline : (root.active ? Palette.primary : Palette.on-variant);
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    IconDisplay {
+        icon: root.icon;
+        size: 22px;
+        stroke: !root.enabled ? Palette.outline : (root.active ? Palette.primary : Palette.on-variant);
+        stroke-width: 1.8;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+
+    @children
+}
+
+// Unified button used by every page: fixed 32px height, label plus an
+// optional Lucide icon, three variants (`ghost` | `primary` | `danger`).
+// Custom rectangles cannot measure text, so callers size the width via
+// layout (stretch) or `min-width` — never zero-width.
+export component GregButton inherits Rectangle {
+    in property <string> text;
+    in property <Icon> icon;
+    in property <bool> has-icon: false;
+    // "ghost" | "primary" | "danger"
+    in property <string> variant: "ghost";
+    in property <bool> enabled <=> touch.enabled;
+    callback clicked();
+
+    min-width: 84px;
+    height: 32px;
+    border-radius: Palette.radius-lg;
+    border-width: 1px;
+
+    property <bool> is-primary: root.variant == "primary";
+    property <bool> is-danger: root.variant == "danger";
+    property <color> base: root.is-primary ? Palette.primary : (root.is-danger ? Palette.error-container : transparent);
+    property <color> hover-base: root.is-primary ? Palette.primary : (root.is-danger ? #5A2530 : Palette.container-high);
+
+    background: touch.pressed ? (root.is-primary ? Palette.primary : Palette.avatar-bg) : (touch.has-hover ? root.hover-base : root.base);
+    border-color: root.is-danger ? Palette.error : (touch.has-hover || root.is-primary ? Palette.outline : transparent);
+    // Subtle lift — flat first, depth second.
+    drop-shadow-blur: touch.has-hover ? 8px : 4px;
+    drop-shadow-color: Palette.soft-shadow;
+    drop-shadow-offset-y: 1px;
+    opacity: root.enabled ? 1.0 : 0.45;
+
+    touch := TouchArea {
+        enabled: true;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        alignment: center;
+        spacing: 6px;
+        padding-left: 10px;
+        padding-right: 10px;
+        if root.has-icon: IconDisplay {
+            icon: root.icon;
+            size: 15px;
+            stroke: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
+            stroke-width: 2.0;
+        }
+        Text {
+            text: root.text;
+            font-size: 12px;
+            font-weight: root.is-primary ? 700 : 400;
+            color: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
+            vertical-alignment: center;
+        }
+    }
+}
+
+// Unified scroll-list container: soft card with a faint top highlight.
+// Callers put a `ScrollView` inside; the box keeps a fixed frame
+// (`vertical-stretch` + `min-height`) so long lists scroll internally.
+export component ListCard inherits Rectangle {
+    background: Palette.container-low;
+    border-radius: Palette.radius-lg;
+    border-width: 1px;
+    border-color: Palette.outline;
+    clip: true;
+
+    // Faint top edge — the subtle neumorphic light.
+    Rectangle {
+        width: parent.width;
+        height: 1px;
+        background: Palette.top-highlight;
     }
 
     @children
@@ -85,10 +175,6 @@ export component NavButton inherits Rectangle {
     }
 }
 
-// NOTE: text buttons intentionally use std-widgets `Button` (auto-sizing).
-// Custom Rectangle buttons cannot measure their label and collapse to zero
-// width inside layouts — that was the "misplaced icons" class of bug.
-
 // Flat topbar button: transparent at rest, slightly lighter on hover,
 // primary-tinted while pressed. Fixed width (labels are known) — custom
 // rectangles cannot measure text, so no auto-sizing here.
@@ -100,7 +186,7 @@ export component TopBarButton inherits Rectangle {
     width: root.btn-width;
     height: 30px;
     background: touch.has-hover ? (touch.pressed ? Palette.avatar-bg : Palette.container-high) : transparent;
-    border-radius: Palette.radius;
+    border-radius: Palette.radius-lg;
     border-width: 1px;
     border-color: touch.has-hover ? Palette.outline : transparent;
 
@@ -122,7 +208,7 @@ export component TopBarButton inherits Rectangle {
 
 // Fixed 34x28 titlebar window button (custom chrome, no native frame).
 export component WinBtn inherits Rectangle {
-    in property <string> glyph;
+    in property <Icon> icon;
     in property <bool> danger;
     callback clicked();
 
@@ -136,12 +222,13 @@ export component WinBtn inherits Rectangle {
         clicked => { root.clicked(); }
     }
 
-    Text {
-        text: root.glyph;
-        font-size: 12px;
-        color: touch.has-hover && root.danger ? #FFFFFF : Palette.on-variant;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    IconDisplay {
+        icon: root.icon;
+        size: 14px;
+        stroke: touch.has-hover && root.danger ? #FFFFFF : Palette.on-variant;
+        stroke-width: 2.0;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
     }
 }
 
@@ -210,7 +297,7 @@ export component FieldRow inherits HorizontalLayout {
 // Dark card container.
 export component Card inherits Rectangle {
     background: Palette.container;
-    border-radius: Palette.radius;
+    border-radius: Palette.radius-lg;
     border-width: 1px;
     border-color: Palette.outline;
 

@@ -1974,7 +1974,7 @@ fn drain_browse(state: &mut AppState) {
                 state.ui().set_br_d_title(detail.title.into());
                 state.ui().set_br_d_meta(
                     format!(
-                        "by {} · ★ {:.1} · {} bytes",
+                        "by {} · {:.1} / 5 · {} bytes",
                         detail.owner_name, detail.score, detail.size_bytes
                     )
                     .into(),
@@ -2016,7 +2016,7 @@ fn drain_browse(state: &mut AppState) {
                     .map(|i| BrowseRow {
                         id: i.published_file_id.to_string().into(),
                         title: i.title.into(),
-                        score: format!("★ {:.1}", i.score).into(),
+                        score: format!("{:.1} / 5", i.score).into(),
                         thumb: slint::Image::default(),
                     })
                     .collect();
@@ -2356,7 +2356,10 @@ pub fn local_refresh(state: &mut AppState) {
         state.local_entries.clear();
         state
             .ui()
-            .set_local_rows(model_of_rows(Vec::<LocalRow>::new()));
+            .set_local_active_rows(model_of_rows(Vec::<LocalRow>::new()));
+        state
+            .ui()
+            .set_local_inactive_rows(model_of_rows(Vec::<LocalRow>::new()));
         state
             .ui()
             .set_local_status("Game folder not found — set the game root in Settings.".into());
@@ -2364,26 +2367,36 @@ pub fn local_refresh(state: &mut AppState) {
     }
     let entries = greg_loader::local_content::scan(&root, kind);
     let q = state.ui().get_local_search().to_string().to_lowercase();
-    let rows: Vec<LocalRow> = entries
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| q.is_empty() || e.name.to_lowercase().contains(&q))
-        .map(|(i, e)| LocalRow {
+    let mut active: Vec<LocalRow> = Vec::new();
+    let mut inactive: Vec<LocalRow> = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        if !q.is_empty() && !e.name.to_lowercase().contains(&q) {
+            continue;
+        }
+        let row = LocalRow {
             name: e.name.clone().into(),
             detail: e.detail.clone().into(),
             enabled: e.enabled,
             index: i as i32,
             thumb: thumb_of(greg_loader::local_content::sibling_preview(&e.path).as_deref()),
-        })
-        .collect();
+        };
+        if e.enabled {
+            active.push(row);
+        } else {
+            inactive.push(row);
+        }
+    }
+    let (n_active, n_inactive) = (active.len(), inactive.len());
     // NOTE: row indices address the full cache; toggle/remove resolve
     // through `local_filtered`, so both stay consistent.
     state.local_entries = entries;
-    state.ui().set_local_rows(model_of_rows(rows));
+    state.ui().set_local_active_rows(model_of_rows(active));
+    state.ui().set_local_inactive_rows(model_of_rows(inactive));
     state.ui().set_local_status(
         format!(
-            "{} entries in {}",
-            state.local_entries.len(),
+            "{} active, {} disabled in {}",
+            n_active,
+            n_inactive,
             root.display()
         )
         .into(),
