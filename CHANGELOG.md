@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Supervised game launch: Start Game / With Mods / No Mods start the game
+  exe directly as a tracked child (PID, play time, exit code in log and
+  status bar) with a header Stop button. The Steamworks session releases
+  before the start and reconnects after exit, so Steam no longer sees the
+  game as running through the manager. Stale game processes block a new
+  start and can be killed via Stop (also from the Problems inbox).
+- Real vanilla mode: No Mods parks `Mods/` to `Mods.disabled-by-manager`
+  and restores it on game exit; leftovers from killed sessions recover at
+  the next start. Mod changes (toggle, remove, pack apply) are refused
+  while the game runs.
+
 ### Fixed
 
 - Layout: all list pages (My Mods/Plugins/Libs, Problems, Modpacks/
