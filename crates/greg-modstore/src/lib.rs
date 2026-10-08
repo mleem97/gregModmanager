@@ -7,6 +7,7 @@ pub mod error;
 pub mod install;
 pub mod intent;
 pub mod models;
+pub mod publish;
 pub mod upload_client;
 
 pub use error::{ModStoreError, Result};

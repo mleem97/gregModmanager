@@ -13,6 +13,8 @@ crates/
   greg-core/                # domain models, docs/changelog logic, errors — NO UI deps
   greg-steam/               # Steam Workshop via `steamworks` crate
   greg-modstore/            # Modstore REST client
+                          # (catalog, updates, atomic installs, intents,
+                          # auth, collections, publish: zip → upload-url → submit)
   greg-loader/              # game/MelonLoader discovery, installs, adapters
    greg-platform/            # cfg(target_os) shims (replaces Unix/Windows/MacOs projects)
    greg-app/                 # desktop UI binary (Slint)

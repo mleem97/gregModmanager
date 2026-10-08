@@ -92,6 +92,9 @@ pub struct SubmitModRequest {
     pub min_game_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recommended_game_version: Option<String>,
+    /// Best-effort release notes (kept when the API accepts the field).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<String>,
 }
 
 /// `POST /api/mods/submit` response (success shape).

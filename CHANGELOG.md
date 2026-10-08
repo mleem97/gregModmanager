@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Modstore publish: `gregcli publish --to modstore` (API token via
+  `--token`/`GREG_MODSTORE_TOKEN`, `--mod-id`, `--category`, `--license`,
+  `--api-url`, `--file`) and an editor "Modstore Upload" button sharing
+  one flow (`greg-modstore::publish`: zip `content/`, presigned URL, PUT,
+  submit). The Modstore id persists in `metadata.json` (`modstore_id`)
+  for updates; outcome names mod, release and scan status.
 - Supervised game launch: Start Game / With Mods / No Mods start the game
   exe directly as a tracked child (PID, play time, exit code in log and
   status bar) with a header Stop button. The Steamworks session releases
