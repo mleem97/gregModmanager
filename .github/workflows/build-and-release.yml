@@ -81,28 +81,18 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: ilammy/setup-inno-setup@v2
       - name: Build Windows portable package
         run: cargo run -p xtask -- dist
       - name: Build Windows installer
-        shell: pwsh
-        env:
-          APP_VERSION: ${{ needs.version.outputs.version }}
-          APP_NUMERIC_VERSION: ${{ needs.version.outputs.numeric_version }}
-        run: |
-          $stage = Get-ChildItem -Path dist -Directory -Filter 'gregmodmanager-*-win-x64' |
-            Select-Object -First 1
-          if ($null -eq $stage) {
-            throw 'Windows staging directory was not produced by xtask.'
-          }
-
-          iscc `
-            "/DAppVersion=$env:APP_VERSION" `
-            "/DAppNumericVersion=$env:APP_NUMERIC_VERSION" `
-            "/DSourceDir=$($stage.FullName)" `
-            '/DMyAppExeName=gregmodmanager.exe' `
-            '/DSkipVCRedist' `
-            'build/installer/gregModmanager.iss'
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: build/installer/gregModmanager.iss
+          options: >-
+            /DMyAppVersion=${{ needs.version.outputs.version }}
+            /DMyAppNumericVersion=${{ needs.version.outputs.numeric_version }}
+            /DSourceDir=dist/gregmodmanager-${{ needs.version.outputs.version }}-win-x64
+            /DMyAppExeName=gregmodmanager.exe
+            /DSkipVCRedist
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
