@@ -160,6 +160,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/stage artifacts/packages
           tar -xzf artifacts/download/gregmodmanager-*-linux-x64.tar.gz \
+            --strip-components=1 \
             -C artifacts/stage
           chmod +x build/scripts/linux/build-rust-packages.sh
           ./build/scripts/linux/build-rust-packages.sh \
@@ -171,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-packages
-          path: artifacts/packages/gregmodmanager-*
+          path: artifacts/packages/*
           if-no-files-found: error
 
   build-macos:
