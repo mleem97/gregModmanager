@@ -6,6 +6,7 @@ publish/
 release-assets/
 /target/
 /dist/
+crates/greg-app/ui/.generated/
 
 # Visual Studio
 .vs/
@@ -21,6 +22,8 @@ project.lock.json
 
 # VS Code
 .vscode/
+!.vscode/
+!.vscode/settings.json
 
 # OS files
 Thumbs.db

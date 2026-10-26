@@ -33,7 +33,7 @@
 | --- | --- | --- |
 | Windows x64 | Supported | Portable ZIP, Inno Setup EXE, WiX MSI |
 | Linux x64 | Supported | Portable ZIP/tarball, DEB, RPM, APK, Arch package |
-| macOS x64 | Experimental cross-publish | Manual testing on a real Mac only; no signed or notarized release |
+| macOS x64/arm64 | Experimental | Real-Mac validation required; no signed or notarized release yet |
 
 | Requirement | Version |
 | --- | --- |
@@ -47,7 +47,8 @@
 - **Editor** — title, description, tags, visibility, preview image, screenshots, changelog, upload readiness check
 - **Steam Workshop publishing** — native `ISteamUGC` calls (create + update), change notes, live progress
 - **Mod Store** — browse and subscribe Workshop items (Full / Decide-later modes)
-- **Start Game** — launch Data Center via Steam, with or without mods
+- **Start Game** — launch Data Center without local mods
+- **With Mods** — launch Data Center with the installed local mods
 - **Headless mode** — scripted/CI publishing without UI
 - **Settings** — workspace folder, game root, language, mod-store mode
 - **Localization** — English + German (minimum), more via `AppStrings` resources

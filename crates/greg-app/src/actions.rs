@@ -212,17 +212,21 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
 
 /// Launches the game as a supervised direct-exe child.
 ///
-/// Modes: `steam` (quick start, mods as installed), `mods` (ensures the
-/// parked `Mods/` folder is restored first), `vanilla` (parks `Mods/`
-/// away for this session, restored on exit). The Steamworks session is
+/// Modes: `mods` (ensures files disabled by an interrupted vanilla session are
+/// restored first), or `vanilla` (the default Start Game action, disables
+/// active assemblies in `Mods/` for this session and restores them on exit).
+/// The Steamworks session is
 /// released before the start — otherwise Steam keeps seeing the game as
 /// running through the manager and the next launch fails until
 /// everything is killed (Windows zombie case).
 pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
     poll_game_state(&mut state.lock().expect("state"));
-    let launch_mode = match mode {
-        "vanilla" => greg_loader::launch::LaunchMode::Vanilla,
-        _ => greg_loader::launch::LaunchMode::Mods,
+    let launch_mode = if mode == "mods" {
+        greg_loader::launch::LaunchMode::Mods
+    } else {
+        // Start Game intentionally means Without Mods. Modded launching is
+        // an explicit choice through the separate With Mods button.
+        greg_loader::launch::LaunchMode::Vanilla
     };
     // Refuse while our own session runs.
     if let Some(pid) = tracked_game_pid(&mut state.lock().expect("state")) {
@@ -269,6 +273,16 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
         AppState::append_log(state, "Launch: game executable not found.");
         return;
     };
+    if launch_mode == greg_loader::launch::LaunchMode::Mods {
+        let melon_loader = greg_loader::installers::detect_melon_loader(&game_root);
+        if !melon_loader.installed {
+            let mut guard = state.lock().expect("state");
+            let message = l10n::get(&guard.lang, "Game_MelonLoaderMissing");
+            guard.push_log(&message);
+            guard.ui().set_game_text(message.into());
+            return;
+        }
+    }
     // Free the Steam session first so the play session owns the app state.
     release_steam_for_game(&mut state.lock().expect("state"));
     match greg_loader::launch::GameSession::start(&game_root, &exe, launch_mode) {
@@ -287,6 +301,41 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
             let mut guard = state.lock().expect("state");
             reconnect_steam(&mut guard);
         }
+    }
+}
+
+/// Performs the dependency check once during manager startup.
+///
+/// Vanilla launches remain available without MelonLoader, but the result is
+/// logged immediately and the With Mods action performs the same check again
+/// immediately before launch so an installation changed while the manager was
+/// open cannot be missed.
+pub fn check_melon_loader_on_start(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let root = game_root_of(&guard);
+    if !root.is_dir() {
+        guard.ui().set_melonloader_ok(false);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusUnknown").into());
+        guard.push_log("Startup check: game folder not found; MelonLoader check deferred.");
+        return;
+    }
+    let install = greg_loader::installers::detect_melon_loader(&root);
+    if install.installed {
+        guard.ui().set_melonloader_ok(true);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusInstalled").into());
+        guard.push_log("Startup check: MelonLoader is installed.");
+    } else {
+        guard.ui().set_melonloader_ok(false);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusMissing").into());
+        let message = l10n::get(&guard.lang, "Game_MelonLoaderMissing");
+        guard.push_log(&format!("Startup check: {message}"));
+        guard.ui().set_game_text(message.into());
     }
 }
 
@@ -352,7 +401,7 @@ fn stop_stale_processes(state: &Arc<std::sync::Mutex<AppState>>) {
             Err(e) => AppState::append_log(state, &format!("Stop failed for pid {pid}: {e}")),
         }
     }
-    // A stale kill may have freed a vanilla parking: restore when idle.
+    // A stale kill may have left vanilla-disabled files: restore when idle.
     let mut guard = state.lock().expect("state");
     recover_parked_mods(&mut guard);
     reconnect_steam(&mut guard);
@@ -470,7 +519,7 @@ pub fn finalize_game_state(state: &Arc<std::sync::Mutex<AppState>>) {
     recover_parked_mods(&mut guard);
 }
 
-/// Restores a parked `Mods/` folder left by a killed vanilla session.
+/// Restores files left disabled by a killed vanilla session.
 /// Call at startup and after stale kills. Refreshes the local listing
 /// when something was actually restored.
 pub fn recover_parked_mods(state: &mut AppState) {
@@ -482,7 +531,7 @@ pub fn recover_parked_mods(state: &mut AppState) {
         &root,
         greg_loader::launch::any_game_process_running(),
     ) {
-        state.push_log("Recovered the parked Mods folder from an unclean vanilla session.");
+        state.push_log("Recovered mods disabled by an unclean vanilla session.");
         local_refresh(state);
     }
 }
@@ -491,16 +540,25 @@ pub fn recover_parked_mods(state: &mut AppState) {
 /// running through the manager. In-flight jobs are cancelled first; the
 /// native shutdown lands when their handles drop.
 fn release_steam_for_game(state: &mut AppState) {
+    // A worker may hold its own Arc<WorkshopService>, and therefore its own
+    // steamworks::Client. Cancelling the worker is not enough: the JobHandle
+    // must be dropped so its thread is joined and the last Client can run
+    // SteamAPI_Shutdown before Steam receives the game launch request.
     for job in [
-        state.store_job.as_ref(),
-        state.browse_job.as_ref(),
-        state.publish_job.as_ref(),
+        state.store_job.take(),
+        state.browse_job.take(),
+        state.publish_job.take(),
     ]
     .into_iter()
     .flatten()
     {
         job.cancel();
+        drop(job);
     }
+
+    // Replace both service references only after background workers have
+    // stopped. This makes the ownership transition deterministic instead of
+    // relying on a later UI tick to release the Steam API session.
     let backend: Arc<dyn greg_steam::backend::SteamBackend> = Arc::from(
         greg_steam::backend::UnavailableBackend::new("released for game launch"),
     );
@@ -2678,7 +2736,7 @@ pub fn refresh_problems(state: &Arc<std::sync::Mutex<AppState>>) {
             });
         }
     }
-    // Parked Mods/ from an unclean vanilla session.
+    // Mods disabled by an unclean vanilla session.
     if game_root.is_dir()
         && greg_loader::launch::mods_state(&game_root)
             == greg_loader::launch::ModsState::DisabledByManager
@@ -2687,7 +2745,7 @@ pub fn refresh_problems(state: &Arc<std::sync::Mutex<AppState>>) {
         problems.push(Problem {
             severity: "warning",
             source: "Game".into(),
-            message: "Mods folder is parked (vanilla) — restore it to play with mods.".into(),
+            message: "Mods are disabled for vanilla mode — restore them to play with mods.".into(),
             action: Some(("restore-mods".into(), String::new(), "Restore mods".into())),
         });
     }
@@ -3279,9 +3337,12 @@ pub fn settings_apply_workspace(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Applies the game-root override.
 pub fn settings_apply_gameroot(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
-    let value = guard.ui().get_se_gameroot().to_string();
-    guard.prefs.set_string("GameRootPath", value.trim());
+    {
+        let mut guard = state.lock().expect("state");
+        let value = guard.ui().get_se_gameroot().to_string();
+        guard.prefs.set_string("GameRootPath", value.trim());
+    }
+    check_melon_loader_on_start(state);
 }
 
 /// Applies the Modstore URL override.
