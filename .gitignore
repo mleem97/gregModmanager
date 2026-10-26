@@ -6,7 +6,14 @@ publish/
 release-assets/
 /target/
 /dist/
+# Crate-local Cargo targets when a workspace tool is invoked below the root.
+**/target/
 crates/greg-app/ui/.generated/
+
+# Local Proton/VKD3D runtime caches and scratch compiler probes.
+*.cache
+*.cache.write
+/probe
 
 # Visual Studio
 .vs/
