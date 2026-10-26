@@ -1,6 +1,7 @@
-import { LineEdit, Button, ProgressIndicator } from "std-widgets.slint";
+import { LineEdit, ProgressIndicator } from "std-widgets.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { StoreRow, UpdateRow } from "models.slint";
 
 // Modstore needs no side navigation — Catalog / Updates tabs suffice.
@@ -35,18 +36,24 @@ export component StorePage inherits VerticalLayout {
                 placeholder-text: "Search Modstore…";
                 horizontal-stretch: 1;
             }
-            Button {
+            GregButton {
                 text: "Refresh";
+                has-icon: true;
+                icon: IconSet.RefreshCw;
                 enabled: !root.busy;
                 clicked => { root.refresh(); }
             }
-            Button {
+            GregButton {
                 text: "Updates";
+                has-icon: true;
+                icon: IconSet.Download;
                 enabled: !root.busy;
                 clicked => { root.check-updates(); }
             }
-            if root.busy: Button {
+            if root.busy: GregButton {
                 text: "Cancel";
+                has-icon: true;
+                icon: IconSet.Ban;
                 clicked => { root.cancel(); }
             }
         }
@@ -71,25 +78,24 @@ export component StorePage inherits VerticalLayout {
             height: parent.height;
             spacing: 8px;
             alignment: start;
-            Button {
+            GregButton {
                 text: "Catalog";
+                has-icon: true;
+                icon: IconSet.LayoutGrid;
                 clicked => { root.show-updates = false; }
             }
-            Button {
+            GregButton {
                 text: "Updates (" + root.updates.length + ")";
+                has-icon: true;
+                icon: IconSet.Download;
                 clicked => { root.show-updates = true; }
             }
         }
     }
 
-    if !root.show-updates: Rectangle {
+    if !root.show-updates: ListCard {
         vertical-stretch: 1;
         min-height: 96px;
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
-        clip: true;
         ScrollView {
             width: parent.width;
             height: parent.height;
@@ -98,7 +104,7 @@ export component StorePage inherits VerticalLayout {
                 spacing: 4px;
                 for item[idx] in root.items: Rectangle {
                     background: Palette.container-low;
-                    border-radius: Palette.radius;
+                    border-radius: Palette.radius-lg;
                     border-width: 1px;
                     border-color: Palette.outline;
                     HorizontalLayout {
@@ -122,8 +128,11 @@ export component StorePage inherits VerticalLayout {
                                 color: Palette.on-variant;
                             }
                         }
-                        Button {
+                        GregButton {
                             text: "Install";
+                            has-icon: true;
+                            icon: IconSet.Download;
+                            variant: "primary";
                             clicked => { root.install(idx); }
                         }
                     }
@@ -132,14 +141,9 @@ export component StorePage inherits VerticalLayout {
         }
     }
 
-    if root.show-updates: Rectangle {
+    if root.show-updates: ListCard {
         vertical-stretch: 1;
         min-height: 96px;
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
-        clip: true;
         ScrollView {
             width: parent.width;
             height: parent.height;
@@ -148,7 +152,7 @@ export component StorePage inherits VerticalLayout {
                 spacing: 4px;
                 for update[idx] in root.updates: Rectangle {
                     background: Palette.container-low;
-                    border-radius: Palette.radius;
+                    border-radius: Palette.radius-lg;
                     border-width: 1px;
                     border-color: Palette.outline;
                     HorizontalLayout {
@@ -168,8 +172,11 @@ export component StorePage inherits VerticalLayout {
                                 color: Palette.on-variant;
                             }
                         }
-                        Button {
+                        GregButton {
                             text: "Update";
+                            has-icon: true;
+                            icon: IconSet.Download;
+                            variant: "primary";
                             clicked => { root.install-update(idx); }
                         }
                     }

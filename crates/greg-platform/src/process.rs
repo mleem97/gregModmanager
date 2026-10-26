@@ -34,6 +34,82 @@ pub fn launch_app(exe: &Path, args: &[String]) -> Result<()> {
         .map_err(|e| PlatformError::Other(format!("cannot launch {}: {e}", exe.display())))
 }
 
+/// Launches a Windows Steam game through the installed Proton runner on Linux.
+///
+/// Calling `steam -applaunch` is not suitable here: this process itself uses
+/// the game's AppID for Workshop access, so Steam sees the manager as the
+/// already-running game. Starting Proton directly avoids that duplicate app
+/// launch while the injected IDs still let the game initialize Steamworks.
+#[cfg(target_os = "linux")]
+pub fn launch_proton_app(exe: &Path, game_root: &Path, app_id: u32) -> Result<()> {
+    let common_dir = game_root
+        .parent()
+        .ok_or_else(|| PlatformError::Other("game path has no steamapps/common parent".into()))?;
+    let library_root = common_dir
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| PlatformError::Other("cannot determine Steam library root".into()))?;
+    let proton = find_proton_runner(common_dir)?;
+    let compat_data = library_root
+        .join("steamapps/compatdata")
+        .join(app_id.to_string());
+    std::fs::create_dir_all(&compat_data)
+        .map_err(|e| PlatformError::Other(format!("cannot create Proton prefix: {e}")))?;
+
+    // Steamworks uses these variables to recognize the game when it was not
+    // started by Steam's `-applaunch` command. They are intentionally set on
+    // the Proton child only; they must not change the manager's own process.
+    let mut command = std::process::Command::new(&proton);
+    command
+        .arg("run")
+        .arg(exe)
+        .current_dir(game_root)
+        .env("SteamAppId", app_id.to_string())
+        .env("SteamAppID", app_id.to_string())
+        .env("SteamGameId", app_id.to_string())
+        // Steam's Proton launch wrapper sets this for MelonLoader's native
+        // version.dll proxy. Without it the game starts, but MelonLoader is
+        // silently skipped even though the installation is present.
+        .env("WINEDLLOVERRIDES", "version=n,b")
+        .env("STEAM_COMPAT_DATA_PATH", &compat_data)
+        .env("STEAM_COMPAT_INSTALL_PATH", game_root)
+        .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", library_root);
+    command.spawn().map(|_| ()).map_err(|e| {
+        PlatformError::Other(format!(
+            "cannot launch {} through Proton ({}): {e}",
+            exe.display(),
+            proton.display()
+        ))
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn find_proton_runner(common_dir: &Path) -> Result<std::path::PathBuf> {
+    let preferred = [
+        "Proton - Experimental",
+        "Proton - Hotfix",
+        "Proton 9.0",
+        "Proton 8.0",
+        "Proton 7.0",
+    ];
+    for name in preferred {
+        let runner = common_dir.join(name).join("proton");
+        if runner.is_file() {
+            return Ok(runner);
+        }
+    }
+    let mut candidates = std::fs::read_dir(common_dir)
+        .map_err(|e| PlatformError::Other(format!("cannot scan Steam runtimes: {e}")))?
+        .flatten()
+        .map(|entry| entry.path().join("proton"))
+        .filter(|runner| runner.is_file())
+        .collect::<Vec<_>>();
+    candidates.sort();
+    candidates.into_iter().next().ok_or_else(|| {
+        PlatformError::Other("no Proton runner found in Steam/steamapps/common".into())
+    })
+}
+
 /// A supervised child process (game launch tracking).
 ///
 /// The handle owns the `Child`: dropping it without `stop` leaves the
@@ -163,9 +239,15 @@ pub fn find_pids_by_exe(file_name: &str) -> Vec<u32> {
     {
         parse_tasklist_csv(&tasklist_csv(), &want)
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
     {
         scan_proc_exe(&want)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // Keep the original spelling: macOS process names are case-sensitive
+        // for `pgrep -x`, while Linux matching below normalizes case.
+        scan_pgrep(file_name)
     }
 }
 
@@ -199,8 +281,8 @@ fn parse_tasklist_csv(csv: &str, want_lower: &str) -> Vec<u32> {
     out
 }
 
-/// Scans `/proc/<pid>/exe` symlinks (Linux/Unix).
-#[cfg(not(target_os = "windows"))]
+/// Scans `/proc/<pid>/exe` symlinks on Linux.
+#[cfg(target_os = "linux")]
 fn scan_proc_exe(want_lower: &str) -> Vec<u32> {
     let own = std::process::id();
     let mut out = Vec::new();
@@ -224,10 +306,49 @@ fn scan_proc_exe(want_lower: &str) -> Vec<u32> {
                     .map(str::to_lowercase)
             })
             .unwrap_or_default();
-        if file == *want_lower {
+        // Native Linux processes expose the executable through `/proc`. Wine
+        // / Proton processes often expose the Wine loader instead, so inspect
+        // the command line as a fallback and match the Windows game name.
+        let command_line_matches = std::fs::read(format!("/proc/{pid}/cmdline"))
+            .ok()
+            .map(|bytes| {
+                bytes.split(|byte| *byte == 0).any(|arg| {
+                    std::path::Path::new(std::str::from_utf8(arg).unwrap_or_default())
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(|name| name.to_lowercase() == *want_lower)
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
+        if file == *want_lower || command_line_matches {
             out.push(pid);
         }
     }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// Finds exact executable-name matches on macOS.
+///
+/// macOS has no `/proc` filesystem by default. `pgrep -x` is provided by the
+/// operating system and avoids parsing localized process-list output.
+#[cfg(target_os = "macos")]
+fn scan_pgrep(file_name: &str) -> Vec<u32> {
+    let own = std::process::id();
+    let output = std::process::Command::new("pgrep")
+        .args(["-x", file_name])
+        .output();
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+
+    let mut out: Vec<u32> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse().ok())
+        .filter(|pid| *pid != own)
+        .collect();
     out.sort_unstable();
     out.dedup();
     out

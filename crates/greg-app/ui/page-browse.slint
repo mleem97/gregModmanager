@@ -1,6 +1,8 @@
-import { LineEdit, ComboBox, Button } from "std-widgets.slint";
+import { LineEdit, ComboBox } from "std-widgets.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { BrowseRow } from "models.slint";
 
 export component BrowsePage inherits VerticalLayout {
@@ -86,13 +88,17 @@ export component BrowsePage inherits VerticalLayout {
                 placeholder-text: "tag…";
                 width: 140px;
             }
-            Button {
+            GregButton {
                 text: "Search";
+                has-icon: true;
+                icon: IconSet.Search;
                 enabled: !root.busy;
                 clicked => { root.search-go(); }
             }
-            if root.busy: Button {
+            if root.busy: GregButton {
                 text: "Cancel";
+                has-icon: true;
+                icon: IconSet.Ban;
                 clicked => { root.cancel(); }
             }
         }
@@ -108,13 +114,8 @@ export component BrowsePage inherits VerticalLayout {
         vertical-stretch: 1;
         min-height: 120px;
 
-        Rectangle {
+        ListCard {
             horizontal-stretch: 1;
-            background: Palette.container-low;
-            border-radius: Palette.radius;
-            border-width: 1px;
-            border-color: Palette.outline;
-            clip: true;
             ScrollView {
                 width: parent.width;
                 height: parent.height;
@@ -124,7 +125,7 @@ export component BrowsePage inherits VerticalLayout {
                     for item in root.items: Rectangle {
                         height: 40px;
                         background: item.id == root.selected ? Palette.container-high : transparent;
-                        border-radius: Palette.radius;
+                        border-radius: Palette.radius-lg;
                         touch := TouchArea {
                             mouse-cursor: pointer;
                             clicked => { root.select(item.id); }
@@ -146,6 +147,11 @@ export component BrowsePage inherits VerticalLayout {
                                 vertical-alignment: center;
                                 overflow: elide;
                             }
+                            AppIcon {
+                                icon: IconSet.Star;
+                                size: 13px;
+                                stroke: Palette.on-variant;
+                            }
                             Text {
                                 text: item.score;
                                 font-size: 11px;
@@ -158,13 +164,8 @@ export component BrowsePage inherits VerticalLayout {
             }
         }
 
-        Rectangle {
+        ListCard {
             horizontal-stretch: 1;
-            background: Palette.container-low;
-            border-radius: Palette.radius;
-            border-width: 1px;
-            border-color: Palette.outline;
-            clip: true;
             ScrollView {
                 width: parent.width;
                 height: parent.height;
@@ -214,16 +215,22 @@ export component BrowsePage inherits VerticalLayout {
                             height: parent.height;
                             spacing: 8px;
                             alignment: center;
-                            Button {
+                            GregButton {
                                 text: root.d-subscribed ? "Unsubscribe" : "Subscribe";
+                                has-icon: true;
+                                icon: root.d-subscribed ? IconSet.BellOff : IconSet.Bell;
                                 clicked => { root.subscribe-toggle(); }
                             }
-                            Button {
+                            GregButton {
                                 text: "Import";
+                                has-icon: true;
+                                icon: IconSet.Download;
                                 clicked => { root.import-item(); }
                             }
-                            Button {
+                            GregButton {
                                 text: "Steam page";
+                                has-icon: true;
+                                icon: IconSet.ExternalLink;
                                 clicked => { root.view-on-steam(); }
                             }
                         }
@@ -240,8 +247,10 @@ export component BrowsePage inherits VerticalLayout {
             height: parent.height;
             spacing: 8px;
             alignment: center;
-            Button {
-                text: "◀ Prev";
+            GregButton {
+                text: "Prev";
+                has-icon: true;
+                icon: IconSet.ChevronLeft;
                 clicked => { root.prev-page(); }
             }
             Text {
@@ -250,8 +259,10 @@ export component BrowsePage inherits VerticalLayout {
                 color: Palette.on-variant;
                 vertical-alignment: center;
             }
-            Button {
-                text: "Next ▶";
+            GregButton {
+                text: "Next";
+                has-icon: true;
+                icon: IconSet.ChevronRight;
                 clicked => { root.next-page(); }
             }
         }

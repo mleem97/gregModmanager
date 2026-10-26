@@ -13,10 +13,14 @@ done
 for legacy_path in \
   /opt/gregModmanager \
   /opt/gregtools-modmanager \
+  /opt/gregmodmanager-local-test \
   /usr/bin/gregModmanager \
   /usr/local/bin/gregModmanager \
+  /usr/local/bin/gregmodmanager-local-test \
   /usr/share/applications/gregModmanager.desktop \
   /usr/local/share/applications/gregModmanager.desktop \
+  /usr/share/applications/gregmodmanager-local-test.desktop \
+  /usr/local/share/applications/gregmodmanager-local-test.desktop \
   /usr/share/applications/gregtools-modmanager.desktop \
   /usr/local/share/applications/gregtools-modmanager.desktop; do
   if [ -e "$legacy_path" ] || [ -L "$legacy_path" ]; then
@@ -31,7 +35,17 @@ remove_legacy_user_links() {
   for link in "$app_dir"/gregModmanager*.desktop "$app_dir"/gregtools-modmanager*.desktop; do
     [ -e "$link" ] || [ -L "$link" ] || continue
     case "$(basename "$link")" in
-      gregmodmanager.desktop|gregmodmanager-local-test.desktop) continue ;;
+      # The canonical desktop entry ships in /usr/share/applications via the
+      # DEB. A stale user copy shadows it (XDG precedence) and keeps ancient
+      # Exec targets (e.g. ~/GregModmanager-Test) in the start menu, so a
+      # user copy that does NOT launch the packaged binary is removed.
+      gregmodmanager.desktop)
+        if grep -q 'Exec=/usr/bin/gregmodmanager' "$link" 2>/dev/null; then
+          continue
+        fi
+        rm -f -- "$link" 2>/dev/null || true
+        continue
+        ;;
     esac
     rm -f -- "$link" 2>/dev/null || true
   done

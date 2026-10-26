@@ -1,6 +1,7 @@
-import { LineEdit, Button } from "std-widgets.slint";
+import { LineEdit } from "std-widgets.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Palette, SectionTitle } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, GregButton, ListCard } from "theme.slint";
 import { PackRow, PackEntryRow } from "models.slint";
 
 // Modpacks and shareable collections share one component; `kind` selects
@@ -39,13 +40,8 @@ export component PacksPage inherits VerticalLayout {
         // Packs list: header pinned, rows scroll below it. Explicit
         // geometry — the pane height comes from the row (cross fill),
         // so the ScrollView binds to it instead of content height.
-        Rectangle {
+        ListCard {
             width: 280px;
-            background: Palette.container-low;
-            border-radius: Palette.radius;
-            border-width: 1px;
-            border-color: Palette.outline;
-            clip: true;
             Rectangle {
                 x: 6px;
                 y: 6px;
@@ -62,12 +58,17 @@ export component PacksPage inherits VerticalLayout {
                         horizontal-stretch: 1;
                         min-width: 120px;
                     }
-                    Button {
-                        text: "+";
+                    GregButton {
+                        text: "New";
+                        has-icon: true;
+                        icon: IconSet.Plus;
+                        variant: "primary";
                         clicked => { root.create(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Import";
+                        has-icon: true;
+                        icon: IconSet.Download;
                         clicked => { root.import-pack(); }
                     }
                 }
@@ -81,8 +82,8 @@ export component PacksPage inherits VerticalLayout {
                     spacing: 2px;
                     for pack in root.packs: Rectangle {
                         height: 48px;
-                        background: pack.index == root.selected ? Palette.container-high : Palette.container;
-                        border-radius: Palette.radius;
+                        background: pack.index == root.selected ? Palette.primary-dim : Palette.container;
+                        border-radius: Palette.radius-lg;
                         touch := TouchArea {
                             mouse-cursor: pointer;
                             clicked => { root.select(pack.index); }
@@ -108,8 +109,10 @@ export component PacksPage inherits VerticalLayout {
                                     overflow: elide;
                                 }
                             }
-                            Button {
+                            GregButton {
                                 text: pack.enabled ? "On" : "Off";
+                                has-icon: true;
+                                icon: pack.enabled ? IconSet.Eye : IconSet.EyeOff;
                                 clicked => { root.toggle-pack(pack.index); }
                             }
                         }
@@ -119,13 +122,8 @@ export component PacksPage inherits VerticalLayout {
         }
 
         // Selected entries: toolbar pinned, entries scroll below it.
-        Rectangle {
+        ListCard {
             horizontal-stretch: 1;
-            background: Palette.container-low;
-            border-radius: Palette.radius;
-            border-width: 1px;
-            border-color: Palette.outline;
-            clip: true;
             Rectangle {
                 x: 6px;
                 y: 6px;
@@ -136,20 +134,30 @@ export component PacksPage inherits VerticalLayout {
                     height: parent.height;
                     spacing: 6px;
                     alignment: center;
-                    Button {
+                    GregButton {
                         text: "Apply";
+                        has-icon: true;
+                        icon: IconSet.Check;
+                        variant: "primary";
                         clicked => { root.apply-pack(root.selected); }
                     }
-                    Button {
+                    GregButton {
                         text: "Add local file";
+                        has-icon: true;
+                        icon: IconSet.Plus;
                         clicked => { root.add-local-file(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Export";
+                        has-icon: true;
+                        icon: IconSet.Upload;
                         clicked => { root.export-pack(root.selected); }
                     }
-                    Button {
+                    GregButton {
                         text: "Delete pack";
+                        has-icon: true;
+                        icon: IconSet.Trash2;
+                        variant: "danger";
                         clicked => { root.delete-pack(root.selected); }
                     }
                 }
@@ -164,7 +172,7 @@ export component PacksPage inherits VerticalLayout {
                     for entry in root.entries: Rectangle {
                         height: 40px;
                         background: Palette.container;
-                        border-radius: Palette.radius;
+                        border-radius: Palette.radius-lg;
                         HorizontalLayout {
                             padding-left: 8px;
                             padding-right: 6px;
@@ -185,12 +193,17 @@ export component PacksPage inherits VerticalLayout {
                                     overflow: elide;
                                 }
                             }
-                            Button {
+                            GregButton {
                                 text: entry.enabled ? "On" : "Off";
+                                has-icon: true;
+                                icon: entry.enabled ? IconSet.Eye : IconSet.EyeOff;
                                 clicked => { root.toggle-entry(entry.index); }
                             }
-                            Button {
+                            GregButton {
                                 text: "Remove";
+                                has-icon: true;
+                                icon: IconSet.Trash2;
+                                variant: "danger";
                                 clicked => { root.remove-entry(entry.index); }
                             }
                         }

@@ -9,25 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Experimental macOS support for Steam library discovery, Unity `.app` game
+  bundles, and macOS process supervision. Native Mac validation, signing, and
+  notarization remain release prerequisites.
+- Lucide icons everywhere (`lucide-slint` 1.49.1 as build dependency,
+  `@lucide` Slint library in `build.rs`, shared `ui/icons.slint`
+  `AppIcon` wrapper): icon bar, window buttons, list rows, status and
+  check indicators, pager and toolbar buttons. All unicode glyphs and
+  emoji (icon bar, window controls, Prev/Next, check marks, severity
+  markers, workshop star ratings) are replaced by Lucide icons.
+- My Mods / Plugins / Libs are split into Active and Disabled sections,
+  each with its own count and a fixed-frame scroll box, so long mod
+  lists scroll inside their box instead of growing past the window.
+- Unified `GregButton` (ghost/primary/danger + optional Lucide icon)
+  and `ListCard` components in `ui/theme.slint`: all pages share the
+  same button, list, card and dropdown look, with a subtle neumorphic
+  touch (10px radius, faint top highlight, soft shadow).
+- Linux cleanup (`gregmodmanager-cleanup.sh`, runs on DEB pre/post
+  install) now also removes orphan `gregmodmanager-local-test` start
+  menu entries, binaries and `/opt` leftovers, plus stale user-level
+  `gregmodmanager.desktop` copies whose `Exec` no longer points at the
+  packaged `/usr/bin/gregmodmanager`. Only the DEB installation
+  remains in the start menu.
+
+### Added
+
 - Modstore publish: `gregcli publish --to modstore` (API token via
   `--token`/`GREG_MODSTORE_TOKEN`, `--mod-id`, `--category`, `--license`,
   `--api-url`, `--file`) and an editor "Modstore Upload" button sharing
   one flow (`greg-modstore::publish`: zip `content/`, presigned URL, PUT,
   submit). The Modstore id persists in `metadata.json` (`modstore_id`)
   for updates; outcome names mod, release and scan status.
-- Supervised game launch: Start Game / With Mods / No Mods start the game
-  exe directly as a tracked child (PID, play time, exit code in log and
+- Supervised game launch: Start Game (without mods) and With Mods start the
+  game exe directly as a tracked child (PID, play time, exit code in log and
   status bar) with a header Stop button. The Steamworks session releases
   before the start and reconnects after exit, so Steam no longer sees the
   game as running through the manager. Stale game processes block a new
   start and can be killed via Stop (also from the Problems inbox).
-- Real vanilla mode: No Mods parks `Mods/` to `Mods.disabled-by-manager`
-  and restores it on game exit; leftovers from killed sessions recover at
-  the next start. Mod changes (toggle, remove, pack apply) are refused
-  while the game runs.
+- Real vanilla mode: Start Game temporarily renames active mod assemblies to
+  `.disabled` inside `Mods/` and restores them on game exit; leftovers from
+  killed sessions recover at the next start. Mod changes (toggle, remove,
+  pack apply) are refused while the game runs.
 
 ### Fixed
 
+- Vertically centered the top-bar buttons so their top and bottom padding is balanced.
+- Fixed startup recovery incorrectly leaving the Mods folder parked after a vanilla launch.
+- Vanilla mode now keeps all mods inside `Mods/` and only disables active assemblies.
+
+- The manager now checks for MelonLoader during startup and blocks only the
+  With Mods action when it is missing; the regular Start Game action remains
+  available for a vanilla launch.
+- The header now has two unambiguous launch actions: Start Game runs
+  without local mods, while With Mods explicitly enables the installed mods.
+  The redundant No Mods button was removed.
+- Linux now starts the Windows game directly through the installed Proton
+  runner with `SteamAppId`/`SteamGameId`, avoiding Steam's self-launch
+  `AppError_16` because the manager already owns the game's AppID.
+- Linux Proton launches now set `WINEDLLOVERRIDES=version=n,b`, allowing
+  MelonLoader's native proxy to load so With Mods actually initializes
+  MelonLoader, gregCore, and the installed mods.
+- Linux Steam/Proton launches now wait for all background Steamworks handles
+  to shut down before requesting the game, preventing Steam's "game already
+  running" / `AppError_16` state from the manager process.
 - Layout: all list pages (My Mods/Plugins/Libs, Problems, Modpacks/
   Collections, Projects, Workshop Browse, Modstore Catalog/Updates) fill
   the viewport and scroll their list regions internally (`ScrollView` +
@@ -37,7 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Header buttons (Start Game, With Mods, No Mods, Login) are now flat
+- Header buttons (Start Game, With Mods, Login) are now flat
   custom `TopBarButton`s: transparent at rest, slightly lighter
   (`container-high`) on hover.
 
