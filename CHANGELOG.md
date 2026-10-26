@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `gregmodmanager.desktop` copies whose `Exec` no longer points at the
   packaged `/usr/bin/gregmodmanager`. Only the DEB installation
   remains in the start menu.
+- GitHub Actions release workflow for native Windows installer/portable,
+  Linux portable/packages, and experimental macOS x64/arm64 artifacts;
+  `v*` tags publish the collected artifacts as a GitHub Release. Forgejo
+  workflows remain Linux-only.
 
 ### Added
 

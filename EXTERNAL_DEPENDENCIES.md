@@ -43,7 +43,8 @@ notarization, Gatekeeper testing, and a native dependency review.
 | nfpm and native package tools | DEB, RPM, APK, and Arch packages |
 | WSL | optional Windows-host Linux package adapter |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the instance API, one Discord notification per run. GitHub is a read-only archive mirror with no workflows. |
+| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | Existing Linux-only CI and release path; these workflows remain unchanged. |
+| GitHub Actions (`.github/workflows/build-and-release.yml`) | GitHub-only release pipeline: workspace tests, native Windows x64 installer/portable build, native Linux portable/distribution packages, experimental native macOS x64/arm64 builds, and GitHub Release publication for `v*` tags. |
 
 ## Release formats
 
