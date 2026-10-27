@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Der Modmanager wurde nach einem Spielstart unbenutzbar — es gab keinen
+  funktionierenden Weg, das Spiel aus der App zu stoppen. `stop_game()`
+  killt laufende Game-Prozesse und reconnectet Steamworks danach; der
+  Stop-Button im Header ersetzt die Start-Buttons während ein Spiel läuft.
+
 ### Added
 
 - Experimental macOS support for Steam library discovery, Unity `.app` game
