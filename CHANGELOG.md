@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cross-platform build infrastructure: `build-profiles/` (9 targets), `schemas/build-manifest.schema.json`, `build-images/` container definitions, `smoke/` programs, and `cargo xtask profiles|validate`.
+- Documentation: `docs/PLATFORMS.md`, `docs/APPLE-SDK-LICENSING.md`, `docs/CONTAINERS.md`, `docs/CI-CD.md`, `docs/TROUBLESHOOTING.md`, `docs/ROADMAP.md`.
+
+- Optional error reporting via Bugsink (Sentry-SDK compatible) for the CLI,
+  enabled by setting `BUGSINK_DSN` / `SENTRY_DSN`.
+- New crates `eu-greg-error-reporting` and `eu-greg-bug-report-form` with structured error reports and bug-report form model/validation.
+- Fixed `cli-main` crate import alias for steam integration and removed stray doc comments causing clippy errors.
+- CI: Codacy code coverage — workspace-weites LCOV-Report via `cargo tarpaulin`, hochgeladen mit dem Codacy
+  Coverage Reporter bei jedem Push/PR (Job `coverage` in `rust.yml`); benötigt das Geheimnis `CODACY_PROJECT_TOKEN`.
 ## [1.7.0] - 2026-09-28
 
 ### Added
