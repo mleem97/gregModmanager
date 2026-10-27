@@ -2,6 +2,8 @@
 
 > Cross-platform desktop mod manager for the **gregFramework** ecosystem — local Workshop projects, Steam Workshop publishing, Mod Store, and one-click game launch for **Data Center**.
 
+[![Build and Release](https://github.com/mleem97/gregModmanager/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/mleem97/gregModmanager/actions/workflows/build-and-release.yml)
+----
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/greg)
 [![gregFramework](https://img.shields.io/badge/gregFramework-Website-blue?style=for-the-badge)](https://gregframework.eu)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
