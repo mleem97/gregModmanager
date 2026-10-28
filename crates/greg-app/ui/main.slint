@@ -208,6 +208,7 @@ export component MainWindow inherits Window {
     callback rp-submit();
     callback rp-export();
     callback rp-attach();
+    callback rp-collect-logs();
     callback rp-confirm-yes();
     callback rp-confirm-no();
 
@@ -731,6 +732,7 @@ export component MainWindow inherits Window {
                                 show-submit-confirm <=> root.rp_submit_confirm;
                                 submit-mode <=> root.rp_submit_mode;
                                 generate => { root.rp-generate(); }
+                                collect-logs => { root.rp-collect-logs(); }
                                 cancel => { root.rp-cancel(); }
                                 submit => { root.rp-submit(); }
                                 export => { root.rp-export(); }

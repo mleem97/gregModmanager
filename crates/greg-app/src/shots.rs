@@ -563,3 +563,42 @@ fn report_flow_generates_markdown_preview() {
         assert!(guard.ui().get_rp_preview().to_string().is_empty());
     }
 }
+
+/// Report Assistant flow: open → collect buffered logs → generate Markdown
+/// preview. Guards the log-collection wiring into the draft end to end.
+#[test]
+fn report_flow_collects_logs_into_draft() {
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+    let state = std::sync::Arc::clone(&state);
+
+    crate::actions::report_open(&state);
+    {
+        let mut guard = state.lock().expect("state");
+        guard.ui().set_rp_title("Crash on launch".into());
+        guard.ui().set_rp_category_index(1);
+        guard
+            .ui()
+            .set_rp_description("App crashes when starting the game.".into());
+    }
+    // Feed buffered log lines, then let the assistant collect them.
+    {
+        let mut guard = state.lock().expect("state");
+        guard.push_log("panic: boom");
+        guard.push_log("ModManager: game launch requested");
+    }
+    crate::actions::report_collect_logs(&state);
+    {
+        let guard = state.lock().expect("state");
+        let logs = guard.ui().get_rp_logs().to_string();
+        assert!(logs.contains("panic: boom"), "logs: {logs}");
+        assert!(
+            logs.contains("ModManager: game launch requested"),
+            "logs: {logs}"
+        );
+        let preview = guard.ui().get_rp_preview().to_string();
+        assert!(preview.contains("## Logs and Diagnostics"), "preview: {preview}");
+        assert!(preview.contains("panic: boom"), "preview: {preview}");
+    }
+}

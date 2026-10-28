@@ -2784,6 +2784,31 @@ fn os_display_name() -> String {
     format!("{first}{rest}")
 }
 
+/// Collects buffered application log lines into the report draft.
+///
+/// Snapshots the bounded UI log buffer, sanitizes the joined lines
+/// (redaction + size cap) and fills the report logs field; the Markdown
+/// preview is refreshed afterwards so the collected evidence is visible
+/// immediately. No log content is ever persisted or transmitted here.
+pub fn report_collect_logs(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (logs, collected) = {
+        let guard = state.lock().expect("state");
+        let lines = guard.log_snapshot();
+        let logs = lines.join("\n");
+        (greg_core::report::sanitize(&logs), lines.len())
+    };
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_rp_logs(logs.clone().into());
+        if collected == 0 {
+            guard
+                .ui()
+                .set_rp_status("No log entries were collected yet. Add or attach log output manually.".into());
+        }
+    }
+    report_generate(state);
+}
+
 /// Pulls the assistant draft from the UI, validates it and fills the
 /// Markdown preview. The generated body is sanitized (redaction + size cap)
 /// before it reaches the preview.

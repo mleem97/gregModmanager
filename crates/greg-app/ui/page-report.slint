@@ -30,6 +30,7 @@ export component ReportPage inherits VerticalLayout {
     callback submit();
     callback export();
     callback attach();
+    callback collect-logs();
     callback confirm-yes();
     callback confirm-no();
 
@@ -134,6 +135,13 @@ export component ReportPage inherits VerticalLayout {
 
     HorizontalLayout {
         spacing: 10px;
+        GregButton {
+            text: "Collect Logs";
+            has-icon: true;
+            icon: IconSet.Stethoscope;
+            variant: "ghost";
+            clicked => { root.collect-logs(); }
+        }
         GregButton {
             text: "Generate Preview";
             has-icon: true;

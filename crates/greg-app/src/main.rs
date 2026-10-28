@@ -174,6 +174,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     }
     {
         let state = Arc::clone(state);
+        ui.on_rp_collect_logs(move || actions::report_collect_logs(&state));
+    }
+    {
+        let state = Arc::clone(state);
         ui.on_rp_cancel(move || actions::report_cancel(&state));
     }
     {

@@ -208,14 +208,32 @@ impl ReportTransmissionMode {
 }
 
 /// Lifecycle state of a report submission attempt.
+///
+/// The canonical set (shared with the operator service / UI status model):
+///
+/// - `Draft` — the report is being authored / edited.
+/// - `Validating` — the draft passed through schema validation.
+/// - `Pending` — accepted; delivery is queued or awaiting operator handling.
+/// - `Submitting` — delivery attempt in flight.
+/// - `Submitted` — delivery succeeded (issue created / local export saved).
+/// - `Failed` — delivery failed; retryable unless outcome was unknown.
+/// - `OutcomeUnknown` — the attempt outcome could not be determined; a
+///   follow-up status check is required before any retry.
+///
+/// Legacy aliases (`in_progress`, `cancelled`) are still parsed so drafts
+/// persisted by earlier builds keep deserializing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ReportSubmissionState {
     Draft,
+    Validating,
+    Pending,
+    Submitting,
     InProgress,
     Submitted,
     Failed,
     Cancelled,
+    OutcomeUnknown,
 }
 
 impl ReportSubmissionState {
@@ -223,10 +241,14 @@ impl ReportSubmissionState {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Draft => "draft",
+            Self::Validating => "validating",
+            Self::Pending => "pending",
+            Self::Submitting => "submitting",
             Self::InProgress => "in_progress",
             Self::Submitted => "submitted",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
+            Self::OutcomeUnknown => "outcome_unknown",
         }
     }
 
@@ -235,10 +257,14 @@ impl ReportSubmissionState {
         let normalized = value.trim().to_ascii_lowercase();
         Some(match normalized.as_str() {
             "draft" => Self::Draft,
+            "validating" | "validating" => Self::Validating,
+            "pending" => Self::Pending,
+            "submitting" => Self::Submitting,
             "in_progress" | "inprogress" | "in-progress" => Self::InProgress,
             "submitted" => Self::Submitted,
             "failed" => Self::Failed,
             "cancelled" | "canceled" => Self::Cancelled,
+            "outcome_unknown" | "outcomeunknown" | "outcome-unknown" => Self::OutcomeUnknown,
             _ => return None,
         })
     }
@@ -247,16 +273,35 @@ impl ReportSubmissionState {
     pub fn all() -> Vec<Self> {
         vec![
             Self::Draft,
+            Self::Validating,
+            Self::Pending,
+            Self::Submitting,
             Self::InProgress,
             Self::Submitted,
             Self::Failed,
             Self::Cancelled,
+            Self::OutcomeUnknown,
         ]
     }
 
     /// True while the report may still be delivered.
+    ///
+    /// Terminal states: submitted, failed, cancelled. `OutcomeUnknown` is
+    /// *not* terminal for retries — a retry must first resolve the open
+    /// outcome (status check) before creating a new issue.
     pub fn is_terminal(&self) -> bool {
-        matches!(self, Self::Submitted | Self::Failed | Self::Cancelled)
+        matches!(
+            self,
+            Self::Submitted | Self::Failed | Self::Cancelled | Self::OutcomeUnknown
+        )
+    }
+
+    /// True when an outcome is still unresolved and a retry may re-check.
+    pub fn may_retry_outcome(&self) -> bool {
+        !matches!(
+            self,
+            Self::Submitted | Self::Failed | Self::Cancelled | Self::OutcomeUnknown
+        )
     }
 }
 
