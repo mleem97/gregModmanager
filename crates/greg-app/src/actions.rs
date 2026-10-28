@@ -150,12 +150,12 @@ pub const BUG_REPORT_URL: &str =
 /// Org landing: lists every Greg mod/program repository with its tracker.
 pub const BUG_REPORT_ORG_URL: &str = "https://git.datacentermods.com/teamGreg";
 
-/// Handles navigation clicks (page ids + the report action).
+/// Handles navigation clicks (page ids + the report entry).
 pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
-    if id == "report-bug" {
-        // Action row, not a page: open the chooser dialog, stay where we are.
-        let guard = state.lock().expect("state");
-        guard.ui().set_show_bug_dialog(true);
+    if id == "report" {
+        // Universal Report Assistant page (central entry; category →
+        // description → preview → submit).
+        report_open(state);
         return;
     }
     if id == "problems" {
@@ -1474,58 +1474,74 @@ pub fn editor_changed(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Saves editor metadata.
 pub fn editor_save(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
-    pull_editor(&mut guard);
-    if let Some(root) = guard.editor_root.clone() {
-        match greg_platform::workspace::save_metadata(&root, &guard.editor_meta) {
+    let (root, meta) = {
+        let mut guard = state.lock().expect("state");
+        pull_editor(&mut guard);
+        (guard.editor_root.clone(), guard.editor_meta.clone())
+    };
+    // Release the lock before append_log (it locks state internally) to avoid
+    // a self-deadlock on the UI thread.
+    if let Some(root) = root {
+        match greg_platform::workspace::save_metadata(&root, &meta) {
             Ok(()) => AppState::append_log(state, &format!("Saved {}", root.display())),
             Err(e) => AppState::append_log(state, &format!("Save failed: {e}")),
         }
     }
-    run_editor_checks(&mut guard);
-    refresh_projects(&mut guard);
+    // NOTE: run_editor_checks() and refresh_projects() are intentionally NOT
+    // called here anymore. They run on the UI thread and can block for large
+    // mods (hashing every content byte, converting every README to BBCode).
+    // The editor tick re-runs checks reactively on field changes; after a
+    // publish, drain_publish() refreshes projects asynchronously.
 }
 
 /// Starts the background publish.
 pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     // Save first (separate lock scope).
     editor_save(state);
-    let mut guard = state.lock().expect("state");
-    let ui = guard.ui();
-    let Some(root) = guard.editor_root.clone() else {
-        ui.set_ed_status("No project open.".into());
-        return;
-    };
-    if guard.publish_job.is_some() {
-        ui.set_ed_status("Upload already running…".into());
-        return;
-    }
-    if !ui.get_ed_ready() {
-        // Never die silently: list the blocking checks in the status line.
-        let blocking: Vec<String> = ui
-            .get_ed_checks()
-            .iter()
-            .filter(|row| !row.ok)
-            .map(|row| format!("{} — {}", row.label, row.detail))
-            .collect();
-        ui.set_ed_status(if blocking.is_empty() {
-            "Not ready to upload.".into()
+    // Extract everything we need while holding the lock, then release it
+    // before calling append_log (which locks state internally) to avoid a
+    // self-deadlock on the UI thread — that froze the app on upload.
+    let (root, steam, manual, mut meta) = {
+        let guard = state.lock().expect("state");
+        let ui = guard.ui();
+        let Some(root) = guard.editor_root.clone() else {
+            ui.set_ed_status("No project open.".into());
+            return;
+        };
+        if guard.publish_job.is_some() {
+            ui.set_ed_status("Upload already running…".into());
+            return;
+        }
+        if !ui.get_ed_ready() {
+            // Never die silently: list the blocking checks in the status line.
+            let blocking: Vec<String> = ui
+                .get_ed_checks()
+                .iter()
+                .filter(|row| !row.ok)
+                .map(|row| format!("{} — {}", row.label, row.detail))
+                .collect();
+            ui.set_ed_status(if blocking.is_empty() {
+                "Not ready to upload.".into()
+            } else {
+                format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
+            });
+            return;
+        }
+        let manual = if guard.editor_changelog.trim().is_empty() {
+            None
         } else {
-            format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
-        });
-        return;
-    }
-    let mut meta = guard.editor_meta.clone();
-    let manual = if guard.editor_changelog.trim().is_empty() {
-        None
-    } else {
-        Some(guard.editor_changelog.clone())
+            Some(guard.editor_changelog.clone())
+        };
+        let steam = Arc::clone(&guard.steam);
+        let meta = guard.editor_meta.clone();
+        (root, steam, manual, meta)
     };
-    let steam = Arc::clone(&guard.steam);
+    // Safe: no state lock held here — append_log locks state itself.
+    AppState::append_log(state, &format!("Upload started: {}", root.display()));
+    let mut guard = state.lock().expect("state");
     guard.ui().set_ed_publishing(true);
     guard.ui().set_ed_progress(0.0);
     guard.ui().set_ed_status("Uploading…".into());
-    AppState::append_log(state, &format!("Upload started: {}", root.display()));
     let job = JobHandle::spawn(move |sink| {
         let outcome = steam.publish(
             &root,
@@ -1765,8 +1781,11 @@ fn drain_publish(state: &mut AppState) {
             state.editor_dep_ids = state.editor_meta.workshop_dependency_ids.clone();
             push_editor(state);
         }
+        // NOTE: run_editor_checks() is intentionally NOT called here. It runs
+        // synchronously on the UI thread (hashes every content byte, converts
+        // every README to BBCode) and blocks the UI for large mods. Checks are
+        // re-run reactively via editor_changed() on the next UI tick anyway.
         refresh_projects(state);
-        run_editor_checks(state);
     }
 }
 
@@ -2637,6 +2656,85 @@ pub fn bug_open_org(state: &Arc<std::sync::Mutex<AppState>>) {
 pub fn bug_close(state: &Arc<std::sync::Mutex<AppState>>) {
     let guard = state.lock().expect("state");
     guard.ui().set_show_bug_dialog(false);
+}
+
+// ---------------------------------------------------------------------------
+// Universal Report Assistant (central "Report" page).
+// ---------------------------------------------------------------------------
+
+/// Opens the Report Assistant page and resets the draft.
+pub fn report_open(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.ui().set_current_page("report".into());
+    guard.ui().set_rp_title(String::new().into());
+    guard.ui().set_rp_category_index(0);
+    guard.ui().set_rp_description(String::new().into());
+    guard.ui().set_rp_steps(String::new().into());
+    guard.ui().set_rp_expected(String::new().into());
+    guard.ui().set_rp_actual(String::new().into());
+    guard.ui().set_rp_logs(String::new().into());
+    guard.ui().set_rp_environment(String::new().into());
+    guard.ui().set_rp_preview(String::new().into());
+    guard.ui().set_rp_status(String::new().into());
+    let labels = [
+        "Bug",
+        "Crash",
+        "Feature",
+        "Improvement",
+        "Performance",
+        "Compatibility",
+        "UI/UX",
+        "Documentation",
+        "Installation",
+        "Configuration",
+        "Security",
+        "Other",
+    ];
+    guard.ui().set_rp_categories(model_of_strings(
+        &labels.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    ));
+}
+
+/// Pulls the assistant draft from the UI, validates it and fills the
+/// Markdown preview. Submission (GitHub) is a later phase; the fallback
+/// tracker hand-off (`bug_open_manager`) stays available.
+pub fn report_generate(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    let category = greg_core::report::ReportCategory::all()
+        .get(ui.get_rp_category_index().max(0) as usize)
+        .map(|c| c.as_str().to_string())
+        .unwrap_or_else(|| "other".to_string());
+    let draft = greg_core::report::ReportData {
+        title: ui.get_rp_title().to_string(),
+        category,
+        description: ui.get_rp_description().to_string(),
+        steps_to_reproduce: ui.get_rp_steps().to_string(),
+        expected_behavior: ui.get_rp_expected().to_string(),
+        actual_behavior: ui.get_rp_actual().to_string(),
+        logs: ui.get_rp_logs().to_string(),
+        environment: ui.get_rp_environment().to_string(),
+        project_id: None,
+        mod_id: None,
+        attachments: Vec::new(),
+    };
+    let issues = greg_core::report::validate(&draft);
+    if issues.iter().any(|i| i.is_error()) {
+        let summary = issues
+            .iter()
+            .map(|i| format!("{}: {}", i.field, i.message))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        ui.set_rp_status(format!("Validation: {summary}").into());
+        return;
+    }
+    ui.set_rp_preview(greg_core::report::generate_markdown(&draft).into());
+    ui.set_rp_status(String::new().into());
+}
+
+/// Discards the assistant draft and resets the page.
+pub fn report_cancel(state: &Arc<std::sync::Mutex<AppState>>) {
+    report_open(state);
 }
 
 fn percent_encode_bug(value: &str) -> String {

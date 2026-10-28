@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Universal Report Assistant: new central `Report` tab in the modmanager
+  navigation (replaces the former bug-only link-out entry). Category
+  selection (bug, crash, feature, improvement, performance, compatibility,
+  UI/UX, documentation, installation, configuration, security, other),
+  free-text description and category-dependent fields (steps, expected /
+  actual behavior, logs, environment), plus a generated Markdown preview
+  with validation, secret redaction and log truncation from the new
+  `greg-core::report` domain. Submission to GitHub issues follows in a
+  later phase; the local fallback tracker hand-off stays available.
+
 - Experimental macOS support for Steam library discovery, Unity `.app` game
   bundles, and macOS process supervision. Native Mac validation, signing, and
   notarization remain release prerequisites.

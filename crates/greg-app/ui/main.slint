@@ -10,6 +10,7 @@ import { EditorPage } from "page-editor.slint";
 import { BrowsePage } from "page-browse.slint";
 import { StorePage } from "page-store.slint";
 import { SettingsPage } from "page-settings.slint";
+import { ReportPage } from "page-report.slint";
 
 // Main window: full-height icon bar | header + navigation + content,
 // status bar below. 100% custom chrome (no native frame).
@@ -128,6 +129,19 @@ export component MainWindow inherits Window {
     in-out property <[ProblemRow]> problem-rows;
     in-out property <string> problem-status;
 
+    // --- report assistant page state ---
+    in-out property <string> rp-title;
+    in-out property <int> rp-category-index: 0;
+    in-out property <[string]> rp-categories;
+    in-out property <string> rp-description;
+    in-out property <string> rp-steps;
+    in-out property <string> rp-expected;
+    in-out property <string> rp-actual;
+    in-out property <string> rp-logs;
+    in-out property <string> rp-environment;
+    in-out property <string> rp-preview;
+    in-out property <string> rp-status;
+
     // --- packs page state (one component serves Modpacks + Collections) ---
     in-out property <string> pack-kind;
     in-out property <string> pack-title;
@@ -183,6 +197,10 @@ export component MainWindow inherits Window {
     // --- problems callbacks ---
     callback problems-refresh();
     callback problems-act(int);
+
+    // --- report assistant callbacks ---
+    callback rp-generate();
+    callback rp-cancel();
 
     // --- packs callbacks ---
     callback packs-create();
@@ -685,6 +703,22 @@ export component MainWindow inherits Window {
                                 open-logs => { root.se-open-logs(); }
                                 make-bundle => { root.se-make-bundle(); }
                                 register-protocol => { root.se-register-protocol(); }
+                            }
+                            if root.current-page == "report": ReportPage {
+                                vertical-stretch: 1;
+                                title <=> root.rp_title;
+                                category-index <=> root.rp_category_index;
+                                categories <=> root.rp_categories;
+                                description <=> root.rp_description;
+                                steps <=> root.rp_steps;
+                                expected <=> root.rp_expected;
+                                actual <=> root.rp_actual;
+                                logs <=> root.rp_logs;
+                                environment <=> root.rp_environment;
+                                preview <=> root.rp_preview;
+                                status <=> root.rp_status;
+                                generate => { root.rp-generate(); }
+                                cancel => { root.rp-cancel(); }
                             }
                         }
                     }

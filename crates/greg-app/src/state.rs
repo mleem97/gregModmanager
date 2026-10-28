@@ -311,7 +311,7 @@ impl AppState {
                     ("modpacks", "Modpacks"),
                     ("collections", "Collections"),
                     ("problems", "Problems"),
-                    ("report-bug", "Report a Bug"),
+                    ("report", "Report"),
                 ]));
             }
             ICON_WORKSHOP => {

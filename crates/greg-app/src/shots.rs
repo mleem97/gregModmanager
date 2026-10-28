@@ -149,7 +149,7 @@ fn page_mymods(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
             ("modpacks", "Modpacks"),
             ("collections", "Collections"),
             ("problems", "Problems"),
-            ("report-bug", "Report a Bug"),
+            ("report", "Report"),
         ],
         "mymods",
     );
@@ -523,4 +523,43 @@ fn project_sync_hashes_off_ui_thread() {
         );
     }
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Report Assistant flow: open → fill draft → generate Markdown preview.
+/// Guards the phase-2 domain wiring end to end (validation + generation).
+#[test]
+fn report_flow_generates_markdown_preview() {
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+    let state = std::sync::Arc::clone(&state);
+
+    crate::actions::report_open(&state);
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_rp_title("Crash on launch".into());
+        guard.ui().set_rp_category_index(1);
+        guard
+            .ui()
+            .set_rp_description("App crashes when starting the game.".into());
+        guard.ui().set_rp_logs("panic: boom".into());
+    }
+    crate::actions::report_generate(&state);
+    {
+        let guard = state.lock().expect("state");
+        assert_eq!(guard.ui().get_rp_category_index(), 1);
+        let preview = guard.ui().get_rp_preview().to_string();
+        assert!(preview.contains("## Summary"), "preview: {preview}");
+        assert!(preview.contains("panic: boom"), "preview: {preview}");
+        assert!(
+            preview.contains("## Logs and Diagnostics"),
+            "preview: {preview}"
+        );
+    }
+    // Cancel resets the draft.
+    crate::actions::report_cancel(&state);
+    {
+        let guard = state.lock().expect("state");
+        assert!(guard.ui().get_rp_preview().to_string().is_empty());
+    }
 }
