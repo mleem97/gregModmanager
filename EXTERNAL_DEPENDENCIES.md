@@ -8,20 +8,17 @@ a release.
 
 | Component | Current use | Licence/source |
 | --- | --- | --- |
-| .NET 9 | application runtime and SDK | [MIT](https://github.com/dotnet/runtime/blob/main/LICENSE.TXT) |
-| Avalonia 12.1.1 | cross-platform desktop UI | [MIT](https://github.com/AvaloniaUI/Avalonia/blob/master/licence.md) |
-| Microsoft.Extensions.DependencyInjection 10.0.10 | service composition | [MIT](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection) |
-| Cherry.Facepunch.Steamworks 2.5.0 | managed Steamworks integration | [MIT](https://github.com/Facepunch/Facepunch.Steamworks) |
-| Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (Rust restart, `greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
-| Rust `lucide-slint` 1.49.1 (build dependency, `greg-app`) + Slint 1.18.1 | all UI icons via `IconDisplay`/`IconSet` (`@lucide` library in `build.rs`); no unicode glyphs or emoji as icons | [MIT OR Apache-2.0](https://github.com/cnlancehu/lucide-slint) + [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) for the icon artwork |
-| xUnit, Microsoft.NET.Test.Sdk, Coverlet | tests only | package-specific licences |
+| Rust `slint` / `slint-build` 1.18.1 + `lucide-slint` 1.49.1 | cross-platform desktop UI (retained mode, single binary) | [MIT OR Apache-2.0](https://github.com/slint-ui/slint) + [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) for the icon artwork |
+| Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (`greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
+| Rust `tokio`, `reqwest` (rustls), `serde`, `serde_json`, `thiserror`, `anyhow`, `semver`, `dirs`, `clap`, `rfd`, `notify`, `zip`, `tracing` | async runtime, Modstore REST + OAuth, models/errors, validation, paths, dialogs, packaging, logging | crate-specific licences |
+| Rust toolchain via rustup (stable) | build, test, release | [MIT OR Apache-2.0](https://github.com/rust-lang/rust) |
 
 ## Redistributables and platform assets
 
 | Asset | Platforms | Distribution note |
 | --- | --- | --- |
 | Steam native library (Windows `steam_api64.dll`) | Windows x64 publish output | governed by Valve Steamworks terms; do not present it as open source |
-| Steam native library (Linux `libsteam_api.so` / `libsteam_api64.so`, Steamworks SDK 1.61 interface set: `SteamApps_v008`/`SteamFriends_v017`) | Linux x64 publish output, sourced from the `Facepunch.Steamworks.Dll 1.61.0` NuGet redistributable (`runtimes/linux-x64/native/libsteam_api.so`) to match `Cherry.Facepunch.Steamworks 2.5.0` | governed by Valve Steamworks terms; do not present it as open source. Newer SDK builds (e.g. 1.62.0 with `SteamApps_v009`) are **not** compatible with the managed wrapper and break `SteamClient.Init` on Linux |
+| Steam native library (Linux `libsteam_api.so` / Windows `steam_api64.dll` / macOS `libsteam_api.dylib`, Steamworks SDK interface set `SteamApps_v008`/`SteamFriends_v017`) | Publish output staged next to the binaries by `cargo xtask dist`; sourced from the `steamworks-sys` build output of the Rust `steamworks` crate | governed by Valve Steamworks terms; do not present it as open source. Newer SDK builds (e.g. 1.62.0 with `SteamApps_v009`) are **not** compatible and break the Rust Workshop bindings on Linux |
 | Steam native libraries via `steamworks-sys` (Rust restart): Windows `steam_api64.dll`, Linux `libsteam_api.so`, macOS `libsteam_api.dylib` | staged next to the binaries by `cargo xtask dist` (rpath/`$ORIGIN` on Linux/macOS, DLL search on Windows) | governed by Valve Steamworks terms; do not present them as open source. `steam_appid.txt` (`4170200`) ships alongside |
 | `steam_appid.txt` | platform publish output where configured | project configuration, not a library |
 | bundled fonts | desktop resources | see the licence files beside the vendored fonts |
@@ -37,14 +34,13 @@ notarization, Gatekeeper testing, and a native dependency review.
 
 | Tool | Purpose |
 | --- | --- |
-| .NET SDK (pinned by `global.json`) | restore, build, test, publish |
-| Inno Setup 6 | Windows Setup EXE |
+| Rust toolchain via rustup (stable) | restore, build, test, release (`cargo`, `cargo xtask`) |
+| Inno Setup 6 (+ Wine) | Windows Setup EXE (best-effort; CI cross-builds the portable ZIP) |
 | WiX CLI 5 | Windows MSI |
 | nfpm and native package tools | DEB, RPM, APK, and Arch packages |
-| WSL | optional Windows-host Linux package adapter |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | Existing Linux-only CI and release path; these workflows remain unchanged. |
-| GitHub Actions (`.github/workflows/build-and-release.yml`) | GitHub-only release pipeline: workspace tests, native Windows x64 installer/portable build, native Linux portable/distribution packages, experimental native macOS x64/arm64 builds, and GitHub Release publication for `v*` tags. |
+| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | Linux-only CI and release path (Rust: fmt, clippy, test, audit, cross-build, packages, releases). |
+| GitHub | read-only archive mirror — no CI, no release automation. |
 
 ## Release formats
 
@@ -60,7 +56,8 @@ build and is not a redistribution dependency. See
 
 ## MelonLoader integration
 
-`src/GregModmanager.Melons/SubDirectoryFixer/` is a `net6.0` MelonLoader plugin.
-Its local `MelonLoader.dll` reference is a game-environment dependency, not a
-NuGet dependency. Configure the reference on the build machine without
-committing machine-specific game paths or copied game binaries.
+`.reference/modmanager-old/src/GregModmanager.Melons/SubDirectoryFixer/` is a
+`net6.0` MelonLoader plugin (frozen, not part of the Rust workspace). Its local
+`MelonLoader.dll` reference is a game-environment dependency, not a Rust crate.
+Configure the reference on the build machine without committing machine-specific
+game paths or copied game binaries.

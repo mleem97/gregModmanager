@@ -11,9 +11,10 @@ usage() {
   cat <<'EOF'
 Usage: run-remote-manual-test.sh --host user@mac-host [--arch arm64|x64] [--remote-dir path]
 
-The macOS host must have SSH, rsync, Xcode command-line tools and the .NET SDK
-required by global.json. After a successful run, connect to the Mac via Screen
-Sharing or its local desktop and launch the printed executable manually.
+The macOS host must have SSH, rsync, Xcode command-line tools and a Rust toolchain
+(required by rustup) with the macOS target installed. After a successful run, connect
+to the Mac via Screen Sharing or its local desktop and launch the printed binary
+manually.
 EOF
 }
 
@@ -42,7 +43,7 @@ if [[ ! "$REMOTE_DIR" =~ ^(~\/|/)[A-Za-z0-9_./-]*$ ]]; then
 fi
 
 echo "[macOS] Checking remote prerequisites on $MACOS_HOST ..."
-ssh "$MACOS_HOST" "command -v dotnet >/dev/null && command -v rsync >/dev/null && mkdir -p $REMOTE_DIR"
+ssh "$MACOS_HOST" "command -v rustup >/dev/null && command -v rsync >/dev/null && rustup target add $ARCH && mkdir -p $REMOTE_DIR"
 
 echo "[macOS] Synchronizing source (no remote files are deleted) ..."
 rsync -az \
@@ -51,9 +52,9 @@ rsync -az \
   "$REPO_ROOT/" "$MACOS_HOST:$REMOTE_DIR/"
 
 echo "[macOS] Restoring, building, and testing on the real macOS host ..."
-ssh "$MACOS_HOST" "set -euo pipefail; cd $REMOTE_DIR; dotnet restore GregModmanager.sln; dotnet build GregModmanager.sln --no-restore -c Release; dotnet test GregModmanager.sln --no-build -c Release --verbosity normal; dotnet publish src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj -c Release -r osx-$ARCH --self-contained true -o artifacts/manual-macos-osx-$ARCH"
+ssh "$MACOS_HOST" "set -euo pipefail; cd $REMOTE_DIR; rustup target add $ARCH; cargo build --release -p greg-app -p greg-cli --target $ARCH-apple-darwin; cargo test --workspace"
 
 echo
 echo "[macOS] Manual GUI build is ready on $MACOS_HOST:"
-echo "  $REMOTE_DIR/artifacts/manual-macos-osx-$ARCH/GregModmanager"
-echo "Open that path in a terminal on the Mac's logged-in desktop, then test the GUI manually."
+echo "  $REMOTE_DIR/target/$ARCH-apple-darwin/release/gregmodmanager"
+echo "Open that path in a terminal on the Mac's logged-in desktop and test the GUI manually."

@@ -29,7 +29,7 @@ jobs:
       verdict: ${{ steps.eval.outputs.verdict }}
       sha: ${{ steps.eval.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -52,7 +52,7 @@ jobs:
     if: needs.readiness.outputs.verdict == 'pass' && github.actor == 'mleem97' && (github.event_name == 'push' || inputs.dry_run == false)
     runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Fast-forward main to gated sha

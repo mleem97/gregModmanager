@@ -1,6 +1,6 @@
 # End-user guide
 
-**Owner:** gregModmanager maintainers. **Evidence:** Avalonia views and Core
+**Owner:** gregModmanager maintainers. **Evidence:** Slint views and Rust domain
 services in the current checkout. **Review trigger:** update after a navigation,
 Steam workflow, settings/privacy, or release-format change.
 
@@ -26,17 +26,18 @@ web catalog. Do not rely on older screenshots or guides that claim otherwise.
 | Linux x64 | portable ZIP/tarball, DEB, RPM, APK, or Arch package |
 | macOS | no release asset; testing is limited to a manually prepared real Mac |
 
-Release filenames contain the version, platform, and (for preview builds) a
-`-pre` suffix. Always choose the matching asset from the release page rather
-than copying an example filename from an older document.
+Release filenames contain the version, the Rust target tag (for example
+`win-x64` or `linux-x64`) and (for preview builds) a `-pre` suffix. Always choose
+the matching asset from the release page rather than copying an example filename
+from an older document.
 
 ## Windows
 
-1. Download either the Setup EXE or MSI from the release page. Use the portable
-   ZIP only when an installer is unsuitable.
+1. Download the portable ZIP or Setup EXE from the release page. Use the
+   portable ZIP only when an installer is unsuitable.
 2. Verify the matching `.sha256` file when one is published.
 3. Run the installer or extract the ZIP to a writable location.
-4. Start `GregModmanager.exe` and sign in only through the application's
+4. Start `gregmodmanager.exe` and sign in only through the application's
    configured account flow.
 
 **Expected result:** the window opens and the status area reports the available
@@ -50,13 +51,13 @@ make it publicly trusted. See the [signing guide](../build/installer/CODE_SIGNIN
 ## Linux
 
 Install the package format for your distribution, or extract a portable archive
-to a writable directory and start `GregModmanager` from that directory. Package
+to a writable directory and start `gregmodmanager` from that directory. Package
 installation commands vary by distribution; use the command shown by your
 package manager. An AppImage and an AUR package are not produced by the current
 release pipeline.
 
-**Expected result:** a portable archive contains the `GregModmanager` executable.
-Run `chmod +x GregModmanager` after extraction if the executable bit was lost.
+**Expected result:** a portable archive contains the `gregmodmanager` executable.
+Run `chmod +x gregmodmanager` after extraction if the executable bit was lost.
 
 ## Using the application
 

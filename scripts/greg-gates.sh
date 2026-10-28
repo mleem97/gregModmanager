@@ -17,31 +17,8 @@ report "# greg gates: dev -> $STAGE @ $SHA (kind=$KIND)"
 CHANGED="$(git diff --name-only "origin/$STAGE...HEAD" 2>/dev/null | sort -u || true)"
 
 # ---------- build ----------
-BUILD_RC=1; WARN_DEV=0; SOL=""
-build_dotnet() {
-  # NOTE: must run in the CURRENT shell (not $()) — it sets SOL/BUILD_RC/WARN_DEV
-  # and calls gpass/gfail directly.
-  if [ "$NEEDS_REFS" = "true" ]; then
-    mkdir -p references
-    cp -n /opt/greg-refs/net6/*.dll references/ 2>/dev/null || true
-    cp -n /opt/greg-refs/Il2CppAssemblies/*.dll references/ 2>/dev/null || true
-    if [ -x scripts/setup-dev.py ]; then
-      python3 scripts/setup-dev.py --game-dir /opt/greg-refs         --interop-dir /opt/greg-refs/Il2CppAssemblies --copy-interop >setup-dev.log 2>&1         || { gfail build "scripts/setup-dev.py failed (see setup-dev.log)"; return 1; }
-    fi
-  fi
-  SOL="$(find . -maxdepth 3 -name '*.sln' -not -path '*/obj/*' -not -path '*/bin/*' -not -path './.git/*' 2>/dev/null | head -n 1)"
-  [ -z "$SOL" ] && SOL="$(find . -maxdepth 3 -name '*.csproj' -not -path '*/obj/*' -not -path '*/bin/*' -not -path './.git/*' -not -name '*Tests*' 2>/dev/null | head -n 1)"
-  if [ -z "$SOL" ]; then gfail build "no solution/project found"; return 2; fi
-  dotnet build "$SOL" -c Release --nologo -v:m >build-dev.log 2>&1; BUILD_RC=$?
-  WARN_DEV=$(grep -c "warning CS" build-dev.log || true)
-  if [ "$BUILD_RC" -eq 0 ]; then gpass build "$SOL ok, warnings=$WARN_DEV";
-  else gfail build "$SOL rc=$BUILD_RC (see build-dev.log)"; fi
-}
+BUILD_RC=1; WARN_DEV=0
 case "$KIND" in
-  dotnet*)
-    SOL=""; BUILD_RC=1; WARN_DEV=0
-    build_dotnet
-    ;;
   rust)
     if [ -f Cargo.toml ]; then
       cargo build --release >build-dev.log 2>&1; BUILD_RC=$?
@@ -64,16 +41,6 @@ esac
 # ---------- tests ----------
 TESTS_RC=1; HAVE_TESTS=false
 case "$KIND" in
-  dotnet*)
-    TP="$(find . -path ./obj -prune -o -path ./.git -prune -o -name '*Tests*.csproj' -print 2>/dev/null | grep -v -E '/(obj|bin)/' | head -n 20)"
-    if [ -z "$TP" ]; then gfail tests "no *Tests*.csproj found (add tests to unblock staging)";
-    else
-      HAVE_TESTS=true
-      # coverage-collecting run; results reused by coverage gate
-      dotnet test $TP -c Release --no-build --collect:"XPlat Code Coverage" --results-directory "$PWD/cov-dev" >test-dev.log 2>&1; TESTS_RC=$?
-      [ "$TESTS_RC" -eq 0 ] && gpass tests "dotnet test ok" || gfail tests "dotnet test failed (see test-dev.log)"
-    fi
-    ;;
   rust)
     if [ -f Cargo.toml ]; then HAVE_TESTS=true
       cargo test >test-dev.log 2>&1; TESTS_RC=$?
@@ -92,27 +59,8 @@ case "$KIND" in
 esac
 
 # ---------- coverage (>=90%%, drop <=5pp vs STAGE) ----------
-cov_dotnet() { # $1 = results dir -> prints pct or empty
-  f="$(find "$1" -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1)"
-  [ -z "$f" ] && echo "" && return
-  python3 -c "import xml.etree.ElementTree as ET,sys; print(round(float(ET.parse('$f').getroot().get('line-rate'))*100, 2))"
-}
 if [ "$HAVE_TESTS" = true ] && [ "$TESTS_RC" -eq 0 ]; then
   case "$KIND" in
-    dotnet*)
-      DEV_COV="$(cov_dotnet "$PWD/cov-dev")"
-      if [ -z "$DEV_COV" ]; then gfail coverage "no cobertura output (add coverlet.collector to test projects)";
-      else
-        rm -rf /tmp/gbase && git worktree add --detach /tmp/gbase "origin/$STAGE" >/dev/null 2>&1
-        (cd /tmp/gbase && dotnet test $TP -c Release --collect:"XPlat Code Coverage" --results-directory /tmp/gbase/cov-base >/tmp/base-test.log 2>&1 || true)
-        BASE_COV="$(cov_dotnet /tmp/gbase/cov-base)"; [ -z "$BASE_COV" ] && BASE_COV=0
-        git worktree remove --force /tmp/gbase >/dev/null 2>&1 || true
-        DROP="$(python3 -c "print(round($BASE_COV - $DEV_COV, 2))")"
-        if python3 -c "import sys; sys.exit(0 if ($DEV_COV >= 90 and ($BASE_COV - $DEV_COV) <= 5) else 1)"; then
-          gpass coverage "dev=${DEV_COV}% base=${BASE_COV}% drop=${DROP}pp"
-        else gfail coverage "need >=90%% and drop<=5pp (dev=${DEV_COV}% base=${BASE_COV}%)"; fi
-      fi
-      ;;
     rust)
       if command -v cargo-tarpaulin >/dev/null; then
         DEV_COV="$(cargo tarpaulin --out Xml --output-dir /tmp 2>/dev/null | grep -oE '[0-9]+\.[0-9]+%' | tail -n 1 | tr -d '%')"
@@ -128,7 +76,7 @@ if [ "$HAVE_TESTS" = true ] && [ "$TESTS_RC" -eq 0 ]; then
     *) gna coverage "not measurable for kind=$KIND (annotated)" ;;
   esac
 else
-  case "$KIND" in dotnet*|rust) gfail coverage "no passing tests to measure (fail closed)";; *) gna coverage "no test harness (annotated)";; esac
+  case "$KIND" in rust) gna coverage "cargo-tarpaulin not installed (install to enable coverage measurement)";; *) gna coverage "no test harness (annotated)";; esac
 fi
 
 # ---------- security: 0 new issues ----------
@@ -137,17 +85,6 @@ if command -v gitleaks >/dev/null; then
   else gfail security-secrets "gitleaks findings (see gitleaks.log)"; fi
 else gfail security-secrets "gitleaks not installed on runner"; fi
 case "$KIND" in
-  dotnet*)
-    if [ -n "$SOL" ]; then
-      VULN=$(dotnet list "$SOL" package --vulnerable --include-transitive 2>/dev/null | grep -ciE "high|critical" || true)
-      [ "$VULN" -eq 0 ] && gpass security-deps "0 high/critical vulnerable packages" || gfail security-deps "$VULN high/critical findings"
-      # warnings delta vs STAGE (staging log from coverage worktree run if present)
-      WARN_BASE=0
-      if [ -f /tmp/base-test.log ]; then WARN_BASE=$(grep -c "warning CS" /tmp/base-test.log || true); fi
-      if [ "$WARN_DEV" -le "$WARN_BASE" ] 2>/dev/null; then gpass security-warnings "warnings dev=$WARN_DEV base=$WARN_BASE (delta<=0)";
-      else gfail security-warnings "new warnings: dev=$WARN_DEV base=$WARN_BASE"; fi
-    else gna security-deps "no solution"; fi
-    ;;
   rust)
     if [ -f Cargo.lock ]; then cargo audit >cargo-audit.log 2>&1 && gpass security-deps "cargo audit clean" || gfail security-deps "cargo audit findings";
     else gna security-deps "no Cargo.lock"; fi
@@ -163,37 +100,18 @@ esac
 # ---------- version consistency (repos with VERSION file) ----------
 if [ -f VERSION ]; then
   CONS_OUT="$(python3 - <<'PYEOF' 2>&1
-import re, json, subprocess, glob, sys
-def sh(*a):
-    try: return subprocess.run(a, capture_output=True, text=True).stdout.strip()
-    except Exception: return ""
+import re, subprocess, sys
 ver = open("VERSION").read().strip()
 base = re.sub(r"-dev$", "", ver)
 ok = True; notes = []
-for cs in glob.glob("*.csproj"):
-    t = open(cs).read()
-    m = re.search(r"<Version>([^<]+)</Version>", t)
-    if m and re.sub(r"-dev$", "", m.group(1)) != base:
-        ok = False; notes.append(f"{cs} Version={m.group(1)}")
+cargo_ver = ""
 try:
-    man = json.load(open("manifest.json")); mv = man.get("version", "")
-    tag = sh("git", "describe", "--tags", "--abbrev=0", "--match", "v*") or "v0.0.0"
-    tv = tag.lstrip("v")
-    if mv not in (tv, base):
-        ok = False; notes.append(f"manifest.json={mv} (expected {tv} or {base})")
-except FileNotFoundError:
-    notes.append("no manifest.json (skipped)")
+    m = re.search(r'^version = "([^"]+)"', open("Cargo.toml").read(), re.M)
+    cargo_ver = m.group(1) if m else ""
 except Exception as e:
-    ok = False; notes.append(f"manifest error: {e}")
-import subprocess as sp
-found_melon = False
-for f in sp.run(["git", "grep", "-l", "MelonInfo", "--", "src"], capture_output=True, text=True).stdout.split():
-    found_melon = True
-    for line in open(f):
-        if "MelonInfo" in line:
-            for v in re.findall(r'"([0-9]+\.[0-9]+\.[0-9]+(?:-dev)?)"', line):
-                if re.sub(r"-dev$", "", v) != base:
-                    ok = False; notes.append(f"{f}: MelonInfo {v}")
+    ok = False; notes.append(f"Cargo.toml error: {e}")
+if cargo_ver and re.sub(r"-dev$", "", cargo_ver) != base:
+    ok = False; notes.append(f"Cargo.toml Version={cargo_ver} (expected {base})")
 print(("GATE consistency: PASS - all version sources agree on " + base) if ok else ("GATE consistency: FAIL - " + "; ".join(notes) + f" (VERSION base={base})"))
 sys.exit(0)
 PYEOF

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FULL-RUST configuration alignment: devcontainer moved from the .NET/Avalonia
+  SDK image to a Rust (rustup + Slint) image with the Rust VS Code extension;
+  release-changelog version promotion now bumps the workspace `Cargo.toml` (the
+  referenced .NET project no longer exists); the stale C# GitHub build workflow
+  was removed and the release-train CI (promote/train + quality gates) moved
+  into the byte-identical Forgejo/Gitea workflow set; build wrapper, Steam/Proton
+  notes, and documentation were aligned to the Rust workspace.
+- Residual C# era tooling removed after the full-Rust migration: obsolete
+  .NET/Avalonia build scripts (builder menus, PowerShell build helpers, Avalonia
+  package scripts, apt/local-test/Linux-package scripts) deleted; quality gates
+  (`scripts/greg-gates.sh`) reduced to the Rust toolchain path; Codacy
+  language/tool configuration switched from C# to Rust; Windows installer
+  signing/installer documentation aligned to the Rust-era scripts.
+
 - Der Modmanager wurde nach einem Spielstart unbenutzbar — es gab keinen
   funktionierenden Weg, das Spiel aus der App zu stoppen. `stop_game()`
   killt laufende Game-Prozesse und reconnectet Steamworks danach; der

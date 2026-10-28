@@ -1,15 +1,12 @@
 # Container build and test
 
-The repository has separate targets for compilation/testing, Windows-container
-builds, and macOS cross-publish artifacts.
+The repository has a Rust build container for deterministic build/test and
+cross-RID publish.
 
-## Linux SDK container
-
-These commands work with Docker Buildx on Linux, macOS, or Docker Desktop in
-Linux-container mode:
+## Linux Rust SDK container
 
 ```bash
-# Restore, compile and run the .NET test suite.
+# Restore, compile and run the Rust test suite.
 docker buildx bake test
 
 # Generate a Windows x64 publish directory. This does not create an EXE/MSI.
@@ -22,31 +19,16 @@ docker buildx bake macos-arm64-publish
 
 Artifacts are written to `artifacts/docker/`, which is ignored by Git.
 
-## Windows container
+## Cross-build boundary
 
-`docker/Dockerfile.windows` is a real Windows-container build and test image.
-It requires a Windows host with Docker configured for **Windows containers**
-and a host version compatible with `windowsservercore-ltsc2022`.
-
-The project targets `net10.0` while `global.json` selects SDK 10. The image
-copies the .NET 9 runtime into the SDK image so its `test` target can execute
-the test binaries without a manual image patch.
-
-```powershell
-docker build --file docker/Dockerfile.windows --target test .
-docker build --file docker/Dockerfile.windows --target publish --output type=local,dest=artifacts/docker/windows-native .
-```
-
-The native Windows installer build remains a Windows-host task because it
-requires Inno Setup, WiX and Authenticode signing. Use the existing
-`build/scripts/build.ps1` workflow on a Windows host for the EXE and MSI;
-CI cross-builds the Windows portable ZIP on Linux and attempts the Inno
-Setup EXE best-effort under Wine (see `.forgejo/workflows/build-and-release.yml`).
+The Linux Rust container cross-compiles the Windows x64 target through the mingw
+toolchain; macOS targets require a macOS host with the Apple SDK and cannot be
+cross-built from Linux.
 
 ## macOS boundary
 
 Docker has no supported macOS container runtime or macOS base images. The
-Linux SDK container can cross-publish `osx-x64` and `osx-arm64`, but it cannot
+Linux Rust container can cross-publish `osx-x64` and `osx-arm64`, but it cannot
 execute or UI-test those binaries. Validate the current cross-published artifact
 on a real Mac. No macOS CI job, signed package, notarization, or release artifact
 exists yet; add and validate those independently before claiming macOS support.
@@ -64,5 +46,5 @@ chmod +x build/scripts/macos/run-remote-manual-test.sh
 The script synchronizes source without deleting remote files, runs restore,
 build and tests on the Mac, then creates a launchable GUI build there. Connect
 to the Mac with Screen Sharing (or use its physical desktop) and launch the
-path printed by the script. This is required for real interaction with the
+binary printed by the script. This is required for real interaction with the
 macOS window system; SSH and Docker alone cannot provide it.
