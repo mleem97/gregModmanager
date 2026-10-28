@@ -1,5 +1,5 @@
 import { LineEdit, ComboBox } from "std-widgets.slint";
-import { ScrollView } from "std-widgets.slint";
+import { ScrollView, HorizontalBox } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { ProjectRow } from "models.slint";
@@ -7,39 +7,46 @@ import { ProjectRow } from "models.slint";
 export component ProjectsPage inherits VerticalLayout {
     in-out property <string> search;
     in-out property <[ProjectRow]> rows;
-    in-out property <string> new-folder;
-    in-out property <int> new-template;
-    in-out property <[string]> templates;
 
     callback refresh();
     callback open-project(string);
     callback open-folder();
-    callback create-project();
+    callback request-new-project();
     callback view-on-steam(string);
 
-    spacing: 8px;
+    spacing: 12px;
     padding: 18px;
 
     SectionTitle { text: "PROJECTS"; }
 
+    // Such- und Aktionsleiste oben
     Rectangle {
         height: 36px;
         HorizontalLayout {
             width: parent.width;
             height: parent.height;
             spacing: 8px;
-            alignment: center;
-            Text {
-                text: "Search";
-                font-size: 12px;
-                color: Palette.on-variant;
-                vertical-alignment: center;
+            alignment: start;
+            GregButton {
+                text: "New Project";
+                has-icon: true;
+                icon: IconSet.Plus;
+                variant: "primary";
+                clicked => { root.request-new-project(); }
             }
-            search-box := LineEdit {
+            LineEdit {
                 text <=> root.search;
-                placeholder-text: "name or title…";
+                placeholder-text: "Search projects by name or title…";
                 horizontal-stretch: 1;
             }
+        }
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 8px;
+            alignment: end;
+            
+            
             GregButton {
                 text: "Refresh";
                 has-icon: true;
@@ -55,39 +62,35 @@ export component ProjectsPage inherits VerticalLayout {
         }
     }
 
-    // Project list scrolls; the New-Project form below stays pinned.
+    // Hauptbereich: Projektliste über die volle Breite
     ListCard {
         vertical-stretch: 1;
-        min-height: 96px;
+        min-height: 200px;
         ScrollView {
             width: parent.width;
             height: parent.height;
             VerticalLayout {
                 padding: 8px;
-                spacing: 4px;
+                spacing: 6px;
                 for row[idx] in root.rows: Rectangle {
-                    height: 52px;
+                    height: 56px;
                     background: Palette.container;
                     border-radius: Palette.radius-lg;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
                         spacing: 10px;
-                        Text {
-                            width: 72px;
-                            text: row.state;
-                            font-size: 11px;
-                            font-weight: 700;
-                            color: row.state-ok ? Palette.secondary : Palette.on-variant;
-                            vertical-alignment: center;
-                        }
+                        alignment: center;
+                        
                         Thumb {
                             src: row.thumb;
-                            y: (parent.height - self.height) / 2;
+                            px: 40px;
                         }
+
                         VerticalLayout {
                             horizontal-stretch: 1;
                             alignment: center;
+                            spacing: 2px;
                             Text {
                                 text: row.title;
                                 font-size: 13px;
@@ -102,82 +105,21 @@ export component ProjectsPage inherits VerticalLayout {
                                 overflow: elide;
                             }
                         }
+
                         if row.fileid != "": GregButton {
                             text: "Steam";
                             has-icon: true;
                             icon: IconSet.ExternalLink;
                             clicked => { root.view-on-steam(row.fileid); }
                         }
+
                         GregButton {
                             text: "Edit";
                             has-icon: true;
                             icon: IconSet.PenLine;
+                            variant: "primary";
                             clicked => { root.open-project(row.root); }
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    ListCard {
-        VerticalLayout {
-            padding: 10px;
-            spacing: 6px;
-            SectionTitle { text: "NEW PROJECT"; }
-            Rectangle {
-                height: 36px;
-                HorizontalLayout {
-                    width: parent.width;
-                    height: parent.height;
-                    spacing: 8px;
-                    alignment: center;
-                    Text {
-                        width: 130px;
-                        text: "Folder name";
-                        font-size: 12px;
-                        color: Palette.on-variant;
-                        vertical-alignment: center;
-                    }
-                    LineEdit {
-                        text <=> root.new-folder;
-                        horizontal-stretch: 1;
-                    }
-                }
-            }
-            Rectangle {
-                height: 36px;
-                HorizontalLayout {
-                    width: parent.width;
-                    height: parent.height;
-                    spacing: 8px;
-                    alignment: center;
-                    Text {
-                        width: 130px;
-                        text: "Template";
-                        font-size: 12px;
-                        color: Palette.on-variant;
-                        vertical-alignment: center;
-                    }
-                    ComboBox {
-                        model: root.templates;
-                        current-index <=> root.new-template;
-                        horizontal-stretch: 1;
-                    }
-                }
-            }
-            Rectangle {
-                height: 36px;
-                HorizontalLayout {
-                    width: parent.width;
-                    height: parent.height;
-                    alignment: end;
-                    GregButton {
-                        text: "Create & open";
-                        has-icon: true;
-                        icon: IconSet.Plus;
-                        variant: "primary";
-                        clicked => { root.create-project(); }
                     }
                 }
             }

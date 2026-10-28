@@ -1,5 +1,5 @@
-// TerminalCore theme (ported from the frozen C# Avalonia Styles): fixed geometry,
-// no auto-sizing surprises. All colors are constants — never magic values.
+// TerminalCore theme: responsive geometry (supports down to 800x600 without
+// overflow or layoutinfo binding loops). All colors are constants in Palette.
 //
 // Icons: unicode glyphs / emoji are banned. Every icon is a Lucide `Icon`
 // rendered through `IconDisplay` (see `icons.slint` / `@lucide`).
@@ -20,6 +20,9 @@ export global Palette {
     out property <color> outline: #3C494C;
     out property <color> error: #FFB4AB;
     out property <color> error-container: #3C1B22;
+    out property <color> error-hover: #5A2530;
+    out property <color> win-close-hover: #7A1F1F;
+    out property <color> win-close-icon: #FFFFFF;
     out property <color> led-ok: #4DE082;
     out property <color> led-bad: #D7383B;
     out property <color> avatar-bg: #17364A;
@@ -31,53 +34,130 @@ export global Palette {
     out property <length> radius-lg: 10px;
 }
 
-// Fixed 56x56 icon button with a 3px active indicator on the left edge.
+// Responsive sidebar icon button (48x48 default, shrinks gracefully on 600px height)
+// with a 3px active indicator on the left edge.
 export component IconButton inherits Rectangle {
     in property <Icon> icon;
-    in property <string> tip;
-    in property <bool> active;
+    in property <string> tip: "";
+    in property <bool> active: false;
     // Red tint for destructive actions (e.g. logout).
     in property <bool> danger: false;
     in property <bool> enabled <=> touch.enabled;
     callback clicked();
 
-    width: 56px;
-    height: 56px;
-    background: active ? Palette.container-high : transparent;
+    width: 48px;
+    min-height: 40px;
+    preferred-height: 48px;
+    background: root.active ? Palette.container-high
+        : (touch.has-hover && root.enabled ? Palette.container-high.transparentize(0.5) : transparent);
     border-radius: Palette.radius;
 
-    touch := TouchArea {
-        enabled: true;
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
-
-    // Active indicator: fixed 3x28 bar, vertically centered.
-    if active: Rectangle {
-        x: 4px;
-        y: (parent.height - self.height) / 2;
+    // Active indicator: 3px bar on the left edge, vertically centered.
+    if root.active: Rectangle {
+        x: 3px;
+        y: (root.height - self.height) / 2;
         width: 3px;
-        height: 28px;
+        height: 24px;
         background: Palette.primary;
-        border-radius: 2px;
+        border-radius: 1.5px;
     }
 
     IconDisplay {
         icon: root.icon;
-        size: 22px;
-        stroke: !root.enabled ? Palette.outline : (root.danger ? Palette.error : (root.active ? Palette.primary : Palette.on-variant));
+        size: 20px;
+        stroke: !root.enabled ? Palette.outline
+            : (root.danger ? Palette.error
+            : (root.active ? Palette.primary : Palette.on-variant));
         stroke-width: 1.8;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+    }
+
+    touch := TouchArea {
+        enabled: true;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
     }
 
     @children
 }
 
-// Unified button used by every page: fixed 32px height, label plus an
-// optional Lucide icon, three variants (`ghost` | `primary` | `danger`).
-// Custom rectangles cannot measure text, so callers size the width via
-// layout (stretch) or `min-width` — never zero-width.
+// Compact 26px top-bar button (icon-only or icon + text) with bottom active indicator.
+// Sizes itself automatically via its inner HorizontalLayout without binding loops.
+export component TopIconButton inherits Rectangle {
+    in property <Icon> icon;
+    in property <string> text: "";
+    in property <string> tip: "";
+    in property <bool> active: false;
+    // Red tint for destructive actions (e.g. logout).
+    in property <bool> danger: false;
+    in property <bool> enabled <=> touch.enabled;
+    callback clicked();
+
+    height: 26px;
+    horizontal-stretch: 0;
+    border-radius: Palette.radius;
+
+    property <color> fg: !root.enabled ? Palette.outline
+        : (root.danger ? Palette.error
+        : (root.active ? Palette.primary
+        : (root.text != "" ? Palette.on-surface : Palette.on-variant)));
+
+    background: root.active ? Palette.container-high
+        : (touch.pressed && root.enabled ? Palette.container-high.transparentize(0.3)
+        : (touch.has-hover && root.enabled ? Palette.container-high.transparentize(0.5) : transparent));
+
+    HorizontalLayout {
+        padding-left: root.text != "" ? 8px : 5px;
+        padding-right: root.text != "" ? 8px : 5px;
+        spacing: 6px;
+        alignment: center;
+
+        VerticalLayout {
+            alignment: center;
+            IconDisplay {
+                icon: root.icon;
+                size: 16px;
+                stroke: root.fg;
+                stroke-width: 1.6;
+            }
+        }
+
+        if root.text != "": Text {
+            text: root.text;
+            font-size: 12px;
+            font-weight: root.active ? 600 : 400;
+            color: root.fg;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    // Active indicator: Uses HorizontalLayout padding instead of `parent.width - 12px`
+    // to strictly prevent layoutinfo-h binding loops.
+    if root.active: HorizontalLayout {
+        y: root.height - 3px;
+        height: 2px;
+        padding-left: 6px;
+        padding-right: 6px;
+        Rectangle {
+            background: Palette.primary;
+            border-radius: 1px;
+        }
+    }
+
+    touch := TouchArea {
+        enabled: true;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+
+    @children
+}
+
+// Unified button used by every page: 32px height, label plus an optional
+// Lucide icon, three variants (`ghost` | `primary` | `danger`).
+// Automatically adapts width to content so toolbars fit on 800px windows.
 export component GregButton inherits Rectangle {
     in property <string> text;
     in property <Icon> icon;
@@ -87,59 +167,64 @@ export component GregButton inherits Rectangle {
     in property <bool> enabled <=> touch.enabled;
     callback clicked();
 
-    min-width: 84px;
     height: 32px;
+    horizontal-stretch: 0;
     border-radius: Palette.radius-lg;
-
-
+    border-width: 1px;
 
     property <bool> is-primary: root.variant == "primary";
     property <bool> is-danger: root.variant == "danger";
     property <color> base: root.is-primary ? Palette.primary : (root.is-danger ? Palette.error-container : transparent);
-    property <color> hover-base: root.is-primary ? Palette.primary : (root.is-danger ? #5A2530 : Palette.container-high);
+    property <color> hover-base: root.is-primary ? Palette.primary : (root.is-danger ? Palette.error-hover : Palette.container-high);
+    property <color> fg: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
 
-    background: touch.pressed ? (root.is-primary ? Palette.primary : Palette.avatar-bg) : (touch.has-hover ? root.hover-base : root.base);
-    border-color: root.is-danger ? Palette.error : (touch.has-hover || root.is-primary ? Palette.outline : transparent);
-    // Subtle lift — flat first, depth second.
-    drop-shadow-blur: touch.has-hover ? 8px : 4px;
+    background: (touch.pressed && root.enabled) ? (root.is-primary ? Palette.primary : Palette.avatar-bg)
+        : ((touch.has-hover && root.enabled) ? root.hover-base : root.base);
+    border-color: root.is-danger ? Palette.error
+        : ((touch.has-hover && root.enabled) || root.is-primary ? Palette.outline : transparent);
+
+    // Subtle lift — only applied when button has a visible surface.
+    drop-shadow-blur: (root.is-primary || root.is-danger || touch.has-hover) ? (touch.has-hover ? 8px : 4px) : 0px;
     drop-shadow-color: Palette.soft-shadow;
     drop-shadow-offset-y: 1px;
     opacity: root.enabled ? 1.0 : 0.45;
 
-    touch := TouchArea {
-        enabled: true;
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
-    }
-
     HorizontalLayout {
         alignment: center;
         spacing: 6px;
-        padding-left: 10px;
-        padding-right: 10px;
+        padding-left: 12px;
+        padding-right: 12px;
+
         if root.has-icon: VerticalLayout {
             alignment: center;
             IconDisplay {
                 icon: root.icon;
                 size: 15px;
-                stroke: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
+                stroke: root.fg;
                 stroke-width: 2.0;
             }
         }
-        Text {
+
+        if root.text != "": Text {
             text: root.text;
             font-size: 12px;
             font-weight: root.is-primary ? 700 : 400;
-            horizontal-alignment: TextHorizontalAlignment.center;
-            color: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
-            vertical-alignment: TextVerticalAlignment.center;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            color: root.fg;
+            overflow: elide;
         }
+    }
+
+    touch := TouchArea {
+        enabled: true;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
     }
 }
 
 // Unified scroll-list container: soft card with a faint top highlight.
-// Callers put a `ScrollView` inside; the box keeps a fixed frame
-// (`vertical-stretch` + `min-height`) so long lists scroll internally.
+// Callers put a `ScrollView` inside; stretches cleanly without binding loops.
 export component ListCard inherits Rectangle {
     background: Palette.container-low;
     border-radius: Palette.radius-lg;
@@ -147,9 +232,11 @@ export component ListCard inherits Rectangle {
     border-color: Palette.outline;
     clip: true;
 
-    // Faint top edge — the subtle neumorphic light.
+    // Faint top edge — no `width: parent.width` needed because an unpositioned
+    // Rectangle inside a Rectangle automatically spans the full width without
+    // creating a layoutinfo-h dependency!
     Rectangle {
-        width: parent.width;
+        y: 0px;
         height: 1px;
         background: Palette.top-highlight;
     }
@@ -157,108 +244,121 @@ export component ListCard inherits Rectangle {
     @children
 }
 
-// Full-width navigation row, fixed 36px height, active = primary fill.
+// Full-width navigation row, 34px height, active = primary fill, elides on narrow sidebars.
 export component NavButton inherits Rectangle {
     in property <string> label;
-    in property <bool> active;
+    in property <bool> active: false;
     callback clicked();
 
-    height: 36px;
-    background: active ? Palette.primary : transparent;
+    height: 34px;
+    horizontal-stretch: 1;
+    background: root.active ? Palette.primary
+        : (touch.has-hover ? Palette.container-high.transparentize(0.4) : transparent);
     border-radius: Palette.radius;
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 10px;
+        Text {
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.active ? 700 : 400;
+            color: root.active ? Palette.on-primary : Palette.on-surface;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
 
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
-
-    Text {
-        x: 12px;
-        text: root.label;
-        font-size: 13px;
-        font-weight: active ? 700 : 400;
-        color: active ? Palette.on-primary : Palette.on-surface;
-        vertical-alignment: center;
-    }
 }
 
-// Flat topbar button: transparent at rest, slightly lighter on hover,
-// primary-tinted while pressed. Fixed width (labels are known) — custom
-// rectangles cannot measure text, so no auto-sizing here.
+// Topbar button: auto-sizes to text or uses min-width, no fixed parent.width bindings.
 export component TopBarButton inherits Rectangle {
     in property <string> text;
-    in property <length> btn-width: 96px;
+    in property <length> btn-width: 72px;
     callback clicked();
 
-    width: root.btn-width;
-    height: 30px;
+    min-width: root.btn-width;
+    height: 28px;
+    horizontal-stretch: 0;
     background: touch.has-hover ? (touch.pressed ? Palette.avatar-bg : Palette.container-high) : transparent;
     border-radius: Palette.radius-lg;
     border-width: 1px;
     border-color: touch.has-hover ? Palette.outline : transparent;
 
-    touch := TouchArea {
-        width: parent.width;
-        height: parent.height;
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        alignment: center;
+        Text {
+            text: root.text;
+            font-size: 12px;
+            color: Palette.on-surface;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
     }
 
-    Text {
-        text: root.text;
-        font-size: 12px;
-        color: Palette.on-surface;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
     }
 }
 
 // Fixed 34x28 titlebar window button (custom chrome, no native frame).
 export component WinBtn inherits Rectangle {
     in property <Icon> icon;
-    in property <bool> danger;
+    in property <bool> danger: false;
     callback clicked();
 
     width: 34px;
     height: 28px;
-    // Slint has no :hover selector — TouchArea state drives the fill.
-    background: touch.has-hover ? (root.danger ? #7A1F1F : Palette.container) : transparent;
+    background: touch.has-hover ? (root.danger ? Palette.win-close-hover : Palette.container) : transparent;
+
+    IconDisplay {
+        icon: root.icon;
+        size: 14px;
+        stroke: touch.has-hover && root.danger ? Palette.win-close-icon : Palette.on-variant;
+        stroke-width: 2.0;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+    }
 
     touch := TouchArea {
         mouse-cursor: pointer;
         clicked => { root.clicked(); }
     }
-
-    IconDisplay {
-        icon: root.icon;
-        size: 14px;
-        stroke: touch.has-hover && root.danger ? #FFFFFF : Palette.on-variant;
-        stroke-width: 2.0;
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-    }
 }
 
-// 8px status LED + label, fixed height.
+// 8px status LED + label, elides gracefully on 800px status bars.
 export component StatusLed inherits HorizontalLayout {
-    in property <bool> ok;
+    in property <bool> ok: false;
     in property <string> text;
 
-    spacing: 8px;
+    spacing: 6px;
     alignment: start;
+    horizontal-stretch: 0;
 
-    Rectangle {
-        width: 8px;
-        height: 8px;
-        y: (parent.height - self.height) / 2;
-        border-radius: 4px;
-        background: root.ok ? Palette.led-ok : Palette.led-bad;
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: root.ok ? Palette.led-ok : Palette.led-bad;
+        }
     }
+
     Text {
         text: root.text;
         font-size: 11px;
         color: Palette.on-variant;
         vertical-alignment: center;
+        overflow: elide;
     }
 }
 
@@ -267,13 +367,17 @@ export component SectionTitle inherits HorizontalLayout {
     in property <string> text;
 
     spacing: 10px;
+    alignment: start;
 
-    Rectangle {
-        width: 22px;
-        height: 2px;
-        y: (parent.height - self.height) / 2;
-        background: Palette.primary;
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 22px;
+            height: 2px;
+            background: Palette.primary;
+        }
     }
+
     Text {
         text: root.text;
         font-size: 11px;
@@ -281,21 +385,26 @@ export component SectionTitle inherits HorizontalLayout {
         letter-spacing: 2px;
         color: Palette.primary;
         vertical-alignment: center;
+        overflow: elide;
     }
 }
 
-// Form row: fixed 130px label + stretching field.
+// Responsive form row: label shrinks down to 90px on 800x600 windows and elides,
+// while the field (@children) stretches to take the remaining space.
 export component FieldRow inherits HorizontalLayout {
     in property <string> label;
 
     spacing: 8px;
 
     Text {
-        width: 130px;
+        min-width: 90px;
+        preferred-width: 120px;
+        horizontal-stretch: 0;
         text: root.label;
         font-size: 12px;
         color: Palette.on-variant;
         vertical-alignment: center;
+        overflow: elide;
     }
 
     @children
@@ -312,20 +421,22 @@ export component Card inherits Rectangle {
 }
 
 // List thumbnail: fixed box with a subtle placeholder behind the image.
-// An empty image renders nothing, so rows without artwork show the box.
 export component Thumb inherits Rectangle {
     in-out property <image> src;
     in-out property <length> px: 40px;
 
     width: root.px;
     height: root.px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
     background: Palette.container-high;
     border-radius: 4px;
     clip: true;
+
     Image {
         source: root.src;
-        width: 100%;
-        height: 100%;
+        width: root.px;
+        height: root.px;
         image-fit: cover;
     }
 }
