@@ -1,73 +1,66 @@
 # Build scripts
 
 Run the following commands from the repository root unless a command says
-otherwise. The SDK version is pinned in `global.json`.
+otherwise.
 
-## Output matrix
+## Quality gate
 
-| Host and command | Output |
+| Task | Command |
 | --- | --- |
-| Windows: `build/scripts/build.ps1` | Windows ZIP, Setup EXE, MSI; Linux ZIP/tarball |
-| Windows + WSL: same command | also DEB, RPM, APK, and Arch packages |
-| Linux: `bash build/scripts/linux/build-avalonia-packages.sh` | DEB, RPM, APK, Arch package, and tarball |
-| Docker Linux target | repeatable restore/build/test only; see `docker/README.md` |
+| rustfmt + clippy (`-D warnings`) + tests, all crates | `./scripts/check.sh` |
+| Dev/debug build (all crates) | `./scripts/build.sh` |
+| Build app from source and start (debug) | `./scripts/run-app.sh` |
+| Run headless CLI from source | `./scripts/run-cli.sh` |
+| Release build (host platform) | `./scripts/build-release.sh` |
+| Release build Windows x64 | `./scripts/build-windows.sh` |
+| Release build Linux x64 | `./scripts/build-linux.sh` |
+| Release build macOS x64/arm64 | `./scripts/build-macos.sh` |
 
-`build.ps1` only calls the distro-package adapter through `wsl.exe`. On a Linux
-host, invoke the Linux shell script directly instead of expecting PowerShell to
-create packages.
+All of the above delegate to `cargo` / `cargo xtask` inside the Rust workspace
+(`crates/*` + `xtask`). There is no `global.json` or .NET SDK pin anymore; the
+Rust toolchain comes from rustup.
 
-Windows ZIP/Setup/MSI and the Linux ZIP are written to
-`build/installer/Output/`. The Linux tarball is written to `artifacts/`; Linux
-distro packages are written to `artifacts/avalonia-linux/packages/`. On Windows,
-`-SkipWindows` still performs a Linux cross-publish; it does not run a native
-Linux GUI test.
+## Linux distribution packages
 
-## Release build
-
-```powershell
-# Windows host
-.\build\scripts\build.ps1
-.\build\scripts\build.ps1 -SkipTest
-.\build\scripts\build.ps1 -SkipWindows
-.\build\scripts\build.ps1 -SkipLinux
+```bash
+# after `cargo xtask dist` produced ./dist/gregmodmanager-<version>-linux-x64
+bash build/scripts/linux/build-rust-packages.sh \
+  ./dist/gregmodmanager-<version>-linux-x64 <version> false [out-dir]
 ```
 
-A complete Windows release requires Inno Setup 6 and WiX CLI 5. The script builds
-the separate `src/GregModmanager.Melons/SubDirectoryFixer` project before each
-publish and fails when that required project is missing.
+The script wraps `nfpm` and emits DEB/RPM/APK/Arch packages plus container
+images. The release workflow (`.forgejo/workflows/build-and-release.yml` and its
+byte-identical Gitea copy) calls the same script.
+
+## Windows artifacts
+
+- Portable ZIP: produced by `cargo xtask dist` (`--target x86_64-pc-windows-gnu`
+  when cross-building from Linux/macOS with mingw).
+- Setup installer: `build/installer/gregModmanager.iss` (Inno Setup 6; best-effort
+  build under Wine + ISCC, skipped when neither is available — the portable ZIP
+  always ships).
 
 ## Signing
 
-```powershell
-# fresh short-lived self-signed certificate for this build
-.\build\scripts\build.ps1 -SigningMode self-signed
+- `build/installer/sign-authenticode.ps1` with modes `auto`, `self-signed`, and
+  `pfx`. See `build/installer/CODE_SIGNING.md` for the full flow.
 
-# existing PFX or certificate-store thumbprint supplied through the environment
-.\build\scripts\build.ps1 -SigningMode pfx
+## Compatibility wrapper
 
-# sign an already-created Setup EXE without rebuilding
-.\build\scripts\build.ps1 -SignOnly -SetupPath 'D:\dist\gregModmanager-1.6.1-Windows.exe'
-```
-
-`auto` and `self-signed` deliberately ignore existing signing environment values
-and generate a new certificate. Use `pfx` for `CODE_SIGN_PFX` or
-`CODE_SIGN_THUMBPRINT`. `-SignOnly` runs on Windows and signs exactly one
-existing Setup EXE. See [the detailed signing guide](../installer/CODE_SIGNING.md).
-
-CI accepts only `auto`, `self-signed`, and `none`; it does not import a PFX from
-repository secrets. Local `build.ps1` can create detached `.sig`/`.sig.cer`
-files when OpenSSL is available. Do not assume those detached signatures are
-present in CI-produced Linux artifacts.
+`build.sh` at the repository root is a small compatibility entry point that only
+delegates to the Linux packaging script
+(`build/scripts/linux/build-rust-packages.sh`). It is not a general build entry
+point and must not be used to make Windows installers.
 
 ## Development helpers
 
 | Script | Purpose |
 | --- | --- |
-| `build/scripts/run.ps1` | run the application from source on Windows/PowerShell |
-| `build/scripts/install-local.ps1` | local non-installer deployment |
-| `build/scripts/start.ps1` | start an existing local desktop build |
-| `build/builder.ps1`, `build/builder.sh` | interactive build menus |
-| `build.sh` | compatibility wrapper for the Linux packaging script |
-
-There are no root-level PowerShell wrappers. `build.sh` is intentionally limited
-to the Linux package pipeline and must not be used to make Windows installers.
+| `scripts/check.sh` | quality gate: rustfmt + clippy `-D warnings` + tests |
+| `scripts/build.sh` | dev/debug build of the whole Rust workspace |
+| `scripts/run-app.sh` | build and start the desktop app from source (debug) |
+| `scripts/run-cli.sh` | run the headless CLI from source |
+| `scripts/build-release.sh`, `scripts/build-windows.sh`, `scripts/build-linux.sh`, `scripts/build-macos.sh` | release builds via `cargo xtask dist` |
+| `build/scripts/linux/build-rust-packages.sh` | Linux DEB/RPM/APK/Arch packages + container |
+| `build/installer/gregModmanager.iss` | Inno Setup installer (Wine, best effort) |
+| `build/installer/sign-authenticode.ps1` | Windows code signing |

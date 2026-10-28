@@ -1,80 +1,87 @@
 # Contributor guide
 
-**Owner:** gregModmanager maintainers. **Evidence:** solution/project files,
+**Owner:** gregModmanager maintainers. **Evidence:** workspace `Cargo.toml`, `crates/*`,
 build scripts, and CI workflows. **Review trigger:** update after a dependency,
 toolchain, command, release artifact, or repository-layout change.
 
 ## Local setup
 
-Install the .NET 10 SDK selected by [global.json](../global.json), then restore,
-build, and test from the repository root. The application itself targets .NET 9.
+Install the Rust stable toolchain via [rustup](https://rustup.rs) and the native
+Linux X11 / font / GL development packages required by Slint (see the
+[devcontainer Dockerfile](../.devcontainer/Dockerfile)), then restore, build,
+and test from the repository root.
 
 ```bash
-dotnet restore GregModmanager.sln
-dotnet build GregModmanager.sln -c Release
-dotnet test tests/GregModmanager.Tests/GregModmanager.Tests.csproj -c Release
+cargo build --workspace
+cargo test --workspace
 git diff --check
 ```
 
 Run the desktop application during UI work:
 
 ```bash
-dotnet run --project src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+cargo run -p greg-app
 ```
 
-The solution builds the desktop and core projects. `SubDirectoryFixer` is a
-separate .NET 6 MelonLoader integration under
-`src/GregModmanager.Melons/SubDirectoryFixer/`; the release script builds it and
-copies its DLL into the desktop assets.
+The Cargo workspace contains the domain crates (`greg-core`, `greg-steam`,
+`greg-modstore`, `greg-loader`, `greg-platform`), the desktop shell
+(`greg-app`), the headless CLI (`greg-cli`), and the build orchestration crate
+(`xtask`).
 
 ## Repository map
 
 | Path | Responsibility |
 | --- | --- |
-| `src/GregModmanager.Avalonia/` | Avalonia entry point, views, resources, dependency injection |
-| `src/GregModmanager.Core/` | models, services, persistence, Steam and game adapters |
-| `src/GregModmanager.Melons/` | MelonLoader-specific projects |
-| `tests/GregModmanager.Tests/` | xUnit tests |
-| `build/scripts/` | non-interactive builds, local run/install helpers, Linux packaging |
-| `build/installer/` | Inno Setup, WiX, and signing scripts |
-| `docker/` | containerized Linux build/test and Windows-container guidance |
-| `docs/` | canonical repository documentation |
+| `crates/greg-app/` | Desktop entry point, Slint UI, actions/state/worker |
+| `crates/greg-core/` | Models, pure logic, docs/changelog, errors (no UI/Steam deps) |
+| `crates/greg-steam/` | Steam Workshop backend, rate limiter, poller |
+| `crates/greg-modstore/` | Modstore REST client, publish/install clients |
+| `crates/greg-loader/` | Game discovery, installs, sync, launch |
+| `crates/greg-platform/` | Filesystem/log/telemetry/workspace/process/platform shims |
+| `crates/greg-cli/` | Headless CLI (`publish`, `status`, `list`) |
+| `xtask/` | Build orchestration (`cargo xtask …`) |
+| `scripts/` | Local developer workflow scripts |
+| `build/scripts/` | Release scripts, installers, Linux packaging |
+| `docker/` | Rust build/test containers |
+| `docs/` | Canonical repository documentation |
 
-Keep platform-specific implementation in the established Windows, Unix, and
-macOS project boundaries when those projects are present. Keep shared behaviour
-in Core rather than introducing UI-specific service logic.
+Shared behaviour lives in the domain crates rather than in UI-specific service
+logic.
 
 ## Build and package
 
 Read [the build-script reference](../build/scripts/README.md) before creating a
-release. From a Windows host, a full build creates a portable ZIP, Setup EXE,
-and MSI; with WSL it can also create Linux packages. From Linux, run the Linux
-packager directly for DEB, RPM, APK, and Arch output.
-
-```powershell
-# Windows, from the repository root
-.\build\scripts\build.ps1
-.\build\scripts\build.ps1 -SkipTest
-.\build\scripts\build.ps1 -SigningMode pfx
-```
+release.
 
 ```bash
-# Linux package build, from the repository root
-bash build/scripts/linux/build-avalonia-packages.sh
+# Release build (host platform) + portable package
+cargo xtask dist
+
+# Cross-build the Windows x64 portable package from Linux (mingw)
+cargo xtask dist --target x86_64-pc-windows-gnu
+
+# Linux distro packages
+./build/scripts/linux/build-rust-packages.sh <publish-dir> <version> <is_pre> <out-dir>
 ```
 
-macOS is not a release target. Cross-publish can prepare an x64 artifact, but
-GUI validation must occur on a real Mac. Existing macOS RID and path-detection
-code do not replace native Steam-asset validation, signing, notarization, or a
-macOS CI release job. The Docker guide explains this boundary.
+The Windows release build produces the portable ZIP via `cargo xtask dist`;
+the Setup EXE is produced best-effort via Inno Setup under Wine (CI parity).
+Linux distro packages are built via `build/scripts/linux/build-rust-packages.sh`.
+
+macOS is an experimental release target. Release builds require a macOS host
+with the Apple SDK; cross-publish can prepare an x64 artifact, but GUI validation
+must occur on a real Mac.
 
 ## Continuous integration and release trigger
 
-The main workflow runs on pull requests and `main` pushes to build and publish
-workflow artifacts. A GitHub Release is created only for a tag whose name starts
-with `v`. Linux package CI has a separate workflow for package-related changes.
-Treat artifacts from an untagged run as validation output, not as a promoted
-release.
+Quality gates run in `.forgejo/workflows/rust.yml` (fmt, clippy, test, audit,
+cross-build) and release automation in `.forgejo/workflows/build-and-release.yml`.
+Both Forgejo and Gitea copies must stay byte-identical (parity job). Release
+artifacts are promoted from `dev` → `staging` via the release-train workflow and
+from `staging` → `main` via the train workflow; see `TOOLS.md`.
+
+A GitHub Release is created only for a tag whose name starts with `v`. Treat
+artifacts from an untagged run as validation output, not as a promoted release.
 
 ## Signing Windows artifacts
 
@@ -87,13 +94,12 @@ certificate. The exact commands and security constraints are in the
 
 ## Tests and review
 
-The current suite covers project sanity, game-adapter behaviour, content checks,
-and the SubDirectoryFixer installer. It does not replace manual Steam, game, or
-desktop UI testing.
+The current suite covers workspace logic, game-adapter behaviour, content checks,
+and the headless CLI. It does not replace manual Steam, game, or desktop UI testing.
 
 Before a pull request:
 
-1. Run the build and relevant tests.
+1. Run `./scripts/check.sh`.
 2. Run `git diff --check`.
 3. Do not commit generated packages, secrets, certificates, Steam credentials,
    or machine-specific game paths.

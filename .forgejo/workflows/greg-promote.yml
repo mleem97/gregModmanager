@@ -6,7 +6,7 @@ name: greg promote dev -> staging
 #   build, tests, coverage>=90%% with <=5pp drop vs staging,
 #   security (gitleaks=0, dep-vuln high/critical=0, warnings delta<=0),
 #   version-consistency (mods), conventional-commits.
-# Gate rule: build must pass; tests/coverage enforced for dotnet/rust kinds
+# Gate rule: build must pass; tests/coverage enforced for rust kinds
 # (fail closed when missing); security/consistency/conventional always enforced.
 # Promotion pushes only for github.actor == 'mleem97'. No push on failure;
 # a tracking issue (label staging-gate) is opened/updated/closed instead.
@@ -41,17 +41,17 @@ jobs:
       verdict: ${{ steps.eval.outputs.verdict }}
       sha: ${{ steps.eval.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
       - name: Evaluate quality gates
         id: eval
         run: |
-          bash "$GITHUB_WORKSPACE/.github/scripts/greg-gates.sh"
+          bash "$GITHUB_WORKSPACE/scripts/greg-gates.sh"
       - name: Upload gate report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gate-report-dev-${{ github.sha }}
           path: gate-report.txt
@@ -62,7 +62,7 @@ jobs:
     if: needs.gates.outputs.verdict == 'pass' && github.actor == 'mleem97' && (github.event_name == 'push' || inputs.dry_run == false)
     runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: dev
@@ -75,7 +75,7 @@ jobs:
     if: always() && github.event_name == 'push'
     runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Sync staging-gate tracking issue

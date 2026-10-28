@@ -149,27 +149,31 @@ fn page_mymods(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
             ("modpacks", "Modpacks"),
             ("collections", "Collections"),
             ("problems", "Problems"),
-            ("report-bug", "Report a Bug"),
+            ("report", "Report"),
         ],
         "mymods",
     );
     ui.set_local_title("MY MODS".into());
-    ui.set_local_rows(model(
-        (0..6)
-            .map(|i| crate::LocalRow {
-                name: format!("SomeMod{i}.dll").into(),
-                detail: "1.2 MB · Mods".into(),
-                enabled: i % 2 == 0,
-                index: i,
-                thumb: if i == 0 {
-                    sample_thumb()
-                } else {
-                    slint::Image::default()
-                },
-            })
-            .collect(),
+    let sample: Vec<crate::LocalRow> = (0..6)
+        .map(|i| crate::LocalRow {
+            name: format!("SomeMod{i}.dll").into(),
+            detail: "1.2 MB · Mods".into(),
+            enabled: i % 2 == 0,
+            index: i,
+            thumb: if i == 0 {
+                sample_thumb()
+            } else {
+                slint::Image::default()
+            },
+        })
+        .collect();
+    ui.set_local_active_rows(model(
+        sample.iter().filter(|r| r.enabled).cloned().collect(),
     ));
-    ui.set_local_status("6 entries".into());
+    ui.set_local_inactive_rows(model(
+        sample.iter().filter(|r| !r.enabled).cloned().collect(),
+    ));
+    ui.set_local_status("3 active, 3 disabled".into());
     shot(ui, window, "01-mymods");
 }
 
@@ -293,7 +297,7 @@ fn page_browse(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
             .map(|i| BrowseRow {
                 id: format!("{i}").into(),
                 title: format!("Workshop Item {i} With A Reasonably Long Title").into(),
-                score: "★ 4.5".into(),
+                score: "4.5 / 5".into(),
                 thumb: if i == 0 {
                     sample_thumb()
                 } else {
@@ -304,7 +308,7 @@ fn page_browse(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
     ));
     ui.set_br_has_detail(true);
     ui.set_br_d_title("Workshop Item 0 With A Reasonably Long Title".into());
-    ui.set_br_d_meta("by SomeAuthor · ★ 4.5 · 123456 bytes".into());
+    ui.set_br_d_meta("by SomeAuthor · 4.5 / 5 · 123456 bytes".into());
     ui.set_br_d_tags("economy, shop".into());
     ui.set_br_d_desc(
         "A longer description of the workshop item spanning a couple of lines for layout testing."
@@ -519,4 +523,82 @@ fn project_sync_hashes_off_ui_thread() {
         );
     }
     let _ = std::fs::remove_dir_all(&tmp);
+}
+
+/// Report Assistant flow: open → fill draft → generate Markdown preview.
+/// Guards the phase-2 domain wiring end to end (validation + generation).
+#[test]
+fn report_flow_generates_markdown_preview() {
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+    let state = std::sync::Arc::clone(&state);
+
+    crate::actions::report_open(&state);
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_rp_title("Crash on launch".into());
+        guard.ui().set_rp_category_index(1);
+        guard
+            .ui()
+            .set_rp_description("App crashes when starting the game.".into());
+        guard.ui().set_rp_logs("panic: boom".into());
+    }
+    crate::actions::report_generate(&state);
+    {
+        let guard = state.lock().expect("state");
+        assert_eq!(guard.ui().get_rp_category_index(), 1);
+        let preview = guard.ui().get_rp_preview().to_string();
+        assert!(preview.contains("## Summary"), "preview: {preview}");
+        assert!(preview.contains("panic: boom"), "preview: {preview}");
+        assert!(
+            preview.contains("## Logs and Diagnostics"),
+            "preview: {preview}"
+        );
+    }
+    // Cancel resets the draft.
+    crate::actions::report_cancel(&state);
+    {
+        let guard = state.lock().expect("state");
+        assert!(guard.ui().get_rp_preview().to_string().is_empty());
+    }
+}
+
+/// Report Assistant flow: open → collect buffered logs → generate Markdown
+/// preview. Guards the log-collection wiring into the draft end to end.
+#[test]
+fn report_flow_collects_logs_into_draft() {
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+    let state = std::sync::Arc::clone(&state);
+
+    crate::actions::report_open(&state);
+    {
+        let mut guard = state.lock().expect("state");
+        guard.ui().set_rp_title("Crash on launch".into());
+        guard.ui().set_rp_category_index(1);
+        guard
+            .ui()
+            .set_rp_description("App crashes when starting the game.".into());
+    }
+    // Feed buffered log lines, then let the assistant collect them.
+    {
+        let mut guard = state.lock().expect("state");
+        guard.push_log("panic: boom");
+        guard.push_log("ModManager: game launch requested");
+    }
+    crate::actions::report_collect_logs(&state);
+    {
+        let guard = state.lock().expect("state");
+        let logs = guard.ui().get_rp_logs().to_string();
+        assert!(logs.contains("panic: boom"), "logs: {logs}");
+        assert!(
+            logs.contains("ModManager: game launch requested"),
+            "logs: {logs}"
+        );
+        let preview = guard.ui().get_rp_preview().to_string();
+        assert!(preview.contains("## Logs and Diagnostics"), "preview: {preview}");
+        assert!(preview.contains("panic: boom"), "preview: {preview}");
+    }
 }

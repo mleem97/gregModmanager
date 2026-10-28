@@ -1,6 +1,6 @@
-name: "Bug report"
-description: "Report a reproducible bug"
-title: "[Bug]: "
+name: "🇬🇧 Bug Report"
+description: "Report a reproducible bug in the Mod Manager"
+title: "[BUG]: "
 labels: ["bug"]
 body:
   - type: markdown
@@ -34,39 +34,54 @@ body:
     id: expected
     attributes:
       label: Expected behavior
-      placeholder: "I expected ..."
+      placeholder: "I expected the mod to enable and..."
     validations:
       required: true
 
   - type: dropdown
-    id: install_type
+    id: os
     attributes:
-      label: Installation type
+      label: Operating System
       options:
-        - Installer (Program Files)
-        - Portable/local install
-        - Build from source
-        - Not sure
+        - Windows 11
+        - Windows 10
+        - Linux
+        - macOS
     validations:
       required: true
 
   - type: input
     id: app_version
     attributes:
-      label: App version
+      label: Mod Manager version
       placeholder: "e.g. 1.0.2"
+    validations:
+      required: true
 
   - type: input
-    id: os_version
+    id: game_version
     attributes:
-      label: Windows version
-      placeholder: "e.g. Windows 11 24H2"
+      label: Game version
+      description: Which version of the game are you modding?
+      placeholder: "e.g. v1.5.2"
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installation type
+      options:
+        - Installer
+        - Portable / Local install
+        - Built from source
+        - Not sure
+    validations:
+      required: true
 
   - type: textarea
     id: logs
     attributes:
       label: Relevant logs / screenshots
-      description: Paste logs from Settings -> Logs or attach screenshots.
+      description: Paste logs from Settings -> Logs or drag & drop screenshots here.
       render: shell
 
   - type: checkboxes
@@ -74,8 +89,7 @@ body:
     attributes:
       label: Before submitting
       options:
-        - label: I searched existing issues.
+        - label: I searched existing issues to make sure this hasn't been reported yet.
           required: true
         - label: I included clear reproduction steps.
           required: true
-

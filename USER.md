@@ -4,31 +4,32 @@
 
 - Application: gregModmanager.
 - Purpose: cross-platform desktop mod manager for the gregFramework ecosystem.
-- UI framework: Avalonia UI 12.1.1.
-- Desktop target: .NET 9.
-- Runtime-facing helper compatibility: .NET 6 unless explicitly requested and validated.
-- Primary solution: `GregModmanager.sln`.
+- UI framework: Slint (`crates/greg-app/ui/`), icons via `lucide-slint`.
+- Desktop targets: Rust workspace crates under `crates/` (see `RUST_GRAPH.md`).
+- Primary solution: Cargo workspace (`Cargo.toml` at the repository root).
 
 ## Important paths
 
-- Desktop app: `src/GregModmanager.Avalonia/`.
-- Core services and models: `src/GregModmanager.Core/`.
-- SubDirectoryFixer helper: `src/GregModmanager.Melons/SubDirectoryFixer/`.
-- Tests: `tests/GregModmanager.Tests/`.
-- Build scripts: `build/scripts/`.
+- Desktop app: `crates/greg-app/`.
+- Domain services and models: `crates/greg-core/`, `crates/greg-steam/`,
+  `crates/greg-modstore/`, `crates/greg-loader/`.
+- Platform shims: `crates/greg-platform/`.
+- Headless CLI: `crates/greg-cli/`.
+- Build orchestration: `xtask/`.
+- Local developer workflow scripts: `scripts/`.
 - Installer assets: `build/installer/`.
 - Canonical documentation: `docs/` (tracked directly in this repository).
 
 ## Architecture
 
-- Core remains platform-agnostic and should not reference Avalonia.
-- Avalonia references Core.
-- Service registration belongs in the Avalonia `Program.cs` composition root.
-- Platform-specific behavior should be behind runtime checks or compile-time guards.
+- Domain crates must not depend on UI crates (`slint`).
+- `greg-app` / `greg-cli` are thin shells: composition root + presentation.
+- Platform-specific behavior lives in `crates/greg-platform` behind
+  `cfg(target_os)`.
 
 ## Release context
 
-- Version source of truth: `VERSION` file (the `.csproj` `<Version>` is kept in
-  sync as a fallback for tooling that reads it).
+- Version source of truth: `VERSION` file (the workspace `Cargo.toml` version is
+  the fallback).
 - Changelog source of truth: `CHANGELOG.md`.
 - Release promotion normally runs through `.forgejo/workflows/promote-changelog.yml`.

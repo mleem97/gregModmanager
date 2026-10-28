@@ -1,7 +1,7 @@
 # Mod and plugin creator guide
 
 **Owner:** gregModmanager maintainers. **Evidence:** `WorkshopMetadata`,
-`WorkspaceService`, and `HeadlessRunner` in this repository. **Review trigger:**
+workspace persistence, and the headless CLI in this repository. **Review trigger:**
 update after a metadata, upload, Steam, or headless-command change.
 
 ## What this client supports today
@@ -19,8 +19,8 @@ invented universal package format.
 
 The desktop client persists Workshop project metadata in `metadata.json` through the
 `WorkshopMetadata` model in
-`src/GregModmanager.Core/Models/WorkshopMetadata.cs`. Its fields and serialization
-are the source of truth for data created by this client. In particular, it uses
+`crates/greg-core/src/models/`. Its fields and serialization are the source of truth
+for data created by this client. In particular, it uses
 fields such as `publishedFileId`, `workshop_dependency`, and `modType`; that
 contract does not match the historical *sample schema* in this repository, even
 though both use the `metadata.json` filename.
@@ -52,26 +52,26 @@ must contain both `content/` and application-readable `metadata.json`; Steam
 must be available and logged in.
 
 ```text
-GregModmanager.exe --mode publish --path "D:\path\to\project"
+gregcli publish --path "D:\path\to\project"
 ```
 
-`--upload` is an alias for `--mode publish`. Add `--autocommit` only when an
-automation workflow expects `.ralph/tasks/status.json` in the project. Exit code
-`0` means Steam reported success; exit code `1` reports a project or publish
-failure; exit code `2` means `--path` was omitted. Test against a disposable
-Workshop item before automating a production upload.
+`--mode publish` and `--upload` are accepted as legacy aliases. Add
+`--autocommit` only when an automation workflow expects `.ralph/tasks/status.json`
+in the project. Exit code `0` means Steam reported success; exit code `1` reports
+a project or publish failure; exit code `2` means `--path` was omitted. Test
+against a disposable Workshop item before automating a production upload.
 
 ## Build a MelonLoader integration
 
-The repository keeps MelonLoader-specific code under `src/GregModmanager.Melons/`.
-`SubDirectoryFixer` targets `net6.0` because it must load in the MelonLoader
-environment. Its local project currently references `MelonLoader.dll` from a
-Data Center installation; adapt that reference for your own game environment
-without committing a machine-specific path or third-party binaries.
+The repository keeps MelonLoader-specific code frozen under
+`.reference/modmanager-old/src/GregModmanager.Melons/`. `SubDirectoryFixer`
+targets `net6.0` because it must load in the MelonLoader environment. Its local
+project currently references `MelonLoader.dll` from a Data Center installation;
+adapt that reference for your own game environment without committing a
+machine-specific path or third-party binaries.
 
-The release build compiles this helper separately and copies
-`SubDirectoryFixer.dll` into the Avalonia assets. A normal solution build does
-not automatically build every Melon integration.
+The Rust release build stages the frozen helper separately; a normal workspace
+build does not build every Melon integration.
 
 ## Publishing safely
 

@@ -1,7 +1,7 @@
 # gregModmanager QuickStart Guide
 
-> **Version:** 1.6.1
-> **Target:** Windows x64 / Linux x64 · .NET 10 · Avalonia UI
+> **Version:** 1.7.5
+> **Target:** Windows x64 / Linux x64 · Rust · Slint UI
 > **Status:** Production Ready
 
 ---
@@ -10,7 +10,7 @@
 
 1. Download the latest release (`-Windows.zip` or `-Linux.tar.gz`) from the
    [releases page](https://github.com/mleem97/gregModmanager/releases).
-2. Extract it anywhere and start `GregModmanager` (`GregModmanager.exe` on Windows).
+2. Extract it anywhere and start `gregmodmanager` (`gregmodmanager.exe` on Windows).
 3. Make sure **Steam is running** — the Modmanager connects to the Steam client
    for Workshop access (AppID `4170200`, Data Center).
 4. Optional: set a custom workspace folder under **Settings** (default:
@@ -67,7 +67,7 @@
 | **Mod Store** | Browse and subscribe Workshop items (Full / Decide-later modes) |
 | **Start Game** | Launch Data Center via Steam — with or without mods |
 | **Settings** | Workspace folder, game root, language, mod-store mode |
-| **Headless** | Publish from scripts/CI: `GregModmanager publish --project <dir> --changelog <text>` |
+| **Headless** | Publish from scripts/CI: `gregcli publish --path <dir> --changelog <text>` |
 
 ---
 
@@ -75,16 +75,16 @@
 
 Requirements:
 
-- .NET SDK pinned in [global.json](global.json)
+- Rust stable toolchain via [rustup](https://rustup.rs)
+- Linux X11 / font / GL development packages for Slint (see the [devcontainer Dockerfile](../.devcontainer/Dockerfile))
 - A running Steam client (only needed for Workshop features, not for build/test)
 
 ```bash
 git clone <forgejo-url>/gregModmanager.git
 cd gregModmanager
-dotnet restore GregModmanager.sln
-dotnet build GregModmanager.sln -c Release
-dotnet test GregModmanager.sln -c Release
-dotnet run --project src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+cargo build --workspace
+cargo test --workspace
+cargo run -p greg-app
 ```
 
 ---

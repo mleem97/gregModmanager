@@ -262,25 +262,21 @@ impl WorkshopService {
 
     fn find_own_by_title(&self, title: &str, cancel: &AtomicBool) -> Result<Option<u64>> {
         let wanted = title.trim().to_lowercase();
-        for page in 1..=5u32 {
-            let result = self.backend.page(
-                &PageQuery {
-                    kind: QueryKind::Published,
-                    page,
-                    tag: None,
-                },
-                cancel,
-            )?;
-            if result.items.is_empty() {
-                break;
-            }
-            for item in &result.items {
-                if item.title.trim().to_lowercase() == wanted {
-                    return Ok(Some(item.published_file_id));
-                }
-            }
-            if result.items.len() as u32 >= result.total {
-                break;
+        // Only the first page — own items are sorted by last updated desc, so
+        // a recently updated item is almost certainly on page 1. Scanning up to
+        // 5 pages caused up to 5 blocking Steam round-trips (each with a
+        // 45 s callback timeout) before the actual upload started.
+        let result = self.backend.page(
+            &PageQuery {
+                kind: QueryKind::Published,
+                page: 1,
+                tag: None,
+            },
+            cancel,
+        )?;
+        for item in &result.items {
+            if item.title.trim().to_lowercase() == wanted {
+                return Ok(Some(item.published_file_id));
             }
         }
         Ok(None)

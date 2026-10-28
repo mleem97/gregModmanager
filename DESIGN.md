@@ -1,15 +1,14 @@
 # gregDesktop Design System — Terminal Core
 
-Dieses Dokument definiert die strikten Design-Vorgaben fuer alle Desktop-Anwendungen im gregFramework-Ökosystem, die auf Avalonia UI basieren. Es erweitert und konkretisiert die Architekturregeln aus `AGENTS.md` fuer alle visuellen und interaktiven Aspekte.
+Dieses Dokument definiert die strikten Design-Vorgaben fuer alle Desktop-Anwendungen im gregFramework-Ökosystem, die auf Slint basieren. Es erweitert und konkretisiert die Architekturregeln aus `AGENTS.md` fuer alle visuellen und interaktiven Aspekte.
 
 ---
 
 ## 1. Design-Philosophie
 
-- **Terminal Core**: Die UI soll sich anmaessig, praegnant und informationsdicht anfuehlen — nicht verspielt.
+- **Terminal Core**: Die UI soll sich angemessen, praegnant und informationsdicht anfuehlen — nicht verspielt.
 - **Funktion vor Form**: Jedes Element muss einen Zweck erfuellen. Dekoration ohne Nutzen wird entfernt.
 - **Konsistenz ueber Customizing**: Alle greg-Apps teilen dieselben Tokens, Abstaende und Interaktionsmuster.
-- **Cross-Platform Paritaet**: Windows und Linux muessen visuell identisch rendern (Pixel-Shift-Tests bei jedem Release).
 
 ---
 
@@ -18,7 +17,7 @@ Dieses Dokument definiert die strikten Design-Vorgaben fuer alle Desktop-Anwendu
 Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werden.
 
 | Token | Hex | Verwendung |
-| :--- | :--- | :--- |
+| :--- | ---: | --- |
 | `SurfaceBase` | `#051424` | Haupt-Hintergrund aller Fenster und Seiten |
 | `SurfaceElevated` | `#0A1E2E` | Karten, Panels, Modale, Flyouts |
 | `SurfaceOverlay` | `#122131` | Hover-States, Trennlinien, Subtle Hervorhebungen |
@@ -35,7 +34,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 - Keine transparenten Overlays (`Opacity < 1.0`) fuer Hintergruende.
 - Keine Verlaeufe (Gradients).
-- Keine Schlagschatten (Drop Shadows).
+- Keine Schwaeche (Drop Shadows).
 - Kontrastverhaeltnisse muessen mindestens WCAG AA fuer Text erfuellen (Primary auf SurfaceBase: 10.8:1).
 
 ---
@@ -43,7 +42,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 3. Typografie
 
 | Rolle | Schriftart | Groesse | Gewicht | Zeilenabstand |
-| :--- | :--- | :--- | :--- | :--- |
+| :--- | --- | ---: | --- | ---: |
 | Display | Space Grotesk | 24 px | 700 | 32 px |
 | Headline | Space Grotesk | 18 px | 600 | 24 px |
 | Title | Inter | 14 px | 600 | 20 px |
@@ -53,10 +52,8 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 **Regeln:**
 
-- `Inter` ist die Standard-UI-Schrift; `Space Grotesk` nur fuer Ueberschriften und Marken-Elemente.
-- `JetBrains Mono` ist verpflichtend fuer: Dateipfade, IDs, Versionsnummern, Dateigroessen, Zeitstempel, SHA256-Hashes, Steam-AppIDs.
 - Text-Transform: Nie `uppercase` fuer Labels oder Buttons. Nur fuer kleine statische Badges erlaubt.
-- Text-Trimming: `TextTrimming=CharacterEllipsis` bei Pfaden und langen Titeln; Tooltip mit Volltext bei Hover.
+- Text-Trimming: Ellipsis bei Pfaden und langen Titeln; Tooltip mit Volltext bei Hover.
 
 ---
 
@@ -72,7 +69,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 **Regeln:**
 
 - Keine halben Einheiten (z.B. 4 px nur fuer Hairlines/Trennlinien erlaubt).
-- Kein zentrierter Fliesstext; Linksbuendig ausgerichtet.
+- Kein zentrierter Fliesstext; Linksbündig ausgerichtet.
 - Listen und Tabellen nutzen volle verfuegbare Breite; letzte Spalte expandiert.
 
 ---
@@ -80,7 +77,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 5. Geometrie & Radien
 
 | Komponente | Radius |
-| :--- | :--- |
+| :--- | ---: |
 | Fenster (root) | 0 px (scharfe Kanten) |
 | Karten / Panels | 4 px |
 | Buttons | 4 px |
@@ -101,11 +98,12 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 ## 6. Fenster-Chrome
 
-- `SystemDecorations="None"` ist verpflichtend fuer alle greg-Apps.
-- Kein `ExtendClientAreaToDecorationsHint="True"`, wenn es das Ziehen des Fensters beeintraechtigt.
-- Titelleiste ist ein `Border` mit Hintergrund `SurfaceElevated`, Hoehe 40 px.
-- Titelleiste reagiert auf `PointerPressed` + `BeginMoveDrag` fuer Fenster-Verschieben.
-- Fenster-Controls (Minimieren, Maximieren, Schliessen) sind custom Buttons rechts oben.
+- Das Slint `Window` ist frameless (custom chrome); der Titelzeilen-Header ist ein
+  eigenes Element mit Hintergrund `SurfaceElevated`, Hoehe 40 px.
+- Header reagiert auf Drag-Events (native WindowMoveArea / Titelleisten-Muster) —
+  Wayland-safe, kein manuelles `set_position`.
+- Fenster-Controls (Minimieren, Maximieren, Schliessen) sind eigene Buttons rechts
+  oben.
 - Schliessen-Button zeigt `Danger`-Farbe nur bei Hover.
 
 ---
@@ -115,7 +113,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ### 7.1 Buttons
 
 | Variante | Hintergrund | Rahmen | Text |
-| :--- | :--- | :--- | :--- |
+| :--- | --- | --- | --- |
 | Primary | `Primary` | none | `SurfaceBase` |
 | Secondary | `SurfaceElevated` | `BorderSubtle` | `OnSurface` |
 | Danger | `Danger` | none | `SurfaceBase` |
@@ -133,9 +131,8 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 - Padding: 8 px.
 - Placeholder: `OnSurfaceMuted`.
 - Disabled: Rahmen `BorderSubtle`, Text `OnSurfaceMuted`.
-- Keine animierten Underlines oder schwebende Labels.
 
-### 7.3 Dropdowns / ComboBoxen
+### 7.3 Dropdowns / ComboBoxes
 
 - Dropdown-Panel: `SurfaceElevated`, Radius 4 px, 1 px Rahmen `BorderSubtle`.
 - Ausgewaehltes Item: Hintergrund `SurfaceOverlay`.
@@ -147,7 +144,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 - Abwechselnde Zeilenfarben: Nein. Stattdessen Trennlinien zwischen Zeilen.
 - Hover-Zeile: Hintergrund `SurfaceOverlay`.
 - Ausgewaehlte Zeile: Hintergrund `SurfaceOverlay` + linker 3 px Rand `Primary`.
-- Header: `JetBrains Mono`, 11 px, `OnSurfaceMuted`, Hintergrund `SurfaceElevated`.
+- Header: JetBrains Mono, 11 px, `OnSurfaceMuted`, Hintergrund `SurfaceElevated`.
 
 ### 7.5 Karten (Cards)
 
@@ -160,7 +157,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ### 7.6 Badges
 
 - Hintergrund: `SurfaceOverlay`.
-- Text: `JetBrains Mono`, 11 px.
+- Text: JetBrains Mono, 11 px.
 - Padding: 2 px 8 px.
 - Radius: 2 px.
 
@@ -168,7 +165,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 - Hintergrund: `SurfaceElevated`.
 - Rahmen: 1 px `BorderSubtle`.
-- Text: `Caption`.
+- Text: Caption.
 - Verzoegerung: 400 ms.
 
 ---
@@ -176,8 +173,10 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 ## 8. Dialoge & Modale
 
 - Nie native `MessageBox` verwenden.
-- Pflicht: `IDialogService` mit `Window.ShowDialog`.
-- Dialog-Hintergrund: halbtransparentes `SurfaceBase` (nur hier ist leichte Transparenz erlaubt: `#051424E6`).
+- Pflicht: dedizierte Dialog-Elemente im Slint UI mit eigenen Buttons
+  (Primary rechts, destruktive links als Ghost-Button).
+- Dialog-Hintergrund: halbtransparentes `SurfaceBase` (nur hier ist leichte
+  Transparenz erlaubt: `#051424E6`).
 - Dialog-Panel: `SurfaceElevated`, Radius 8 px, max. Breite 560 px.
 - Trennung von Titel, Inhalt und Aktionen durch Hairlines.
 - Primaere Aktion immer rechts unten; destruktive Aktion links davon als Ghost-Button.
@@ -217,19 +216,19 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 ## 11. Lokalisierung im UI
 
-- Alle UI-Strings muessen ueber `GregModmanager.Localization.S.Get("Key")` oder `S.Format("Key", args)` aufgeloest werden.
-- Keine hardcodierten Strings in XAML oder Code-Behind.
-- Neue Keys muessen zuerst in `AppStrings.resx` und `AppStrings.de.resx` eingetragen werden.
-- Textlaengen-Unterschiede (z.B. Deutsch +30 %) muessen getestet werden; UI darf nicht brechen.
+- Alle UI-Strings muessen ueber die `greg-core`-L10n-Module (Englisch plus Deutsch
+  mindestens) aufgeloest werden.
+- Keine hardcodierten Strings in den Slint-Views.
+- Neue Keys muessen zuerst in die L10n-Strukturen von `greg-core` eingetragen werden.
+- Textlaengen-Unterschiede (z.B. Deutsch +30 %) muessen getestet werden; UI darf
+  nicht brechen.
 
 ---
 
 ## 12. Dateien & Assets
 
-- `AvaloniaResource` fuer alle UI-Assets (Styles, Icons, Bilder).
-- `Content` nur fuer Assets, die zur Laufzeit ersetzt werden muessen (z.B. `SubDirectoryFixer.dll`).
+- Slint-`global` Variablen / Tokens fuer Farben, Abstaende, Radien.
 - Bilder: PNG mit Alpha; keine JPEGs fuer UI-Elemente.
-- Thumbnails fuer Workshop-Items: 256x256 px, quadratisch, zentriertes Resize.
 
 ---
 
@@ -237,9 +236,7 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 - Max. Dauer: 150 ms fuer UI-Transitions (Fade, Slide).
 - Easing: `CubicEaseOut`.
-- Keine Animationen fuer DataGrid-Row-Updates (Performance).
-- Keine parallaxen oder physikbasierten Animationen.
-- Modale: Fade-In 100 ms; Fade-Out 75 ms.
+- Keine Animationen fuer Listen-Scroll-Updates (Performance).
 
 ---
 
@@ -247,49 +244,32 @@ Alle Farbwerte sind absolut und duerfen nicht interpoliert oder veraendert werde
 
 - Minimale Fenstergroesse: 1024 x 640 px.
 - Bei < 1024 px Breite: Seitenpanel kollabiert zu Icons-only.
-- Bei < 800 px Breite: Zweispaltiges Layout wird einspaltig.
-- Keine mobile Ansicht; Desktop-Only.
 
 ---
 
 ## 15. Verbotene Muster
 
 | Muster | Ersetzen durch |
-| :--- | :--- |
-| Native `MessageBox` | `IDialogService` Modale |
-| `ExtendClientAreaToDecorationsHint` | Custom Chrome mit `SystemDecorations="None"` |
-| `ReflectionBindingExtension` | `CompiledBindings` oder `{Binding}` mit Typpruefung |
-| Opacity-Animationen | Direkte Farbwechsel |
-| Runde / Pill-Buttons | Rechtecke mit 4 px Radius |
+| :--- | --- |
+| Native `MessageBox` | Dedizierte Dialog-Elemente im Slint UI |
+| Vollstaendig runde Buttons | Rechtecke mit 4 px Radius |
 | Schlagschatten | Hairlines oder kontrastierende Rahmen |
 | Verlaeufe | Flaechenfarben |
-| Emojis | Vektor-Icons |
+| Emojis | Vektor-Icons (Lucide) |
 | Halbe Pixel-Werte (4 px ausser Trennlinien) | 8 px Grid |
 
 ---
 
-## 16. Avalonia-Spezifika
-
-- `CompiledBindings` verwenden, wo moeglich; reduziert Reflektion und Trimming-Warnungen.
-- `Design.DataContext` nur fuer Design-Time; keine Logik darin.
-- `UserControl` nur fuer wiederverwendbare Komponenten; fuer Seiten `ContentControl` mit ViewModel-Switch.
-- `Styles` in separaten `.axaml`-Dateien unter `Styles/`; keine Inline-Styles in Views.
-- `ThemeVariant` nicht dynamisch aendern; greg-Apps unterstuetzen nur den dunklen Modus.
-
----
-
-## 17. Validierung
+## 16. Validierung
 
 Bevor ein PR gemerged wird, muss geprueft werden:
 
-1. [ ] Alle neuen UI-Strings sind in `AppStrings.resx` + `AppStrings.de.resx`.
+1. [ ] Alle neuen UI-Strings sind in den `greg-core`-L10n-Strukturen (Englisch + Deutsch).
 2. [ ] Keine hardcodierten Farben ausser den definierten Tokens.
-3. [ ] Keine `MessageBox`-Aufrufe.
-4. [ ] `CompiledBindings` aktiv, wo Typ statisch bekannt.
-5. [ ] Fenster ist bei 1024x640 px und bei 1920x1080 px bedienbar.
-6. [ ] Keine Avalonia-Warnungen bezueglich nicht erreichbarer XAML-Ressourcen (AVLN3001).
-7. [ ] Screenshot-Diff bei visuellen Aenderungen (manuell oder via CI).
+3. [ ] Keine nativen `MessageBox`-Aufrufe.
+4. [ ] Fenster ist bei 1024x640 px und bei 1920x1080 px bedienbar.
+5. [ ] Screenshot-Diff bei visuellen Aenderungen (manuell oder via CI).
 
 ---
 
-###### Letzte Aktualisierung: 2026-05-05
+###### Letzte Aktualisierung: 2026-10-28

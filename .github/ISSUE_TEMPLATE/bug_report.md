@@ -25,4 +25,4 @@ If applicable, add screenshots to help explain your problem.
 - gregCore Version: [e.g. 1.0.0.30-pre]
 
 **Additional context**
-Add any other context about the problem here.
+Add any other context about the problem here. 

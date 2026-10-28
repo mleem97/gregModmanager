@@ -2511,7 +2511,7 @@ Die vorhandenen Beispiele trennen Mods, Plugins, Extensions und Bibliotheken ber
 - **Priorität:** P0
 - **Status:** `ERLEDIGT`
 - **Abhängigkeiten:** Lesen von `current_features.md`, `functions.md`, `api-compatibility.md` und tatsächlichem Quellcode.
-- **Betroffene Komponenten:** Desktop `Core`/Avalonia, Webapp `src/app/api`, Dokumentation.
+- **Betroffene Komponenten:** Desktop `Core`/`greg-core`, Webapp `src/app/api`, Dokumentation.
 - **Betroffene APIs:** Auth-Verträge geprüft; keine Änderung.
 - **Akzeptanzkriterien:** Gap-Matrix mit Statuswerten, Evidenz und nächsten Schritten vorhanden.
 - **Tests:** Dokumentationsprüfung, Desktop-Build/Test und Webapp-Routeninventar.

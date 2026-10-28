@@ -1,6 +1,7 @@
-import { LineEdit, Button, ComboBox } from "std-widgets.slint";
+import { LineEdit, ComboBox } from "std-widgets.slint";
 import { ScrollView } from "std-widgets.slint";
-import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { ProjectRow } from "models.slint";
 
 export component ProjectsPage inherits VerticalLayout {
@@ -39,26 +40,25 @@ export component ProjectsPage inherits VerticalLayout {
                 placeholder-text: "name or title…";
                 horizontal-stretch: 1;
             }
-            Button {
+            GregButton {
                 text: "Refresh";
+                has-icon: true;
+                icon: IconSet.RefreshCw;
                 clicked => { root.refresh(); }
             }
-            Button {
+            GregButton {
                 text: "Open folder";
+                has-icon: true;
+                icon: IconSet.FolderOpen;
                 clicked => { root.open-folder(); }
             }
         }
     }
 
     // Project list scrolls; the New-Project form below stays pinned.
-    Rectangle {
+    ListCard {
         vertical-stretch: 1;
         min-height: 96px;
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
-        clip: true;
         ScrollView {
             width: parent.width;
             height: parent.height;
@@ -68,7 +68,7 @@ export component ProjectsPage inherits VerticalLayout {
                 for row[idx] in root.rows: Rectangle {
                     height: 52px;
                     background: Palette.container;
-                    border-radius: Palette.radius;
+                    border-radius: Palette.radius-lg;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 10px;
@@ -102,12 +102,16 @@ export component ProjectsPage inherits VerticalLayout {
                                 overflow: elide;
                             }
                         }
-                        if row.fileid != "": Button {
+                        if row.fileid != "": GregButton {
                             text: "Steam";
+                            has-icon: true;
+                            icon: IconSet.ExternalLink;
                             clicked => { root.view-on-steam(row.fileid); }
                         }
-                        Button {
+                        GregButton {
                             text: "Edit";
+                            has-icon: true;
+                            icon: IconSet.PenLine;
                             clicked => { root.open-project(row.root); }
                         }
                     }
@@ -116,11 +120,7 @@ export component ProjectsPage inherits VerticalLayout {
         }
     }
 
-    Rectangle {
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
+    ListCard {
         VerticalLayout {
             padding: 10px;
             spacing: 6px;
@@ -172,8 +172,11 @@ export component ProjectsPage inherits VerticalLayout {
                     width: parent.width;
                     height: parent.height;
                     alignment: end;
-                    Button {
+                    GregButton {
                         text: "Create & open";
+                        has-icon: true;
+                        icon: IconSet.Plus;
+                        variant: "primary";
                         clicked => { root.create-project(); }
                     }
                 }

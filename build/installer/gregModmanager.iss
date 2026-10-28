@@ -1,6 +1,6 @@
-; Inno Setup 6 — gregModmanager (GregModmanager.exe)
-; Kompilieren: ISCC.exe gregModmanager.iss  (oder ..\build.ps1)
-; Version wird per ..\build.ps1 aus dem Avalonia-Projekt als /DMyAppVersion uebergeben.
+; Inno Setup 6 — gregModmanager (gregmodmanager.exe)
+; Kompilieren: ISCC.exe gregModmanager.iss
+; Version wird per /DAppVersion und /DAppNumericVersion uebergeben (per Release-Pipeline bzw. CI).
 
 #ifndef MyAppVersion
 #define MyAppVersion "1.5.0"
@@ -17,7 +17,7 @@
 #define MyAppName "gregModmanager"
 #define MyAppPublisher "GregFramework"
 #ifndef MyAppExeName
-#define MyAppExeName "GregModmanager.exe"
+#define MyAppExeName "gregmodmanager.exe"
 #endif
 #define MyAppURL "https://github.com/mleem97/gregFramework"
 

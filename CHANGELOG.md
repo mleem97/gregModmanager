@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- FULL-RUST configuration alignment: devcontainer moved from the .NET/Avalonia
+  SDK image to a Rust (rustup + Slint) image with the Rust VS Code extension;
+  release-changelog version promotion now bumps the workspace `Cargo.toml` (the
+  referenced .NET project no longer exists); the stale C# GitHub build workflow
+  was removed and the release-train CI (promote/train + quality gates) moved
+  into the byte-identical Forgejo/Gitea workflow set; build wrapper, Steam/Proton
+  notes, and documentation were aligned to the Rust workspace.
+- Residual C# era tooling removed after the full-Rust migration: obsolete
+  .NET/Avalonia build scripts (builder menus, PowerShell build helpers, Avalonia
+  package scripts, apt/local-test/Linux-package scripts) deleted; quality gates
+  (`scripts/greg-gates.sh`) reduced to the Rust toolchain path; Codacy
+  language/tool configuration switched from C# to Rust; Windows installer
+  signing/installer documentation aligned to the Rust-era scripts.
+
+- Der Modmanager wurde nach einem Spielstart unbenutzbar — es gab keinen
+  funktionierenden Weg, das Spiel aus der App zu stoppen. `stop_game()`
+  killt laufende Game-Prozesse und reconnectet Steamworks danach; der
+  Stop-Button im Header ersetzt die Start-Buttons während ein Spiel läuft.
+
+### Added
+
+- Local developer workflow scripts in `scripts/` (quality gate, dev build, app
+  start from source, headless CLI, release builds incl. Windows/Linux/macOS) and
+  the recurring local-workflow inventory in `AUDIT_LOCAL_DEV_WORKFLOWS.md`.
+- Universal Report Assistant: new central `Report` tab in the modmanager
+  navigation (replaces the former bug-only link-out entry). Category
+  selection (bug, crash, feature, improvement, performance, compatibility,
+  UI/UX, documentation, installation, configuration, security, other),
+  free-text description and category-dependent fields (steps, expected /
+  actual behavior, logs, environment), plus a generated Markdown preview
+  with validation, secret redaction and log truncation from the new
+  `greg-core::report` domain. Submission to GitHub issues follows in a
+  later phase; the local fallback tracker hand-off stays available.
+- Universal Report Assistant foundation completed: versioned shared report
+  schema (`REPORT_SCHEMA_VERSION`, report id, creation timestamp, source
+  product, transmission mode, submission state, external issue reference),
+  typed submission lifecycle (`draft` → `in_progress` → `submitted` / `failed`
+  / `cancelled`) and transmission modes (`user_direct` / `operator_service` /
+  `local_export`), environment snapshot (OS + app version) auto-collected for
+  new drafts, optional user-provided environment override, optional
+  additional context section in the generated issue body, and local Markdown
+  export (`greg_core::report::export_markdown`) via user-chosen save location.
+- Universal Report Assistant UI: submission state surfaced in the page,
+  attachment intake (validated user-selected file names) and a submission
+  confirmation step before any delivery attempt; local export writes the
+  sanitized Markdown body to disk. Submission via direct GitHub or operator
+  service channels is intentionally not claimed before the backend report
+  intake is deployed; the local export remains the supported delivery path.
+- Universal Report Assistant: env-gated GitHub issue delivery implemented via
+  the GitHub Issues API (`POST /repos/{repo}/issues`) using
+  `GREG_GITHUB_TOKEN` + `GREG_GITHUB_ISSUE_TARGET_REPO`; delivery is only
+  attempted when the credentials are configured, otherwise the local export
+  fallback remains active. Committed `.env.example` documents the
+  configuration keys for builds and CI (secrets are never committed).
+
+- Experimental macOS support for Steam library discovery, Unity `.app` game
+  bundles, and macOS process supervision. Native Mac validation, signing, and
+  notarization remain release prerequisites.
+- Lucide icons everywhere (`lucide-slint` 1.49.1 as build dependency,
+  `@lucide` Slint library in `build.rs`, shared `ui/icons.slint`
+  `AppIcon` wrapper): icon bar, window buttons, list rows, status and
+  check indicators, pager and toolbar buttons. All unicode glyphs and
+  emoji (icon bar, window controls, Prev/Next, check marks, severity
+  markers, workshop star ratings) are replaced by Lucide icons.
+- My Mods / Plugins / Libs are split into Active and Disabled sections,
+  each with its own count and a fixed-frame scroll box, so long mod
+  lists scroll inside their box instead of growing past the window.
+- Unified `GregButton` (ghost/primary/danger + optional Lucide icon)
+  and `ListCard` components in `ui/theme.slint`: all pages share the
+  same button, list, card and dropdown look, with a subtle neumorphic
+  touch (10px radius, faint top highlight, soft shadow).
+- Linux cleanup (`gregmodmanager-cleanup.sh`, runs on DEB pre/post
+  install) now also removes orphan `gregmodmanager-local-test` start
+  menu entries, binaries and `/opt` leftovers, plus stale user-level
+  `gregmodmanager.desktop` copies whose `Exec` no longer points at the
+  packaged `/usr/bin/gregmodmanager`. Only the DEB installation
+  remains in the start menu.
+- GitHub Actions release workflow for native Windows installer/portable,
+  Linux portable/packages, and experimental macOS x64/arm64 artifacts;
+  `v*` tags publish the collected artifacts as a GitHub Release. Forgejo
+  workflows remain Linux-only.
+
 ### Added
 
 - Modstore publish: `gregcli publish --to modstore` (API token via
@@ -15,19 +99,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one flow (`greg-modstore::publish`: zip `content/`, presigned URL, PUT,
   submit). The Modstore id persists in `metadata.json` (`modstore_id`)
   for updates; outcome names mod, release and scan status.
-- Supervised game launch: Start Game / With Mods / No Mods start the game
-  exe directly as a tracked child (PID, play time, exit code in log and
+- Supervised game launch: Start Game (without mods) and With Mods start the
+  game exe directly as a tracked child (PID, play time, exit code in log and
   status bar) with a header Stop button. The Steamworks session releases
   before the start and reconnects after exit, so Steam no longer sees the
   game as running through the manager. Stale game processes block a new
   start and can be killed via Stop (also from the Problems inbox).
-- Real vanilla mode: No Mods parks `Mods/` to `Mods.disabled-by-manager`
-  and restores it on game exit; leftovers from killed sessions recover at
-  the next start. Mod changes (toggle, remove, pack apply) are refused
-  while the game runs.
+- Real vanilla mode: Start Game temporarily renames active mod assemblies to
+  `.disabled` inside `Mods/` and restores them on game exit; leftovers from
+  killed sessions recover at the next start. Mod changes (toggle, remove,
+  pack apply) are refused while the game runs.
 
 ### Fixed
 
+- Vertically centered the top-bar buttons so their top and bottom padding is balanced.
+- Fixed startup recovery incorrectly leaving the Mods folder parked after a vanilla launch.
+- Vanilla mode now keeps all mods inside `Mods/` and only disables active assemblies.
+
+- The manager now checks for MelonLoader during startup and blocks only the
+  With Mods action when it is missing; the regular Start Game action remains
+  available for a vanilla launch.
+- The header now has two unambiguous launch actions: Start Game runs
+  without local mods, while With Mods explicitly enables the installed mods.
+  The redundant No Mods button was removed.
+- Linux now starts the Windows game directly through the installed Proton
+  runner with `SteamAppId`/`SteamGameId`, avoiding Steam's self-launch
+  `AppError_16` because the manager already owns the game's AppID.
+- Linux Proton launches now set `WINEDLLOVERRIDES=version=n,b`, allowing
+  MelonLoader's native proxy to load so With Mods actually initializes
+  MelonLoader, gregCore, and the installed mods.
+- Linux Steam/Proton launches now wait for all background Steamworks handles
+  to shut down before requesting the game, preventing Steam's "game already
+  running" / `AppError_16` state from the manager process.
 - Layout: all list pages (My Mods/Plugins/Libs, Problems, Modpacks/
   Collections, Projects, Workshop Browse, Modstore Catalog/Updates) fill
   the viewport and scroll their list regions internally (`ScrollView` +
@@ -37,7 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Header buttons (Start Game, With Mods, No Mods, Login) are now flat
+- Header buttons (Start Game, With Mods, Login) are now flat
   custom `TopBarButton`s: transparent at rest, slightly lighter
   (`container-high`) on hover.
 
