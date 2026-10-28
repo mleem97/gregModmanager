@@ -1,5 +1,6 @@
-import { Button } from "std-widgets.slint";
-import { Palette, IconButton, NavButton, StatusLed, WinBtn } from "theme.slint";
+import { IconSet } from "@lucide";
+import { Palette, IconButton, NavButton, StatusLed, WinBtn, TopBarButton, GregButton } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow, PackRow, PackEntryRow } from "models.slint";
 import { LocalPage } from "page-local.slint";
 import { PacksPage } from "page-packs.slint";
@@ -9,11 +10,12 @@ import { EditorPage } from "page-editor.slint";
 import { BrowsePage } from "page-browse.slint";
 import { StorePage } from "page-store.slint";
 import { SettingsPage } from "page-settings.slint";
+import { ReportPage } from "page-report.slint";
 
 // Main window: full-height icon bar | header + navigation + content,
 // status bar below. 100% custom chrome (no native frame).
-// Grounded in the old Avalonia MainWindow: TerminalCore palette, header with
-// game-start buttons, login/profile card, Steam + GregApi status.
+// Grounded in the frozen C# Avalonia MainWindow: TerminalCore palette, header with
+// game-start buttons, login/profile card, Steam + GregApi + MelonLoader status.
 
 export component MainWindow inherits Window {
     title: "gregModmanager";
@@ -38,9 +40,13 @@ export component MainWindow inherits Window {
     in-out property <bool> steam-ok: false;
     in-out property <string> steam-text: "Steam Disconnected";
     in-out property <bool> gregapi-ok: false;
-    in-out property <string> gregapi-text: "gregAPI Offline";
+    in-out property <string> gregapi-text: "gregAPI Disconnected";
+    in-out property <bool> melonloader-ok: false;
+    in-out property <string> melonloader-text: "MelonLoader: checking…";
     in-out property <bool> modstore-available: false;
     in-out property <bool> login-visible: false;
+    in-out property <bool> game-running: false;
+    in-out property <string> game-text: "Game: stopped";
     in-out property <bool> profile-visible: false;
     in-out property <string> profile-name: "";
     in-out property <string> profile-hint: "";
@@ -115,12 +121,30 @@ export component MainWindow inherits Window {
     // --- local content page state (My Mods / Plugins / Libs) ---
     in-out property <string> local-title;
     in-out property <string> local-search;
-    in-out property <[LocalRow]> local-rows;
+    in-out property <[LocalRow]> local-active-rows;
+    in-out property <[LocalRow]> local-inactive-rows;
     in-out property <string> local-status;
 
     // --- problems page state ---
     in-out property <[ProblemRow]> problem-rows;
     in-out property <string> problem-status;
+
+    // --- report assistant page state ---
+    in-out property <string> rp-title;
+    in-out property <int> rp-category-index: 0;
+    in-out property <[string]> rp-categories;
+    in-out property <string> rp-description;
+    in-out property <string> rp-steps;
+    in-out property <string> rp-expected;
+    in-out property <string> rp-actual;
+    in-out property <string> rp-logs;
+    in-out property <string> rp-environment;
+    in-out property <string> rp-preview;
+    in-out property <string> rp-status;
+    in-out property <string> rp-submission;
+    in-out property <[string]> rp-attachments;
+    in-out property <bool> rp-submit-confirm: false;
+    in-out property <string> rp-submit-mode;
 
     // --- packs page state (one component serves Modpacks + Collections) ---
     in-out property <string> pack-kind;
@@ -155,6 +179,7 @@ export component MainWindow inherits Window {
     callback icon-clicked(string);
     callback nav-clicked(string);
     callback start-game(string);
+    callback stop-game();
     callback login-clicked();
     callback profile-clicked();
     callback profile-menu-clicked(string);
@@ -176,6 +201,16 @@ export component MainWindow inherits Window {
     // --- problems callbacks ---
     callback problems-refresh();
     callback problems-act(int);
+
+    // --- report assistant callbacks ---
+    callback rp-generate();
+    callback rp-cancel();
+    callback rp-submit();
+    callback rp-export();
+    callback rp-attach();
+    callback rp-collect-logs();
+    callback rp-confirm-yes();
+    callback rp-confirm-no();
 
     // --- packs callbacks ---
     callback packs-create();
@@ -200,6 +235,7 @@ export component MainWindow inherits Window {
     callback ed-changed();
     callback ed-save();
     callback ed-publish();
+    callback ed-publish-modstore();
     callback ed-cancel-publish();
     callback ed-pick-preview();
     callback ed-add-shot();
@@ -295,7 +331,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "▤";
+                            icon: IconSet.LayoutGrid;
                             tip: "Modmanager";
                             active: root.current-icon == "modmanager";
                             clicked => { root.icon-clicked("modmanager"); }
@@ -304,7 +340,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "⬆";
+                            icon: IconSet.Upload;
                             tip: "Workshop Upload";
                             active: root.current-icon == "workshop";
                             clicked => { root.icon-clicked("workshop"); }
@@ -313,7 +349,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "◈";
+                            icon: IconSet.ShoppingBag;
                             tip: "Modstore";
                             active: root.current-icon == "modstore";
                             enabled: root.modstore-available;
@@ -323,7 +359,7 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         IconButton {
-                            glyph: "⚙";
+                            icon: IconSet.Settings;
                             tip: "Settings";
                             active: root.current-icon == "settings";
                             clicked => { root.icon-clicked("settings"); }
@@ -346,6 +382,8 @@ export component MainWindow inherits Window {
                         height: parent.height;
                     }
                     HorizontalLayout {
+                        // Fill the 42px top bar so controls can be vertically centered.
+                        height: parent.height;
                         padding-left: 14px;
                         padding-right: 6px;
                         spacing: 8px;
@@ -361,11 +399,38 @@ export component MainWindow inherits Window {
                             vertical-alignment: center;
                         }
                         Rectangle { horizontal-stretch: 1; }
-                        Button { text: "Start Game"; clicked => { root.start-game("steam"); } }
-                        Button { text: "With Mods"; clicked => { root.start-game("mods"); } }
-                        Button { text: "No Mods"; clicked => { root.start-game("vanilla"); } }
-                        if root.login-visible: Button {
+                        // Keep the game controls as a centered group instead
+                        // of letting the leading stretch push them right.
+                        HorizontalLayout {
+                            // Keep the centered control group at the full top-bar height.
+                            height: parent.height;
+                            // 42px top bar - 30px button = 6px padding on each side.
+                            padding-top: 6px;
+                            padding-bottom: 6px;
+                            spacing: 8px;
+                            alignment: center;
+                            // Start Game is the safe vanilla launch. With
+                            // Mods is the explicit opt-in for Mods/.
+                            TopBarButton {
+                                text: "Start Game";
+                                btn-width: 96px;
+                                clicked => { root.start-game("vanilla"); }
+                            }
+                            TopBarButton {
+                                text: "With Mods";
+                                btn-width: 96px;
+                                clicked => { root.start-game("mods"); }
+                            }
+                            if root.game-running: TopBarButton {
+                                text: "Stop";
+                                btn-width: 72px;
+                                clicked => { root.stop-game(); }
+                            }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        if root.login-visible: TopBarButton {
                             text: "Login";
+                            btn-width: 72px;
                             clicked => { root.login-clicked(); }
                         }
                         if root.profile-visible: Rectangle {
@@ -389,12 +454,12 @@ export component MainWindow inherits Window {
                                     y: (parent.height - self.height) / 2;
                                     background: Palette.avatar-bg;
                                     border-radius: 12px;
-                                    Text {
-                                        text: "●";
-                                        font-size: 12px;
-                                        color: Palette.primary;
-                                        horizontal-alignment: center;
-                                        vertical-alignment: center;
+                                    AppIcon {
+                                        icon: IconSet.UserRound;
+                                        size: 14px;
+                                        stroke: Palette.primary;
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
                                     }
                                 }
                                 VerticalLayout {
@@ -416,15 +481,15 @@ export component MainWindow inherits Window {
                         HorizontalLayout {
                             spacing: 0px;
                             WinBtn {
-                                glyph: "—";
+                                icon: IconSet.Minus;
                                 clicked => { root.window-minimize(); }
                             }
                             WinBtn {
-                                glyph: root.maximized ? "❐" : "□";
+                                icon: root.maximized ? IconSet.Copy : IconSet.Square;
                                 clicked => { root.window-maximize(); }
                             }
                             WinBtn {
-                                glyph: "✕";
+                                icon: IconSet.X;
                                 danger: true;
                                 clicked => { root.window-close(); }
                             }
@@ -467,15 +532,21 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             width: parent.width;
                             height: parent.height;
-                            // Top-anchor compact pages: the default packs
-                            // stretch-less content at the end (void on top).
-                            alignment: start;
+                            // No `alignment: start` here: every page fills
+                            // the viewport via vertical-stretch and scrolls
+                            // its list region internally (ScrollView). With
+                            // start-alignment, stretch is ignored, pages
+                            // render at preferred height and long lists grow
+                            // past the window (or stretched boxes collapse).
                             if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
-                                // No stretch: compact page, rows top + void below
-                                // (nested stretch + flexible status text mis-distributes).
+                                // Stretched to the viewport: the list box
+                                // inside takes the leftover space and scrolls
+                                // instead of growing past the window.
+                                vertical-stretch: 1;
                                 title <=> root.local-title;
                                 search <=> root.local-search;
-                                rows <=> root.local-rows;
+                                active-rows <=> root.local-active-rows;
+                                inactive-rows <=> root.local-inactive-rows;
                                 status <=> root.local-status;
                                 refresh => { root.local-refresh(); }
                                 toggle(idx) => { root.local-toggle(idx); }
@@ -483,12 +554,14 @@ export component MainWindow inherits Window {
                                 open-folder => { root.local-open-folder(); }
                             }
                             if root.current-page == "problems": ProblemsPage {
+                                vertical-stretch: 1;
                                 rows <=> root.problem-rows;
                                 status <=> root.problem-status;
                                 refresh => { root.problems-refresh(); }
                                 act(idx) => { root.problems-act(idx); }
                             }
                             if root.current-page == "modpacks" || root.current-page == "collections": PacksPage {
+                                vertical-stretch: 1;
                                 kind <=> root.pack-kind;
                                 title <=> root.pack-title;
                                 packs <=> root.pack-packs;
@@ -508,6 +581,7 @@ export component MainWindow inherits Window {
                                 apply-pack(idx) => { root.packs-apply(idx); }
                             }
                             if root.current-page == "projects": ProjectsPage {
+                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -520,6 +594,7 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "new": ProjectsPage {
+                                vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
                                 new-folder <=> root.new-folder;
@@ -532,6 +607,7 @@ export component MainWindow inherits Window {
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "editor": EditorPage {
+                                vertical-stretch: 1;
                                 title <=> root.ed-title;
                                 version <=> root.ed-version;
                                 desc <=> root.ed-desc;
@@ -573,6 +649,7 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.ed-view-steam(); }
                             }
                             if root.current-page == "browse": BrowsePage {
+                                vertical-stretch: 1;
                                 list <=> root.br-list;
                                 lists <=> root.br-lists;
                                 sort <=> root.br-sort;
@@ -604,6 +681,7 @@ export component MainWindow inherits Window {
                                 view-on-steam => { root.br-view-steam(); }
                             }
                             if root.current-page == "modstore": StorePage {
+                                vertical-stretch: 1;
                                 search <=> root.st-search;
                                 items <=> root.st-items;
                                 updates <=> root.st-updates;
@@ -617,6 +695,7 @@ export component MainWindow inherits Window {
                                 install-update(idx) => { root.st-install-update(idx); }
                             }
                             if root.current-page == "settings": SettingsPage {
+                                vertical-stretch: 1;
                                 workspace <=> root.se-workspace;
                                 gameroot <=> root.se-gameroot;
                                 lang <=> root.se-lang;
@@ -635,11 +714,37 @@ export component MainWindow inherits Window {
                                 make-bundle => { root.se-make-bundle(); }
                                 register-protocol => { root.se-register-protocol(); }
                             }
+                            if root.current-page == "report": ReportPage {
+                                vertical-stretch: 1;
+                                title <=> root.rp_title;
+                                category-index <=> root.rp_category_index;
+                                categories <=> root.rp_categories;
+                                description <=> root.rp_description;
+                                steps <=> root.rp_steps;
+                                expected <=> root.rp_expected;
+                                actual <=> root.rp_actual;
+                                logs <=> root.rp_logs;
+                                environment <=> root.rp_environment;
+                                preview <=> root.rp_preview;
+                                status <=> root.rp_status;
+                                submission <=> root.rp_submission;
+                                attachments <=> root.rp_attachments;
+                                show-submit-confirm <=> root.rp_submit_confirm;
+                                submit-mode <=> root.rp_submit_mode;
+                                generate => { root.rp-generate(); }
+                                collect-logs => { root.rp-collect-logs(); }
+                                cancel => { root.rp-cancel(); }
+                                submit => { root.rp-submit(); }
+                                export => { root.rp-export(); }
+                                attach => { root.rp-attach(); }
+                                confirm-yes => { root.rp-confirm-yes(); }
+                                confirm-no => { root.rp-confirm-no(); }
+                            }
                         }
                     }
                 }
 
-                // Bottom status bar: Steam + GregApi LEDs.
+                // Bottom status bar: Steam + GregApi + MelonLoader LEDs.
                 Rectangle {
                     height: 30px;
                     background: Palette.container-low;
@@ -654,6 +759,16 @@ export component MainWindow inherits Window {
                         StatusLed {
                             ok: root.gregapi-ok;
                             text: root.gregapi-text;
+                        }
+                        StatusLed {
+                            ok: root.melonloader-ok;
+                            text: root.melonloader-text;
+                        }
+                        Text {
+                            text: root.game-text;
+                            font-size: 11px;
+                            color: Palette.on-variant;
+                            vertical-alignment: center;
                         }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
@@ -696,12 +811,17 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         spacing: 10px;
                         alignment: center;
-                        Button {
+                        GregButton {
                             text: "Delete";
+                            has-icon: true;
+                            icon: IconSet.Trash2;
+                            variant: "danger";
                             clicked => { root.confirm-yes(); }
                         }
-                        Button {
+                        GregButton {
                             text: "Cancel";
+                            has-icon: true;
+                            icon: IconSet.Ban;
                             clicked => { root.confirm-no(); }
                         }
                     }
@@ -741,16 +861,22 @@ export component MainWindow inherits Window {
                         color: Palette.on-variant;
                         horizontal-alignment: center;
                     }
-                    Button {
+                    GregButton {
                         text: "gregModmanager (this app)";
+                        has-icon: true;
+                        icon: IconSet.LayoutGrid;
                         clicked => { root.bug-open-manager(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Other Greg mods & programs";
+                        has-icon: true;
+                        icon: IconSet.Package;
                         clicked => { root.bug-open-org(); }
                     }
-                    Button {
+                    GregButton {
                         text: "Cancel";
+                        has-icon: true;
+                        icon: IconSet.Ban;
                         clicked => { root.bug-close(); }
                     }
                 }
@@ -779,24 +905,28 @@ export component MainWindow inherits Window {
                     padding: 8px;
                     spacing: 4px;
                     alignment: start;
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "My Mods";
+                        has-icon: true;
+                        icon: IconSet.Package;
                         clicked => { root.profile-menu-clicked("mymods"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Upload";
+                        has-icon: true;
+                        icon: IconSet.Upload;
                         clicked => { root.profile-menu-clicked("upload"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Settings";
+                        has-icon: true;
+                        icon: IconSet.Settings;
                         clicked => { root.profile-menu-clicked("settings"); }
                     }
-                    Button {
-                        height: 32px;
+                    GregButton {
                         text: "Logout";
+                        has-icon: true;
+                        icon: IconSet.LogOut;
                         clicked => { root.profile-menu-clicked("logout"); }
                     }
                 }

@@ -5,7 +5,7 @@
 
 use greg_core::models::{
     AccountIdentity, ActiveSession, AuthResponse, LoginRequest, TokenExchangeRequest,
-    TokenExchangeResponse, UserInfo,
+    TokenExchangeResponse,
 };
 
 use crate::error::{ModStoreError, Result};
@@ -213,15 +213,30 @@ impl BetterAuthClient {
     }
 
     /// Verifies a session token.
+    ///
+    /// Fail-closed: only a parsable session body with a non-empty user id
+    /// or email counts. The live Modstore answers `200 null` for missing
+    /// or invalid tokens, which must not restore a session.
+    /// Accepts both the flat `{id, email}` shape and BetterAuth's
+    /// `{user, session}` wrapper.
     pub async fn verify_session(&self, token: &str) -> bool {
         for base in &self.base_urls {
             for url in session_urls(base) {
                 if let Ok(resp) = self.http.get(&url).bearer_auth(token).send().await {
                     if resp.status().is_success() {
-                        if let Ok(user) = resp.json::<UserInfo>().await {
-                            return !user.id.is_empty() || !user.email.is_empty();
+                        match resp.json::<serde_json::Value>().await {
+                            Ok(body) => {
+                                if session_body_is_authenticated(&body) {
+                                    return true;
+                                }
+                                // Parsable but unauthenticated (`null`,
+                                // `{user: null}`, `{}`): try the next
+                                // endpoint candidate instead of failing open.
+                                continue;
+                            }
+                            // Unparsable body: never count as authenticated.
+                            Err(_) => continue,
                         }
-                        return true;
                     }
                 }
             }
@@ -276,6 +291,46 @@ fn percent_encode(value: &str) -> String {
     out
 }
 
+/// True when a `get-session` body proves an authenticated user.
+///
+/// Accepts the flat `{id, email, ...}` shape and BetterAuth's
+/// `{user: {...}, session: {...}}` wrapper. `null`, `{user: null}`,
+/// `{}` and missing/empty id+email all mean unauthenticated —
+/// this is what the live Modstore returns for missing/invalid tokens.
+fn session_body_is_authenticated(body: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match body {
+        Value::Null => false,
+        Value::Object(map) => {
+            if let Some(user) = map.get("user") {
+                return user_is_authenticated(user);
+            }
+            // Flat shape without a `user` wrapper.
+            flat_user_is_authenticated(body)
+        }
+        _ => false,
+    }
+}
+
+fn user_is_authenticated(user: &serde_json::Value) -> bool {
+    match user {
+        serde_json::Value::Null => false,
+        serde_json::Value::Object(_) => flat_user_is_authenticated(user),
+        _ => false,
+    }
+}
+
+fn flat_user_is_authenticated(user: &serde_json::Value) -> bool {
+    let id = user
+        .get("id")
+        .or_else(|| user.get("subjectId"))
+        .or_else(|| user.get("subject_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let email = user.get("email").and_then(|v| v.as_str()).unwrap_or("");
+    !id.trim().is_empty() || !email.trim().is_empty()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +378,39 @@ mod tests {
                 "https://datacentermods.com/get-session".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn session_body_fail_closed_on_live_null_shapes() {
+        // Live Modstore: `GET /api/auth/get-session` answers `200 null`
+        // for missing/invalid tokens — must not restore a session.
+        let null: serde_json::Value = serde_json::from_str("null").expect("null");
+        assert!(!session_body_is_authenticated(&null));
+        for raw in [
+            "{}",
+            r#"{"user":null}"#,
+            r#"{"user":{}}"#,
+            r#"{"id":"","email":""}"#,
+            r#"{"session":null}"#,
+            "[1,2]",
+            r#""token-string""#,
+        ] {
+            let body: serde_json::Value = serde_json::from_str(raw).expect("json");
+            assert!(!session_body_is_authenticated(&body), "must reject {raw}");
+        }
+    }
+
+    #[test]
+    fn session_body_accepts_flat_and_wrapped_users() {
+        for raw in [
+            r#"{"id":"u1","email":""}"#,
+            r#"{"id":"","email":"a@b.c"}"#,
+            r#"{"user":{"id":"u1"}}"#,
+            r#"{"user":{"email":"a@b.c"},"session":{"id":"s1"}}"#,
+            r#"{"subjectId":"sub-1"}"#,
+        ] {
+            let body: serde_json::Value = serde_json::from_str(raw).expect("json");
+            assert!(session_body_is_authenticated(&body), "must accept {raw}");
+        }
     }
 }

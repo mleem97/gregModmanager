@@ -175,6 +175,19 @@ pub struct DataCenterGameAdapter;
 
 impl DataCenterGameAdapter {
     fn unity_data_dir(root: &Path) -> PathBuf {
+        #[cfg(target_os = "macos")]
+        {
+            // Unity macOS builds keep the *_Data directory inside the app
+            // bundle. Keep the root-level fallback for older/custom installs.
+            let bundled = root
+                .join("Data Center.app")
+                .join("Contents")
+                .join("Resources")
+                .join("Data Center_Data");
+            if bundled.is_dir() {
+                return bundled;
+            }
+        }
         root.join("Data Center_Data")
     }
 
@@ -191,7 +204,30 @@ impl DataCenterGameAdapter {
             "DataCenter.x86_64",
         ];
         let _ = candidates;
-        all.iter().map(|name| root.join(name)).find(|p| p.is_file())
+        if let Some(exe) = all.iter().map(|name| root.join(name)).find(|p| p.is_file()) {
+            return Some(exe);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            // Unity macOS executables live in Contents/MacOS inside the app
+            // bundle and have no `.app` suffix themselves.
+            let bundled = [
+                root.join("Data Center.app")
+                    .join("Contents")
+                    .join("MacOS")
+                    .join("Data Center"),
+                root.join("DataCenter.app")
+                    .join("Contents")
+                    .join("MacOS")
+                    .join("DataCenter"),
+            ];
+            if let Some(exe) = bundled.into_iter().find(|p| p.is_file()) {
+                return Some(exe);
+            }
+        }
+
+        None
     }
 }
 

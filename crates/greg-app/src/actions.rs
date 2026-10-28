@@ -62,6 +62,26 @@ pub fn tick(state: &mut AppState) {
                 let ui = state.ui();
                 ui.set_ed_status(format!("Login failed: {message}").into());
             }
+            UiEvent::ReportSubmissionDone {
+                success,
+                message,
+                issue_url,
+            } => {
+                let ui = state.ui();
+                if success {
+                    ui.set_rp_submission("submitted".into());
+                    ui.set_rp_status(if let Some(url) = &issue_url {
+                        format!("Report submitted: {url}").into()
+                    } else {
+                        format!("Report submitted. {message}").into()
+                    });
+                } else {
+                    state.push_log(&format!("Report submission failed: {message}"));
+                    let ui = state.ui();
+                    ui.set_rp_submission("failed".into());
+                    ui.set_rp_status(format!("Report submission failed: {message}").into());
+                }
+            }
         }
     }
     // Steam re-check roughly every 60 s (400 × 150 ms).
@@ -73,6 +93,11 @@ pub fn tick(state: &mut AppState) {
     // visible and only when the folder actually changed (no flicker).
     if state.tick_count.is_multiple_of(66) {
         auto_refresh_local(state);
+        refresh_stale_game_ui(state);
+    }
+    // Game watchdog roughly every 1 s (cheap non-blocking poll).
+    if state.tick_count.is_multiple_of(7) {
+        poll_game_state(state);
     }
     drain_publish(state);
     drain_sync(state);
@@ -145,12 +170,12 @@ pub const BUG_REPORT_URL: &str =
 /// Org landing: lists every Greg mod/program repository with its tracker.
 pub const BUG_REPORT_ORG_URL: &str = "https://git.datacentermods.com/teamGreg";
 
-/// Handles navigation clicks (page ids + the report action).
+/// Handles navigation clicks (page ids + the report entry).
 pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
-    if id == "report-bug" {
-        // Action row, not a page: open the chooser dialog, stay where we are.
-        let guard = state.lock().expect("state");
-        guard.ui().set_show_bug_dialog(true);
+    if id == "report" {
+        // Universal Report Assistant page (central entry; category →
+        // description → preview → submit).
+        report_open(state);
         return;
     }
     if id == "problems" {
@@ -205,38 +230,422 @@ pub fn on_nav(state: &Arc<std::sync::Mutex<AppState>>, id: &str) {
     }
 }
 
-/// Launches the game: `steam`/`mods` via Steam URL, `vanilla` via exe.
+/// Launches the game as a supervised direct-exe child.
+///
+/// Modes: `mods` (ensures files disabled by an interrupted vanilla session are
+/// restored first), or `vanilla` (the default Start Game action, disables
+/// active assemblies in `Mods/` for this session and restores them on exit).
+/// The Steamworks session is
+/// released before the start — otherwise Steam keeps seeing the game as
+/// running through the manager and the next launch fails until
+/// everything is killed (Windows zombie case).
 pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
-    // Gathers the plan first so no lock is held during launches/logs.
-    let vanilla_plan = if mode == "vanilla" {
-        let registry = greg_loader::game::GameAdapterRegistry::with_defaults();
-        let game_root = std::env::var("GREG_GAME_ROOT").ok().map(PathBuf::from);
-        Some(match registry.detect(game_root.as_deref()) {
-            Some((adapter, installation)) => adapter.plan_launch(&installation.root_path, vec![]),
-            None => greg_loader::game::GameOperationPlan {
-                adapter_id: "datacenter".into(),
-                operation: "launch".into(),
-                game_root: PathBuf::new(),
-                executable: None,
-            },
-        })
+    poll_game_state(&mut state.lock().expect("state"));
+    let launch_mode = if mode == "mods" {
+        greg_loader::launch::LaunchMode::Mods
     } else {
-        None
+        // Start Game intentionally means Without Mods. Modded launching is
+        // an explicit choice through the separate With Mods button.
+        greg_loader::launch::LaunchMode::Vanilla
     };
-    match vanilla_plan {
-        Some(plan) => match plan.executable {
-            Some(exe) => {
-                if let Err(e) = greg_platform::process::launch_app(&exe, &[]) {
-                    AppState::append_log(state, &format!("Launch failed: {e}"));
-                }
+    // Refuse while our own session runs.
+    if let Some(pid) = tracked_game_pid(&mut state.lock().expect("state")) {
+        let guard = state.lock().expect("state");
+        AppState::append_log(
+            state,
+            &l10n::format(&guard.lang, "Game_AlreadyRunning", &[&pid]),
+        );
+        return;
+    }
+    // Refuse while a stale game process lives (would disagree with Steam).
+    let stale = greg_loader::launch::stale_game_pids();
+    if let Some(pid) = stale.first() {
+        let guard = state.lock().expect("state");
+        AppState::append_log(
+            state,
+            &l10n::format(&guard.lang, "Game_StaleRunning", &[pid]),
+        );
+        let mut guard = state.lock().expect("state");
+        set_game_ui(&mut guard, false, None);
+        return;
+    }
+    // Detect the installation (explicit root or auto-detect).
+    let (game_root, exe) = {
+        let guard = state.lock().expect("state");
+        let root = game_root_of(&guard);
+        if root.as_os_str().is_empty() {
+            AppState::append_log(state, "Launch: game folder not found.");
+            return;
+        }
+        let registry = greg_loader::game::GameAdapterRegistry::with_defaults();
+        match registry.detect(Some(&root)) {
+            Some((adapter, installation)) => {
+                let plan = adapter.plan_launch(&installation.root_path, vec![]);
+                (installation.root_path, plan.executable)
             }
-            None => AppState::append_log(state, "Launch: game executable not found."),
-        },
-        None => {
-            if let Err(e) = greg_platform::process::open_url("steam://rungameid/4170200") {
-                AppState::append_log(state, &format!("Steam launch failed: {e}"));
+            None => {
+                AppState::append_log(state, "Launch: game installation not found.");
+                return;
             }
         }
+    };
+    let Some(exe) = exe else {
+        AppState::append_log(state, "Launch: game executable not found.");
+        return;
+    };
+    if launch_mode == greg_loader::launch::LaunchMode::Mods {
+        let melon_loader = greg_loader::installers::detect_melon_loader(&game_root);
+        if !melon_loader.installed {
+            let mut guard = state.lock().expect("state");
+            let message = l10n::get(&guard.lang, "Game_MelonLoaderMissing");
+            guard.push_log(&message);
+            guard.ui().set_game_text(message.into());
+            return;
+        }
+    }
+    // Free the Steam session first so the play session owns the app state.
+    release_steam_for_game(&mut state.lock().expect("state"));
+    match greg_loader::launch::GameSession::start(&game_root, &exe, launch_mode) {
+        Ok(session) => {
+            let pid = session.pid();
+            let mut guard = state.lock().expect("state");
+            AppState::append_log(
+                state,
+                &l10n::format(&guard.lang, "Game_Started", &[&launch_mode.label(), &pid]),
+            );
+            guard.game_session = Some(session);
+            set_game_ui(&mut guard, true, Some(pid));
+        }
+        Err(e) => {
+            AppState::append_log(state, &format!("Launch failed: {e}"));
+            let mut guard = state.lock().expect("state");
+            reconnect_steam(&mut guard);
+        }
+    }
+}
+
+/// Performs the dependency check once during manager startup.
+///
+/// Vanilla launches remain available without MelonLoader, but the result is
+/// logged immediately and the With Mods action performs the same check again
+/// immediately before launch so an installation changed while the manager was
+/// open cannot be missed.
+pub fn check_melon_loader_on_start(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    let root = game_root_of(&guard);
+    if !root.is_dir() {
+        guard.ui().set_melonloader_ok(false);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusUnknown").into());
+        guard.push_log("Startup check: game folder not found; MelonLoader check deferred.");
+        return;
+    }
+    let install = greg_loader::installers::detect_melon_loader(&root);
+    if install.installed {
+        guard.ui().set_melonloader_ok(true);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusInstalled").into());
+        guard.push_log("Startup check: MelonLoader is installed.");
+    } else {
+        guard.ui().set_melonloader_ok(false);
+        guard
+            .ui()
+            .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusMissing").into());
+        let message = l10n::get(&guard.lang, "Game_MelonLoaderMissing");
+        guard.push_log(&format!("Startup check: {message}"));
+        guard.ui().set_game_text(message.into());
+    }
+}
+
+/// Stops the tracked game session, or kills stale game processes when no
+/// session exists (the Windows zombie escape hatch). Restores a parked
+/// `Mods/` folder and reconnects Steamworks afterwards.
+pub fn stop_game(state: &Arc<std::sync::Mutex<AppState>>) {
+    if stop_tracked_session(state) {
+        return;
+    }
+    stop_stale_processes(state);
+}
+
+/// Stops the tracked session. Returns `true` when one was stopped.
+fn stop_tracked_session(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    let stopped = {
+        let mut guard = state.lock().expect("state");
+        let running = match guard.game_session.as_mut() {
+            Some(session) => session.is_running(),
+            None => false,
+        };
+        if !running {
+            false
+        } else {
+            match guard.game_session.as_mut() {
+                Some(session) => match session.stop() {
+                    Ok(_) => {
+                        AppState::append_log(state, &l10n::get(&guard.lang, "Game_Stopped"));
+                        true
+                    }
+                    Err(e) => {
+                        AppState::append_log(state, &format!("Stop failed: {e}"));
+                        false
+                    }
+                },
+                None => false,
+            }
+        }
+    };
+    if !stopped {
+        return false;
+    }
+    let mut guard = state.lock().expect("state");
+    guard.game_session = None;
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
+    true
+}
+
+/// Kills stale game processes by exe name (no live session exists).
+fn stop_stale_processes(state: &Arc<std::sync::Mutex<AppState>>) {
+    let stale = greg_loader::launch::stale_game_pids();
+    if stale.is_empty() {
+        AppState::append_log(state, "Stop: no game process running.");
+        return;
+    }
+    for pid in &stale {
+        match greg_platform::process::kill_tree(*pid) {
+            Ok(()) => {
+                AppState::append_log(state, &format!("Stop: killed stale game process {pid}."))
+            }
+            Err(e) => AppState::append_log(state, &format!("Stop failed for pid {pid}: {e}")),
+        }
+    }
+    // A stale kill may have left vanilla-disabled files: restore when idle.
+    let mut guard = state.lock().expect("state");
+    recover_parked_mods(&mut guard);
+    reconnect_steam(&mut guard);
+    set_game_ui(&mut guard, false, None);
+    local_refresh(&mut guard);
+}
+
+/// Polls the tracked session (cheap non-blocking wait). On exit the
+/// vanilla state is already unwound by the session; Steamworks reconnects
+/// and the UI flips back. Call regularly from the UI tick.
+pub fn poll_game_state(state: &mut AppState) {
+    let event = match state.game_session.as_mut() {
+        Some(session) => session.poll(),
+        None => return,
+    };
+    match event {
+        greg_loader::launch::SessionEvent::Running => {
+            let pid = state.game_session.as_ref().map(|s| s.pid()).unwrap_or(0);
+            let mode = state
+                .game_session
+                .as_ref()
+                .map(|s| s.mode().label().to_string())
+                .unwrap_or_default();
+            let text = l10n::format(&state.lang, "Game_StatusRunning", &[&mode, &pid]);
+            state.ui().set_game_text(text.into());
+        }
+        greg_loader::launch::SessionEvent::Exited { code } => {
+            let elapsed = match state.game_session.as_ref() {
+                Some(s) => format_duration(s.elapsed()),
+                None => String::new(),
+            };
+            let lang = state.lang.clone();
+            state.game_session = None;
+            reconnect_steam(state);
+            set_game_ui(state, false, None);
+            let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "?".into());
+            state.push_log(&l10n::format(&lang, "Game_Exited", &[&code_text, &elapsed]));
+            local_refresh(state);
+        }
+    }
+}
+
+/// Refreshes the game status UI for stale processes (no tracked session).
+/// Runs on the slow tick so the Stop button appears even when the game
+/// was started outside the manager (Windows zombie case).
+fn refresh_stale_game_ui(state: &mut AppState) {
+    let tracked_alive = match state.game_session.as_mut() {
+        Some(session) => session.is_running(),
+        None => false,
+    };
+    if tracked_alive {
+        return;
+    }
+    // Drop a dead session object the watchdog has not reaped yet.
+    if state.game_session.is_some() {
+        poll_game_state(state);
+        if state.game_session.is_some() {
+            return;
+        }
+    }
+    let stale = greg_loader::launch::stale_game_pids();
+    let ui = state.ui();
+    ui.set_game_running(!stale.is_empty());
+    if let Some(pid) = stale.first() {
+        ui.set_game_text(l10n::format(&state.lang, "Game_StaleRunning", &[pid]).into());
+    } else {
+        ui.set_game_text(l10n::get(&state.lang, "Game_StatusStopped").into());
+    }
+}
+
+/// True while a tracked session or any stale game process is alive.
+/// Mod changes are refused then (they would corrupt a running game).
+fn game_running(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    let mut guard = state.lock().expect("state");
+    if let Some(session) = guard.game_session.as_mut() {
+        if session.is_running() {
+            return true;
+        }
+    }
+    !greg_loader::launch::stale_game_pids().is_empty()
+}
+
+/// Logs the stop-first guard message. Returns `true` when blocked.
+fn guard_game_running(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
+    if game_running(state) {
+        let guard = state.lock().expect("state");
+        AppState::append_log(state, &l10n::get(&guard.lang, "Game_BlockedWhileRunning"));
+        return true;
+    }
+    false
+}
+/// restores a parked `Mods/` when the game is gone. A still-running game
+/// is intentionally left alive (with its vanilla parking, if any).
+pub fn finalize_game_state(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    // NLL-friendly: the session borrow ends before the log call.
+    let running_pid = match guard.game_session.as_mut() {
+        Some(session) => {
+            if session.is_running() {
+                Some(session.pid())
+            } else {
+                None
+            }
+        }
+        None => None,
+    };
+    if let Some(pid) = running_pid {
+        let msg = format!(
+            "manager exiting while the game still runs (pid {pid}) — vanilla parking restores at the next start"
+        );
+        guard.file_log.info(&msg);
+        return;
+    }
+    guard.game_session = None;
+    recover_parked_mods(&mut guard);
+}
+
+/// Restores files left disabled by a killed vanilla session.
+/// Call at startup and after stale kills. Refreshes the local listing
+/// when something was actually restored.
+pub fn recover_parked_mods(state: &mut AppState) {
+    let root = game_root_of(state);
+    if root.as_os_str().is_empty() {
+        return;
+    }
+    if greg_loader::launch::ensure_mods_restored(
+        &root,
+        greg_loader::launch::any_game_process_running(),
+    ) {
+        state.push_log("Recovered mods disabled by an unclean vanilla session.");
+        local_refresh(state);
+    }
+}
+
+/// Releases the Steamworks session so Steam stops seeing the game as
+/// running through the manager. In-flight jobs are cancelled first; the
+/// native shutdown lands when their handles drop.
+fn release_steam_for_game(state: &mut AppState) {
+    // A worker may hold its own Arc<WorkshopService>, and therefore its own
+    // steamworks::Client. Cancelling the worker is not enough: the JobHandle
+    // must be dropped so its thread is joined and the last Client can run
+    // SteamAPI_Shutdown before Steam receives the game launch request.
+    for job in [
+        state.store_job.take(),
+        state.browse_job.take(),
+        state.publish_job.take(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        job.cancel();
+        drop(job);
+    }
+
+    // Replace both service references only after background workers have
+    // stopped. This makes the ownership transition deterministic instead of
+    // relying on a later UI tick to release the Steam API session.
+    let backend: Arc<dyn greg_steam::backend::SteamBackend> = Arc::from(
+        greg_steam::backend::UnavailableBackend::new("released for game launch"),
+    );
+    state.backend = Arc::clone(&backend);
+    state.steam = Arc::new(greg_steam::service::WorkshopService::new(
+        backend,
+        state.lang.clone(),
+    ));
+    state.steam_released = true;
+    state.refresh_steam_status();
+    state.push_log("Steam session released for the game launch.");
+}
+
+/// Reconnects Steamworks after the play session via the existing
+/// `BackendReady` event flow (no-op unless a release happened).
+fn reconnect_steam(state: &mut AppState) {
+    if !state.steam_released {
+        return;
+    }
+    state.steam_released = false;
+    let tx = state.events_tx.clone();
+    std::thread::spawn(move || {
+        let backend = greg_steam::backend::connect(greg_core::models::settings::DATA_CENTER_APP_ID);
+        let _ = tx.send(UiEvent::BackendReady(Arc::from(backend)));
+    });
+    state.push_log("Reconnecting Steam...");
+}
+
+/// Tracked game pid when our own session is alive.
+fn tracked_game_pid(state: &mut AppState) -> Option<u32> {
+    let running = match state.game_session.as_mut() {
+        Some(session) => session.is_running(),
+        None => false,
+    };
+    if running {
+        state.game_session.as_ref().map(|s| s.pid())
+    } else {
+        None
+    }
+}
+
+/// Formats a play duration as `H:MM:SS`.
+fn format_duration(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    format!("{}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
+}
+
+/// Applies the game status UI (header Stop button + status text).
+fn set_game_ui(state: &mut AppState, running: bool, pid: Option<u32>) {
+    let ui = state.ui();
+    ui.set_game_running(running);
+    if running {
+        let mode = state
+            .game_session
+            .as_ref()
+            .map(|s| s.mode().label().to_string())
+            .unwrap_or_default();
+        ui.set_game_text(
+            l10n::format(
+                &state.lang,
+                "Game_StatusRunning",
+                &[&mode, &pid.unwrap_or(0)],
+            )
+            .into(),
+        );
+    } else {
+        ui.set_game_text(l10n::get(&state.lang, "Game_StatusStopped").into());
     }
 }
 
@@ -1085,58 +1494,74 @@ pub fn editor_changed(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Saves editor metadata.
 pub fn editor_save(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
-    pull_editor(&mut guard);
-    if let Some(root) = guard.editor_root.clone() {
-        match greg_platform::workspace::save_metadata(&root, &guard.editor_meta) {
+    let (root, meta) = {
+        let mut guard = state.lock().expect("state");
+        pull_editor(&mut guard);
+        (guard.editor_root.clone(), guard.editor_meta.clone())
+    };
+    // Release the lock before append_log (it locks state internally) to avoid
+    // a self-deadlock on the UI thread.
+    if let Some(root) = root {
+        match greg_platform::workspace::save_metadata(&root, &meta) {
             Ok(()) => AppState::append_log(state, &format!("Saved {}", root.display())),
             Err(e) => AppState::append_log(state, &format!("Save failed: {e}")),
         }
     }
-    run_editor_checks(&mut guard);
-    refresh_projects(&mut guard);
+    // NOTE: run_editor_checks() and refresh_projects() are intentionally NOT
+    // called here anymore. They run on the UI thread and can block for large
+    // mods (hashing every content byte, converting every README to BBCode).
+    // The editor tick re-runs checks reactively on field changes; after a
+    // publish, drain_publish() refreshes projects asynchronously.
 }
 
 /// Starts the background publish.
 pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     // Save first (separate lock scope).
     editor_save(state);
-    let mut guard = state.lock().expect("state");
-    let ui = guard.ui();
-    let Some(root) = guard.editor_root.clone() else {
-        ui.set_ed_status("No project open.".into());
-        return;
-    };
-    if guard.publish_job.is_some() {
-        ui.set_ed_status("Upload already running…".into());
-        return;
-    }
-    if !ui.get_ed_ready() {
-        // Never die silently: list the blocking checks in the status line.
-        let blocking: Vec<String> = ui
-            .get_ed_checks()
-            .iter()
-            .filter(|row| !row.ok)
-            .map(|row| format!("{} — {}", row.label, row.detail))
-            .collect();
-        ui.set_ed_status(if blocking.is_empty() {
-            "Not ready to upload.".into()
+    // Extract everything we need while holding the lock, then release it
+    // before calling append_log (which locks state internally) to avoid a
+    // self-deadlock on the UI thread — that froze the app on upload.
+    let (root, steam, manual, mut meta) = {
+        let guard = state.lock().expect("state");
+        let ui = guard.ui();
+        let Some(root) = guard.editor_root.clone() else {
+            ui.set_ed_status("No project open.".into());
+            return;
+        };
+        if guard.publish_job.is_some() {
+            ui.set_ed_status("Upload already running…".into());
+            return;
+        }
+        if !ui.get_ed_ready() {
+            // Never die silently: list the blocking checks in the status line.
+            let blocking: Vec<String> = ui
+                .get_ed_checks()
+                .iter()
+                .filter(|row| !row.ok)
+                .map(|row| format!("{} — {}", row.label, row.detail))
+                .collect();
+            ui.set_ed_status(if blocking.is_empty() {
+                "Not ready to upload.".into()
+            } else {
+                format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
+            });
+            return;
+        }
+        let manual = if guard.editor_changelog.trim().is_empty() {
+            None
         } else {
-            format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
-        });
-        return;
-    }
-    let mut meta = guard.editor_meta.clone();
-    let manual = if guard.editor_changelog.trim().is_empty() {
-        None
-    } else {
-        Some(guard.editor_changelog.clone())
+            Some(guard.editor_changelog.clone())
+        };
+        let steam = Arc::clone(&guard.steam);
+        let meta = guard.editor_meta.clone();
+        (root, steam, manual, meta)
     };
-    let steam = Arc::clone(&guard.steam);
+    // Safe: no state lock held here — append_log locks state itself.
+    AppState::append_log(state, &format!("Upload started: {}", root.display()));
+    let mut guard = state.lock().expect("state");
     guard.ui().set_ed_publishing(true);
     guard.ui().set_ed_progress(0.0);
     guard.ui().set_ed_status("Uploading…".into());
-    AppState::append_log(state, &format!("Upload started: {}", root.display()));
     let job = JobHandle::spawn(move |sink| {
         let outcome = steam.publish(
             &root,
@@ -1182,6 +1607,152 @@ pub fn editor_cancel_publish(state: &Arc<std::sync::Mutex<AppState>>) {
     if let Some(job) = guard.publish_job.as_ref() {
         job.cancel();
     }
+}
+
+/// Starts a Modstore publish of the open project (presigned upload +
+/// submit, shared flow with the CLI). Reuses the publish job slot,
+/// progress bar and log; the outcome names mod, release and scan status.
+pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
+    use greg_modstore::publish::{PublishMetadata, PublishPayload, PublishPlan};
+    use greg_modstore::upload_client::ModStoreUploadClient;
+
+    editor_save(state);
+    let mut guard = state.lock().expect("state");
+    let ui = guard.ui();
+    let Some(root) = guard.editor_root.clone() else {
+        ui.set_ed_status("No project open.".into());
+        return;
+    };
+    if guard.publish_job.is_some() {
+        ui.set_ed_status("Upload already running…".into());
+        return;
+    }
+    if !ui.get_ed_ready() {
+        let blocking: Vec<String> = ui
+            .get_ed_checks()
+            .iter()
+            .filter(|row| !row.ok)
+            .map(|row| format!("{} — {}", row.label, row.detail))
+            .collect();
+        ui.set_ed_status(if blocking.is_empty() {
+            "Not ready to upload.".into()
+        } else {
+            format!("Fix errors before uploading: {}", blocking.join(" · ")).into()
+        });
+        return;
+    }
+    let Some(token) = guard
+        .session
+        .as_ref()
+        .map(|s| s.access_token.clone())
+        .filter(|t| !t.trim().is_empty())
+    else {
+        ui.set_ed_status("Login required — connect the Modstore first.".into());
+        return;
+    };
+    let meta = guard.editor_meta.clone();
+    let manual = guard.editor_changelog.clone();
+    let urls = store_base_urls(&guard);
+    let rt = guard.runtime.handle().clone();
+    guard.ui().set_ed_publishing(true);
+    guard.ui().set_ed_progress(0.0);
+    guard
+        .ui()
+        .set_ed_status("Packaging for the Modstore…".into());
+    AppState::append_log(
+        state,
+        &format!("Modstore upload started: {}", root.display()),
+    );
+    let job = JobHandle::spawn(move |sink| {
+        let content = root.join("content");
+        let folder = root.file_name().and_then(|n| n.to_str()).unwrap_or("mod");
+        let payload = PublishPayload::Directory {
+            dir: content,
+            file_name: format!("{folder}.zip"),
+        };
+        let description =
+            greg_core::docs::project_docs::resolve_modstore_description(&root, &meta.description)
+                .text;
+        let changelog =
+            greg_core::docs::project_docs::resolve_modstore_changelog(&root, &meta.version, {
+                let manual = manual.trim();
+                (!manual.is_empty()).then_some(manual)
+            })
+            .text;
+        let plan = match PublishPlan::from_project(
+            &payload,
+            &PublishMetadata {
+                mod_id: (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()),
+                title: meta.title.clone(),
+                version: meta.version.clone(),
+                description,
+                changelog,
+                category: {
+                    let profile = meta.native_config_profile.trim();
+                    (!profile.is_empty()).then(|| profile.to_string())
+                },
+                license: None,
+                tags: meta.tags.clone(),
+                installation: None,
+                support_url: None,
+                min_game_version: None,
+                recommended_game_version: None,
+            },
+        ) {
+            Ok(plan) => plan,
+            Err(e) => {
+                return crate::worker::JobOutcome {
+                    success: false,
+                    message: format!("Packaging failed: {e}"),
+                }
+            }
+        };
+        let client = match ModStoreUploadClient::new(urls).map(|c| c.with_token(token)) {
+            Ok(client) => client,
+            Err(e) => {
+                return crate::worker::JobOutcome {
+                    success: false,
+                    message: e.to_string(),
+                }
+            }
+        };
+        let progress_sink = sink.clone();
+        let outcome = rt.block_on(plan.execute(&client, &|p| {
+            progress_sink.progress(f32::from(p) / 100.0);
+            progress_sink.status(format!("Modstore upload {p}%"));
+        }));
+        match outcome {
+            Ok(response) => {
+                if !response.mod_id.trim().is_empty() {
+                    let mut saved = meta.clone();
+                    saved.modstore_id = response.mod_id.clone();
+                    let _ = greg_platform::workspace::save_metadata(&root, &saved);
+                }
+                greg_platform::filelog::FileLog::shared().info(&format!(
+                    "Modstore upload finished: {} -> mod {} release {}",
+                    root.display(),
+                    response.mod_id,
+                    response.release_id
+                ));
+                crate::worker::JobOutcome {
+                    success: true,
+                    message: format!(
+                        "Modstore: mod {} · release {} · scan {}",
+                        response.mod_id, response.release_id, response.scan_status
+                    ),
+                }
+            }
+            Err(e) => {
+                greg_platform::filelog::FileLog::shared()
+                    .info(&format!("Modstore upload failed: {}: {e}", root.display()));
+                crate::worker::JobOutcome {
+                    success: false,
+                    message: format!("Modstore upload failed: {e}"),
+                }
+            }
+        }
+    });
+    guard.publish_job = Some(job);
 }
 
 fn drain_publish(state: &mut AppState) {
@@ -1230,8 +1801,11 @@ fn drain_publish(state: &mut AppState) {
             state.editor_dep_ids = state.editor_meta.workshop_dependency_ids.clone();
             push_editor(state);
         }
+        // NOTE: run_editor_checks() is intentionally NOT called here. It runs
+        // synchronously on the UI thread (hashes every content byte, converts
+        // every README to BBCode) and blocks the UI for large mods. Checks are
+        // re-run reactively via editor_changed() on the next UI tick anyway.
         refresh_projects(state);
-        run_editor_checks(state);
     }
 }
 
@@ -1497,7 +2071,7 @@ fn drain_browse(state: &mut AppState) {
                 state.ui().set_br_d_title(detail.title.into());
                 state.ui().set_br_d_meta(
                     format!(
-                        "by {} · ★ {:.1} · {} bytes",
+                        "by {} · {:.1} / 5 · {} bytes",
                         detail.owner_name, detail.score, detail.size_bytes
                     )
                     .into(),
@@ -1539,7 +2113,7 @@ fn drain_browse(state: &mut AppState) {
                     .map(|i| BrowseRow {
                         id: i.published_file_id.to_string().into(),
                         title: i.title.into(),
-                        score: format!("★ {:.1}", i.score).into(),
+                        score: format!("{:.1} / 5", i.score).into(),
                         thumb: slint::Image::default(),
                     })
                     .collect();
@@ -1879,7 +2453,10 @@ pub fn local_refresh(state: &mut AppState) {
         state.local_entries.clear();
         state
             .ui()
-            .set_local_rows(model_of_rows(Vec::<LocalRow>::new()));
+            .set_local_active_rows(model_of_rows(Vec::<LocalRow>::new()));
+        state
+            .ui()
+            .set_local_inactive_rows(model_of_rows(Vec::<LocalRow>::new()));
         state
             .ui()
             .set_local_status("Game folder not found — set the game root in Settings.".into());
@@ -1887,26 +2464,36 @@ pub fn local_refresh(state: &mut AppState) {
     }
     let entries = greg_loader::local_content::scan(&root, kind);
     let q = state.ui().get_local_search().to_string().to_lowercase();
-    let rows: Vec<LocalRow> = entries
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| q.is_empty() || e.name.to_lowercase().contains(&q))
-        .map(|(i, e)| LocalRow {
+    let mut active: Vec<LocalRow> = Vec::new();
+    let mut inactive: Vec<LocalRow> = Vec::new();
+    for (i, e) in entries.iter().enumerate() {
+        if !q.is_empty() && !e.name.to_lowercase().contains(&q) {
+            continue;
+        }
+        let row = LocalRow {
             name: e.name.clone().into(),
             detail: e.detail.clone().into(),
             enabled: e.enabled,
             index: i as i32,
             thumb: thumb_of(greg_loader::local_content::sibling_preview(&e.path).as_deref()),
-        })
-        .collect();
+        };
+        if e.enabled {
+            active.push(row);
+        } else {
+            inactive.push(row);
+        }
+    }
+    let (n_active, n_inactive) = (active.len(), inactive.len());
     // NOTE: row indices address the full cache; toggle/remove resolve
     // through `local_filtered`, so both stay consistent.
     state.local_entries = entries;
-    state.ui().set_local_rows(model_of_rows(rows));
+    state.ui().set_local_active_rows(model_of_rows(active));
+    state.ui().set_local_inactive_rows(model_of_rows(inactive));
     state.ui().set_local_status(
         format!(
-            "{} entries in {}",
-            state.local_entries.len(),
+            "{} active, {} disabled in {}",
+            n_active,
+            n_inactive,
             root.display()
         )
         .into(),
@@ -1952,6 +2539,9 @@ fn local_filtered(state: &AppState) -> Vec<usize> {
 
 /// Toggles an entry by list index.
 pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let entry = {
         let guard = state.lock().expect("state");
         let filtered = local_filtered(&guard);
@@ -1979,6 +2569,9 @@ pub fn local_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
 
 /// Opens the confirm dialog for a removal.
 pub fn local_remove(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let mut guard = state.lock().expect("state");
     let filtered = local_filtered(&guard);
     let entry = filtered
@@ -2014,6 +2607,12 @@ pub fn local_open_folder(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Confirm dialog: delete the pending file.
 pub fn confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
+    if guard_game_running(state) {
+        let mut guard = state.lock().expect("state");
+        guard.ui().set_show_confirm(false);
+        guard.pending_remove = None;
+        return;
+    }
     let pending = {
         let mut guard = state.lock().expect("state");
         guard.ui().set_show_confirm(false);
@@ -2077,6 +2676,443 @@ pub fn bug_open_org(state: &Arc<std::sync::Mutex<AppState>>) {
 pub fn bug_close(state: &Arc<std::sync::Mutex<AppState>>) {
     let guard = state.lock().expect("state");
     guard.ui().set_show_bug_dialog(false);
+}
+
+// ---------------------------------------------------------------------------
+// Universal Report Assistant (central "Report" page).
+// ---------------------------------------------------------------------------
+
+/// Opens the Report Assistant page and resets the draft.
+pub fn report_open(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.ui().set_current_page("report".into());
+    guard.ui().set_rp_title(String::new().into());
+    guard.ui().set_rp_category_index(0);
+    guard.ui().set_rp_description(String::new().into());
+    guard.ui().set_rp_steps(String::new().into());
+    guard.ui().set_rp_expected(String::new().into());
+    guard.ui().set_rp_actual(String::new().into());
+    guard.ui().set_rp_logs(String::new().into());
+    guard.ui().set_rp_environment(String::new().into());
+    guard.ui().set_rp_preview(String::new().into());
+    guard.ui().set_rp_status(String::new().into());
+    guard.ui().set_rp_submission(String::new().into());
+    guard.ui().set_rp_attachments(model_of_strings(&[]));
+    guard.ui().set_rp_submit_confirm(false);
+    guard.ui().set_rp_submit_mode(String::new().into());
+    let labels = [
+        "Bug",
+        "Crash",
+        "Feature",
+        "Improvement",
+        "Performance",
+        "Compatibility",
+        "UI/UX",
+        "Documentation",
+        "Installation",
+        "Configuration",
+        "Security",
+        "Other",
+    ];
+    guard.ui().set_rp_categories(model_of_strings(
+        &labels.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+    ));
+}
+
+/// Builds the assistant draft from the current UI state and validates it.
+///
+/// The draft is stamped with the shared report schema version and source
+/// product; the transmission mode is resolved by the caller (operator service
+/// when a Modstore session is active, local export otherwise).
+fn report_draft(
+    ui: &crate::MainWindow,
+) -> (
+    greg_core::report::ReportData,
+    Vec<greg_core::report::ReportValidationIssue>,
+) {
+    let category = greg_core::report::ReportCategory::all()
+        .get(ui.get_rp_category_index().max(0) as usize)
+        .map(|c| c.as_str().to_string())
+        .unwrap_or_else(|| "other".to_string());
+    let mut draft = greg_core::report::ReportData::new(
+        greg_core::report::SOURCE_MODMANAGER,
+        greg_core::report::MODE_LOCAL_EXPORT,
+    );
+    draft.title = ui.get_rp_title().to_string();
+    draft.category = category;
+    draft.description = ui.get_rp_description().to_string();
+    draft.steps_to_reproduce = ui.get_rp_steps().to_string();
+    draft.expected_behavior = ui.get_rp_expected().to_string();
+    draft.actual_behavior = ui.get_rp_actual().to_string();
+    draft.logs = ui.get_rp_logs().to_string();
+    {
+        let model = ui.get_rp_attachments();
+        let Some(view) = model.as_any().downcast_ref::<VecModel<SharedString>>() else {
+            return (draft, Vec::new());
+        };
+        for i in 0..view.row_count() {
+            if let Some(s) = view.row_data(i) {
+                draft.attachments.push(s.to_string());
+            }
+        }
+    }
+    let mut environment = ui.get_rp_environment().to_string();
+    if environment.trim().is_empty() {
+        // Auto-collect version + OS context instead of guessing.
+        environment = greg_core::report::ReportEnvironment {
+            os: os_display_name(),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            game: String::new(),
+            loader: String::new(),
+        }
+        .describe();
+    }
+    draft.environment = environment;
+    let issues = greg_core::report::validate(&draft);
+    (draft, issues)
+}
+
+/// Human-readable OS name for the auto-collected report environment.
+fn os_display_name() -> String {
+    let raw = std::env::consts::OS;
+    let mut chars = raw.chars();
+    let first = chars
+        .next()
+        .map(|c| c.to_ascii_uppercase())
+        .unwrap_or_default();
+    let rest: String = chars.collect();
+    format!("{first}{rest}")
+}
+
+/// Collects buffered application log lines into the report draft.
+///
+/// Snapshots the bounded UI log buffer, sanitizes the joined lines
+/// (redaction + size cap) and fills the report logs field; the Markdown
+/// preview is refreshed afterwards so the collected evidence is visible
+/// immediately. No log content is ever persisted or transmitted here.
+pub fn report_collect_logs(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (logs, collected) = {
+        let guard = state.lock().expect("state");
+        let lines = guard.log_snapshot();
+        let logs = lines.join("\n");
+        (greg_core::report::sanitize(&logs), lines.len())
+    };
+    {
+        let guard = state.lock().expect("state");
+        guard.ui().set_rp_logs(logs.clone().into());
+        if collected == 0 {
+            guard
+                .ui()
+                .set_rp_status("No log entries were collected yet. Add or attach log output manually.".into());
+        }
+    }
+    report_generate(state);
+}
+
+/// Pulls the assistant draft from the UI, validates it and fills the
+/// Markdown preview. The generated body is sanitized (redaction + size cap)
+/// before it reaches the preview.
+pub fn report_generate(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    let (mut draft, issues) = report_draft(ui);
+    draft.set_transmission_mode(if guard.session.is_some() {
+        greg_core::report::ReportTransmissionMode::OperatorService
+    } else {
+        greg_core::report::ReportTransmissionMode::LocalExport
+    });
+    if issues.iter().any(|i| i.is_error()) {
+        let summary = issues
+            .iter()
+            .map(|i| format!("{}: {}", i.field, i.message))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        ui.set_rp_status(format!("Validation: {summary}").into());
+        return;
+    }
+    ui.set_rp_preview(greg_core::report::generate_markdown(&draft).into());
+    ui.set_rp_status(String::new().into());
+}
+
+/// Discards the assistant draft and resets the page.
+pub fn report_cancel(state: &Arc<std::sync::Mutex<AppState>>) {
+    report_open(state);
+}
+
+/// Exports the generated Markdown report body to a user-chosen local file.
+///
+/// Local export is always available (offline / no backend channel); the written
+/// content is sanitized before it leaves the process.
+pub fn report_export(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (draft, issues) = {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        let (draft, issues) = report_draft(ui);
+        (draft, issues)
+    };
+    if issues.iter().any(|i| i.is_error()) {
+        let summary = issues
+            .iter()
+            .map(|i| format!("{}: {}", i.field, i.message))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_status(format!("Validation: {summary}").into());
+        return;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let Some(path) = rfd::FileDialog::new()
+        .set_file_name(format!("gregmodmanager-report-{stamp}.md"))
+        .save_file()
+    else {
+        return;
+    };
+    if let Err(e) = greg_core::report::export_markdown(&draft, &path) {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_status(format!("Export failed: {e}").into());
+        return;
+    }
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_status(format!("Report exported to {}", path.display()).into());
+    AppState::append_log(state, &format!("Report exported to {}", path.display()));
+}
+
+/// Opens the submission confirmation step for the current draft.
+pub fn report_submit(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_submit_confirm(true);
+    let mode = if guard.session.is_some() {
+        "operator service"
+    } else {
+        "local export"
+    };
+    ui.set_rp_submit_mode(mode.into());
+    ui.set_rp_status("Review the generated report before submitting.".into());
+}
+
+/// Closes the submission confirmation without submitting.
+pub fn report_confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.ui().set_rp_submit_confirm(false);
+}
+
+/// GitHub issue submission configuration.
+///
+/// Sourced exclusively from environment variables: `GREG_GITHUB_TOKEN`,
+/// `GREG_GITHUB_ISSUE_TARGET_REPO` and `GREG_GITHUB_API_URL`.
+///
+/// Returns `None` when the credentials are not configured — the local export
+/// delivery then remains the supported fallback.
+fn github_submit_config() -> Option<(String, String, String)> {
+    let token = std::env::var("GREG_GITHUB_TOKEN").ok()?.trim().to_string();
+    let repo = std::env::var("GREG_GITHUB_ISSUE_TARGET_REPO")
+        .ok()?
+        .trim()
+        .to_string();
+    if token.is_empty() || repo.is_empty() {
+        return None;
+    }
+    // Guard against malformed / path-traversing repository identifiers.
+    let parts: Vec<&str> = repo.split('/').collect();
+    if parts.len() != 2
+        || parts
+            .iter()
+            .any(|p| p.trim().is_empty() || *p == ".." || *p == ".")
+    {
+        return None;
+    }
+    let api = std::env::var("GREG_GITHUB_API_URL")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .unwrap_or_else(|| "https://api.github.com".to_string());
+    Some((token, repo, api))
+}
+
+/// Creates a GitHub issue from the sanitized report markdown.
+///
+/// Uses the canonical GitHub Issues REST endpoint. The body is already
+/// sanitized (redaction + size cap) via `generate_markdown`.
+async fn github_create_issue(
+    token: String,
+    repo: String,
+    api_base: String,
+    draft: greg_core::report::ReportData,
+    markdown: String,
+) -> (bool, String, Option<String>) {
+    let url = format!("{api_base}/repos/{repo}/issues");
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({ "title": draft.title, "body": markdown });
+    match client
+        .post(&url)
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            let created: serde_json::Value = resp.json().await.unwrap_or(serde_json::json!({}));
+            let issue_url = created
+                .get("html_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (true, "Issue created.".to_string(), issue_url)
+        }
+        Ok(resp) => (
+            false,
+            format!("GitHub API error: status {}", resp.status()),
+            None,
+        ),
+        Err(_e) => (false, "GitHub API unreachable.".to_string(), None),
+    }
+}
+
+/// Confirms the submission and executes the delivery for the current draft.
+///
+/// Delivery modes implemented today:
+/// - `local_export`: the user picks a save location; the sanitized Markdown
+///   issue body is written locally (local fallback / offline support).
+/// - `user_direct` / `operator_service`: the corresponding backend channel is
+///   not wired in this build yet — the user gets an explanatory status and can
+///   still export the report locally. No unverified success is ever claimed.
+///
+/// When GitHub submission credentials are configured via the environment
+/// (`GREG_GITHUB_TOKEN` + `GREG_GITHUB_ISSUE_TARGET_REPO`), the report is
+/// delivered as a GitHub issue through the GitHub Issues API instead.
+pub fn report_confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (draft, issues) = {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        let (draft, issues) = report_draft(ui);
+        (draft, issues)
+    };
+    {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        if issues.iter().any(|i| i.is_error()) {
+            let summary = issues
+                .iter()
+                .map(|i| format!("{}: {}", i.field, i.message))
+                .collect::<Vec<_>>()
+                .join(" · ");
+            ui.set_rp_status(format!("Validation: {summary}").into());
+            ui.set_rp_submit_confirm(false);
+            return;
+        }
+        ui.set_rp_submission("in_progress".into());
+        ui.set_rp_status("Submitting…".into());
+    }
+    // GitHub delivery (env-gated): user_direct-style issue creation via the
+    // GitHub Issues API using an environment-provided credential.
+    if let Some((token, repo, api_base)) = github_submit_config() {
+        let markdown = greg_core::report::generate_markdown(&draft);
+        let (tx, rt) = {
+            let guard = state.lock().expect("state");
+            (guard.events_tx.clone(), guard.runtime.handle().clone())
+        };
+        rt.spawn(async move {
+            let (success, message, issue_url) =
+                github_create_issue(token, repo, api_base, draft, markdown).await;
+            let _ = tx.send(UiEvent::ReportSubmissionDone {
+                success,
+                message,
+                issue_url,
+            });
+        });
+        return;
+    }
+    let mode = draft.effective_transmission_mode();
+    if mode != greg_core::report::ReportTransmissionMode::LocalExport {
+        // User-direct / operator-service channels are not wired in this build
+        // yet — never pretend a delivery succeeded; keep the draft local.
+        let mode_label = mode.as_str().to_string();
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_status(
+            format!(
+                "Submission via {mode_label} is not available in this build yet. \
+             The report stays local — use local export to save it."
+            )
+            .into(),
+        );
+        ui.set_rp_submission("draft".into());
+        return;
+    }
+    // Local fallback delivery: user-chosen save location.
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let Some(path) = rfd::FileDialog::new()
+        .set_file_name(format!("gregmodmanager-report-{stamp}.md"))
+        .save_file()
+    else {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_submission("cancelled".into());
+        ui.set_rp_status("Submission cancelled.".into());
+        return;
+    };
+    if let Err(e) = greg_core::report::export_markdown(&draft, &path) {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_submission("failed".into());
+        ui.set_rp_status(format!("Local export failed: {e}").into());
+        return;
+    }
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_submit_confirm(false);
+    ui.set_rp_submission("submitted".into());
+    ui.set_rp_status(format!("Report saved locally: {}", path.display()).into());
+    AppState::append_log(state, &format!("Report exported to {}", path.display()));
+}
+
+/// Adds a user-selected attachment file name to the draft.
+pub fn report_attach(state: &Arc<std::sync::Mutex<AppState>>) {
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter(
+            "Report attachments",
+            &[
+                "log", "txt", "md", "json", "cfg", "ini", "png", "jpg", "jpeg", "gif", "pdf",
+            ],
+        )
+        .pick_file()
+    else {
+        return;
+    };
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("attachment")
+        .to_string();
+    let guard = state.lock().expect("state");
+    let mut names: Vec<String> = Vec::new();
+    {
+        let model = guard.ui().get_rp_attachments();
+        let Some(view) = model.as_any().downcast_ref::<VecModel<SharedString>>() else {
+            return;
+        };
+        for i in 0..view.row_count() {
+            if let Some(s) = view.row_data(i) {
+                names.push(s.to_string());
+            }
+        }
+    }
+    if names.iter().any(|n| n == &name) {
+        return;
+    }
+    names.push(name);
+    guard.ui().set_rp_attachments(model_of_strings(&names));
 }
 
 fn percent_encode_bug(value: &str) -> String {
@@ -2147,6 +3183,48 @@ pub fn refresh_problems(state: &Arc<std::sync::Mutex<AppState>>) {
         });
     }
 
+    // Tracked game session.
+    {
+        let mut guard = state.lock().expect("state");
+        if let Some(session) = guard.game_session.as_mut() {
+            if session.is_running() {
+                let pid = session.pid();
+                let mode = session.mode().label().to_string();
+                problems.push(Problem {
+                    severity: "info",
+                    source: "Game".into(),
+                    message: l10n::format(&guard.lang, "Game_StatusRunning", &[&mode, &pid]),
+                    action: Some(("stop-game".into(), String::new(), "Stop game".into())),
+                });
+            }
+        }
+    }
+    // Stale game processes (started outside the manager, Windows zombies).
+    if state.lock().expect("state").game_session.is_none() {
+        let stale = greg_loader::launch::stale_game_pids();
+        if let Some(pid) = stale.first() {
+            let guard = state.lock().expect("state");
+            problems.push(Problem {
+                severity: "warning",
+                source: "Game".into(),
+                message: l10n::format(&guard.lang, "Game_StaleRunning", &[pid]),
+                action: Some(("stop-game".into(), String::new(), "Stop game".into())),
+            });
+        }
+    }
+    // Mods disabled by an unclean vanilla session.
+    if game_root.is_dir()
+        && greg_loader::launch::mods_state(&game_root)
+            == greg_loader::launch::ModsState::DisabledByManager
+        && !greg_loader::launch::any_game_process_running()
+    {
+        problems.push(Problem {
+            severity: "warning",
+            source: "Game".into(),
+            message: "Mods are disabled for vanilla mode — restore them to play with mods.".into(),
+            action: Some(("restore-mods".into(), String::new(), "Restore mods".into())),
+        });
+    }
     // Health checks (only with a game root; without one the game error above covers it).
     if game_root.is_dir() {
         let service = greg_loader::health::ModDependencyService::new(Some(game_root.clone()));
@@ -2266,6 +3344,14 @@ pub fn problems_act(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
     match action.0.as_str() {
         "settings" => on_icon(state, crate::state::ICON_SETTINGS),
         "editor" if !action.1.is_empty() => open_project(state, &action.1),
+        "stop-game" => stop_game(state),
+        "restore-mods" => {
+            {
+                let mut guard = state.lock().expect("state");
+                recover_parked_mods(&mut guard);
+            }
+            refresh_problems(state);
+        }
         _ => {}
     }
 }
@@ -2610,6 +3696,9 @@ type WorkshopLink<'a> = Option<&'a dyn Fn(u64) -> std::result::Result<(), String
 /// Applies the selected pack (local enable/disable + Workshop subscribe).
 /// The index argument mirrors the UI callback; selection is authoritative.
 pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
+    if guard_game_running(state) {
+        return;
+    }
     let (pack, game_root, steam) = {
         let guard = state.lock().expect("state");
         let Some(id) = guard.selected_pack.clone() else {
@@ -2724,9 +3813,12 @@ pub fn settings_apply_workspace(state: &Arc<std::sync::Mutex<AppState>>) {
 
 /// Applies the game-root override.
 pub fn settings_apply_gameroot(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
-    let value = guard.ui().get_se_gameroot().to_string();
-    guard.prefs.set_string("GameRootPath", value.trim());
+    {
+        let mut guard = state.lock().expect("state");
+        let value = guard.ui().get_se_gameroot().to_string();
+        guard.prefs.set_string("GameRootPath", value.trim());
+    }
+    check_melon_loader_on_start(state);
 }
 
 /// Applies the Modstore URL override.

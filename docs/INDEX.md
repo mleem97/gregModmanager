@@ -17,11 +17,11 @@
 
 | Topic | Source |
 | --- | --- |
-| application version and runtime | `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` |
-| pinned SDK | `global.json` |
+| application version and runtime | `VERSION` + workspace `Cargo.toml` |
+| Rust toolchain | rustup (stable) |
 | CI release outputs | `.forgejo/workflows/build-and-release.yml` |
-| local release orchestration | `build/scripts/build.ps1` |
-| Linux package formats | `build/scripts/linux/build-avalonia-packages.sh` |
+| local release orchestration | `xtask dist` (via `scripts/build-release.sh`) |
+| Linux package formats | `build/scripts/linux/build-rust-packages.sh` |
 | Windows installers | `build/installer/` |
 
 ## Limits and terminology

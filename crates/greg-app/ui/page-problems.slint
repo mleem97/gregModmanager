@@ -1,5 +1,7 @@
-import { Button } from "std-widgets.slint";
-import { Palette, SectionTitle } from "theme.slint";
+import { ScrollView } from "std-widgets.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, GregButton, ListCard } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { ProblemRow } from "models.slint";
 
 // Problems inbox: aggregated diagnostics (game root, Steam, GregApi,
@@ -19,8 +21,10 @@ export component ProblemsPage inherits VerticalLayout {
 
     HorizontalLayout {
         spacing: 8px;
-        Button {
+        GregButton {
             text: "Re-check";
+            has-icon: true;
+            icon: IconSet.RefreshCw;
             clicked => { root.refresh(); }
         }
     }
@@ -30,27 +34,26 @@ export component ProblemsPage inherits VerticalLayout {
         color: Palette.on-variant;
     }
 
-    Rectangle {
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
-        Flickable {
+    ListCard {
+        vertical-stretch: 1;
+        min-height: 96px;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
             VerticalLayout {
                 padding: 6px;
                 spacing: 4px;
                 for row in root.rows: Rectangle {
                     background: Palette.container;
-                    border-radius: Palette.radius;
+                    border-radius: Palette.radius-lg;
                     HorizontalLayout {
                         padding: 8px;
                         spacing: 10px;
-                        Text {
-                            text: row.severity == "error" ? "✗" : (row.severity == "warning" ? "!" : "i");
-                            font-size: 14px;
-                            font-weight: 700;
-                            color: row.severity == "error" ? Palette.error : (row.severity == "warning" ? #E8B93E : Palette.primary);
-                            vertical-alignment: center;
+                        AppIcon {
+                            icon: row.severity == "error" ? IconSet.CircleX : (row.severity == "warning" ? IconSet.TriangleAlert : IconSet.Info);
+                            size: 18px;
+                            stroke: row.severity == "error" ? Palette.error : (row.severity == "warning" ? #E8B93E : Palette.primary);
+                            y: (parent.height - self.height) / 2;
                         }
                         VerticalLayout {
                             horizontal-stretch: 1;
@@ -68,8 +71,10 @@ export component ProblemsPage inherits VerticalLayout {
                                 wrap: word-wrap;
                             }
                         }
-                        if row.has-action: Button {
+                        if row.has-action: GregButton {
                             text: row.action-label;
+                            has-icon: true;
+                            icon: IconSet.ArrowRight;
                             clicked => { root.act(row.index); }
                         }
                     }

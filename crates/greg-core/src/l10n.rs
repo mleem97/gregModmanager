@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn table_is_complete() {
-        assert_eq!(key_count(), 352);
+        assert_eq!(key_count(), 360);
         assert_eq!(get("en", "Editor_Description"), "Description");
         assert_eq!(get("de", "Editor_Description"), "Beschreibung");
         // Unknown cultures fall back to English.

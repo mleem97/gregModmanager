@@ -1,5 +1,7 @@
-import { LineEdit, TextEdit, ComboBox, CheckBox, Button, ProgressIndicator } from "std-widgets.slint";
-import { Palette, SectionTitle, FieldRow } from "theme.slint";
+import { LineEdit, TextEdit, ComboBox, CheckBox, ProgressIndicator } from "std-widgets.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, FieldRow, GregButton, ListCard } from "theme.slint";
+import { AppIcon } from "icons.slint";
 import { CheckRow } from "models.slint";
 
 export component EditorPage inherits VerticalLayout {
@@ -37,6 +39,7 @@ export component EditorPage inherits VerticalLayout {
     callback changed();
     callback save();
     callback publish();
+    callback publish-modstore();
     callback cancel-publish();
     callback pick-preview();
     callback add-shot();
@@ -83,8 +86,10 @@ export component EditorPage inherits VerticalLayout {
                     vertical-alignment: center;
                     horizontal-stretch: 1;
                 }
-                if root.fileid-text != "": Button {
+                if root.fileid-text != "": GregButton {
                     text: "View on Steam";
+                    has-icon: true;
+                    icon: IconSet.ExternalLink;
                     clicked => { root.view-on-steam(); }
                 }
             }
@@ -173,8 +178,11 @@ export component EditorPage inherits VerticalLayout {
                     horizontal-stretch: 1;
                     vertical-alignment: center;
                 }
-                Button {
+                GregButton {
                     text: "Remove";
+                    has-icon: true;
+                    icon: IconSet.Trash2;
+                    variant: "danger";
                     clicked => { root.dep-remove(idx); }
                 }
             }
@@ -185,20 +193,17 @@ export component EditorPage inherits VerticalLayout {
                     placeholder-text: "Workshop ID…";
                     horizontal-stretch: 1;
                 }
-                Button {
+                GregButton {
                     text: "Add by ID";
+                    has-icon: true;
+                    icon: IconSet.ListPlus;
                     clicked => { root.dep-add(); }
                 }
             }
 
             SectionTitle { text: "ASSETS"; }
-            Rectangle {
+            ListCard {
                 height: 120px;
-                background: Palette.container-low;
-                border-radius: Palette.radius;
-                border-width: 1px;
-                border-color: Palette.outline;
-                clip: true;
                 Image {
                     source: root.preview-image;
                     width: 100%;
@@ -222,8 +227,10 @@ export component EditorPage inherits VerticalLayout {
                     vertical-alignment: center;
                     overflow: elide;
                 }
-                Button {
+                GregButton {
                     text: "Pick preview";
+                    has-icon: true;
+                    icon: IconSet.ImagePlus;
                     clicked => { root.pick-preview(); }
                 }
             }
@@ -235,8 +242,10 @@ export component EditorPage inherits VerticalLayout {
                     color: Palette.on-variant;
                     vertical-alignment: center;
                 }
-                Button {
+                GregButton {
                     text: "Add screenshot";
+                    has-icon: true;
+                    icon: IconSet.ImagePlus;
                     clicked => { root.add-shot(); }
                 }
             }
@@ -250,8 +259,11 @@ export component EditorPage inherits VerticalLayout {
                     vertical-alignment: center;
                     overflow: elide;
                 }
-                Button {
+                GregButton {
                     text: "Remove";
+                    has-icon: true;
+                    icon: IconSet.Trash2;
+                    variant: "danger";
                     clicked => { root.remove-shot(idx); }
                 }
             }
@@ -278,11 +290,19 @@ export component EditorPage inherits VerticalLayout {
             }
             for check in root.checks: VerticalLayout {
                 spacing: 0px;
-                Text {
-                    text: (check.ok ? "✓ " : "✗ ") + check.label;
-                    font-size: 12px;
-                    font-weight: 700;
-                    color: check.ok ? Palette.secondary : Palette.error;
+                HorizontalLayout {
+                    spacing: 6px;
+                    AppIcon {
+                        icon: check.ok ? IconSet.CircleCheck : IconSet.CircleX;
+                        size: 14px;
+                        stroke: check.ok ? Palette.secondary : Palette.error;
+                    }
+                    Text {
+                        text: check.label;
+                        font-size: 12px;
+                        font-weight: 700;
+                        color: check.ok ? Palette.secondary : Palette.error;
+                    }
                 }
                 Text {
                     text: check.detail;
@@ -295,17 +315,31 @@ export component EditorPage inherits VerticalLayout {
             HorizontalLayout {
                 spacing: 8px;
                 alignment: end;
-                Button {
+                GregButton {
                     text: "Save";
+                    has-icon: true;
+                    icon: IconSet.Save;
                     clicked => { root.save(); }
                 }
-                Button {
+                GregButton {
                     text: "Save & Upload";
+                    has-icon: true;
+                    icon: IconSet.CloudUpload;
+                    variant: "primary";
                     enabled: !root.publishing;
                     clicked => { root.publish(); }
                 }
-                if root.publishing: Button {
+                GregButton {
+                    text: "Modstore Upload";
+                    has-icon: true;
+                    icon: IconSet.ShoppingBag;
+                    enabled: !root.publishing;
+                    clicked => { root.publish-modstore(); }
+                }
+                if root.publishing: GregButton {
                     text: "Cancel";
+                    has-icon: true;
+                    icon: IconSet.Ban;
                     clicked => { root.cancel-publish(); }
                 }
             }
@@ -320,10 +354,8 @@ export component EditorPage inherits VerticalLayout {
                     font-size: 11px;
                     color: Palette.on-variant;
                 }
-                Rectangle {
+                ListCard {
                     height: 110px;
-                    background: Palette.container-low;
-                    border-radius: Palette.radius;
                     Flickable {
                         VerticalLayout {
                             padding: 6px;

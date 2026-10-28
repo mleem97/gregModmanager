@@ -36,6 +36,15 @@ pub enum UiEvent {
     AuthSessionEstablished(ActiveSession),
     /// OAuth browser flow failed (message for the log).
     AuthSessionFailed(String),
+    /// Report submission finished (background GitHub delivery task).
+    ReportSubmissionDone {
+        /// Whether the issue was created.
+        success: bool,
+        /// Human-readable outcome (no secret content).
+        message: String,
+        /// External issue URL when creation succeeded.
+        issue_url: Option<String>,
+    },
 }
 
 /// Shared application state (behind the Slint callbacks).
@@ -97,6 +106,10 @@ pub struct AppState {
     pub local_sig: String,
     /// Active Modstore session (OAuth browser flow).
     pub session: Option<ActiveSession>,
+    /// Tracked game session (supervised direct-exe launch).
+    pub game_session: Option<greg_loader::launch::GameSession>,
+    /// Steamworks session released for the play session (see actions).
+    pub steam_released: bool,
     /// OAuth request id awaiting the `greg://` callback (replay guard).
     pub pending_request_id: Option<String>,
 
@@ -198,6 +211,8 @@ impl AppState {
             pending_remove: None,
             local_sig: String::new(),
             session: None,
+            game_session: None,
+            steam_released: false,
             pending_request_id: None,
             problem_actions: Vec::new(),
             pack_service: crate::actions::load_packs(),
@@ -254,6 +269,7 @@ impl AppState {
         ]));
         ui.set_steam_text("Steam: connecting…".into());
         ui.set_gregapi_text("gregAPI: probing…".into());
+        ui.set_melonloader_text("MelonLoader: checking…".into());
         ui.set_login_visible(false);
         ui.set_modstore_available(false);
         ui.set_br_page(1);
@@ -272,9 +288,20 @@ impl AppState {
             let mut guard = state.lock().expect("state");
             crate::actions::refresh_projects(&mut guard);
             crate::actions::refresh_settings(&mut guard);
+            // Crash recovery: files disabled by a killed vanilla session are
+            // restored when no game process is running anymore.
+            crate::actions::recover_parked_mods(&mut guard);
             // Initial scan so My Mods is populated from the first frame.
+            // This must run after recovery: local_refresh may create an empty
+            // Mods/ directory, which would otherwise block restoring the
+            // manager's vanilla-disabled file manifest.
             crate::actions::local_refresh(&mut guard);
+            // Game status starts stopped.
+            guard.ui().set_game_running(false);
+            let stopped = l10n::get(&guard.lang, "Game_StatusStopped").into();
+            guard.ui().set_game_text(stopped);
         }
+        crate::actions::check_melon_loader_on_start(&state);
         state
     }
 
@@ -293,7 +320,7 @@ impl AppState {
                     ("modpacks", "Modpacks"),
                     ("collections", "Collections"),
                     ("problems", "Problems"),
-                    ("report-bug", "Report a Bug"),
+                    ("report", "Report"),
                 ]));
             }
             ICON_WORKSHOP => {

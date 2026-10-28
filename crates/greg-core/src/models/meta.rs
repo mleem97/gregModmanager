@@ -59,6 +59,10 @@ pub struct WorkshopMetadata {
     /// SHA-256 over the last successful publish. Local-only, never uploaded.
     #[serde(default)]
     pub last_published_hash: String,
+    /// Modstore mod id from the last successful Modstore publish.
+    /// Local-only routing hint, never uploaded.
+    #[serde(default)]
+    pub modstore_id: String,
 }
 
 fn default_version() -> String {
@@ -95,6 +99,7 @@ impl Default for WorkshopMetadata {
             workshop_dependency_ids: Vec::new(),
             mod_type: default_mod_type(),
             last_published_hash: String::new(),
+            modstore_id: String::new(),
         }
     }
 }

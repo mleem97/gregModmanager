@@ -1,14 +1,22 @@
-import { LineEdit, Button } from "std-widgets.slint";
-import { Palette, SectionTitle, Thumb } from "theme.slint";
+import { LineEdit } from "std-widgets.slint";
+import { ScrollView } from "std-widgets.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { LocalRow } from "models.slint";
 
 // Local content page (My Mods / My Plugins / My Libs). One component, the
 // title and rows differ per kind. Enable/disable renames .dll files,
 // removal goes through the shell confirm dialog.
+//
+// The list is split into Active / Disabled sections. Each section is a
+// fixed-frame card (`vertical-stretch` + `min-height`) with its own
+// internal `ScrollView`, so long mod lists scroll inside their box instead
+// of growing past the window.
 export component LocalPage inherits VerticalLayout {
     in-out property <string> title;
     in-out property <string> search;
-    in-out property <[LocalRow]> rows;
+    in-out property <[LocalRow]> active-rows;
+    in-out property <[LocalRow]> inactive-rows;
     in-out property <string> status;
 
     callback refresh();
@@ -34,12 +42,16 @@ export component LocalPage inherits VerticalLayout {
                 placeholder-text: "Filter…";
                 horizontal-stretch: 1;
             }
-            Button {
+            GregButton {
                 text: "Rescan";
+                has-icon: true;
+                icon: IconSet.RefreshCw;
                 clicked => { root.refresh(); }
             }
-            Button {
+            GregButton {
                 text: "Open folder";
+                has-icon: true;
+                icon: IconSet.FolderOpen;
                 clicked => { root.open-folder(); }
             }
         }
@@ -50,22 +62,26 @@ export component LocalPage inherits VerticalLayout {
         color: Palette.on-variant;
     }
 
-    // Compact list: no vertical-stretch here — stretch on fixed-content
-    // containers never grows them (max-capped) but propagates upward and
-    // makes the whole page tall, misplacing the void above the list.
-    // (Explicit max-height does NOT uncap: the child content cap wins.)
-    Rectangle {
-        background: Palette.container-low;
-        border-radius: Palette.radius;
-        border-width: 1px;
-        border-color: Palette.outline;
+    SectionTitle { text: "ACTIVE (" + root.active-rows.length + ")"; }
+    ListCard {
+        vertical-stretch: 1;
+        min-height: 140px;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
             VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
-                for row in root.rows: Rectangle {
+                if root.active-rows.length == 0: Text {
+                    text: "No active entries.";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                }
+                for row in root.active-rows: Rectangle {
                     height: 44px;
                     background: Palette.container;
-                    border-radius: Palette.radius;
+                    border-radius: Palette.radius-lg;
                     HorizontalLayout {
                         padding-left: 10px;
                         padding-right: 8px;
@@ -79,7 +95,7 @@ export component LocalPage inherits VerticalLayout {
                             height: 8px;
                             y: (parent.height - self.height) / 2;
                             border-radius: 4px;
-                            background: row.enabled ? Palette.secondary : Palette.outline;
+                            background: Palette.secondary;
                         }
                         VerticalLayout {
                             horizontal-stretch: 1;
@@ -88,7 +104,7 @@ export component LocalPage inherits VerticalLayout {
                                 text: row.name;
                                 font-size: 12px;
                                 font-weight: 700;
-                                color: row.enabled ? Palette.on-surface : Palette.on-variant;
+                                color: Palette.on-surface;
                                 overflow: elide;
                             }
                             Text {
@@ -98,16 +114,94 @@ export component LocalPage inherits VerticalLayout {
                                 overflow: elide;
                             }
                         }
-                        Button {
-                            text: row.enabled ? "Disable" : "Enable";
+                        GregButton {
+                            text: "Disable";
+                            has-icon: true;
+                            icon: IconSet.Power;
                             clicked => { root.toggle(row.index); }
                         }
-                        Button {
+                        GregButton {
                             text: "Remove";
+                            has-icon: true;
+                            icon: IconSet.Trash2;
+                            variant: "danger";
                             clicked => { root.remove(row.index); }
                         }
                     }
                 }
             }
+        }
+    }
+
+    SectionTitle { text: "DISABLED (" + root.inactive-rows.length + ")"; }
+    ListCard {
+        vertical-stretch: 1;
+        min-height: 110px;
+        ScrollView {
+            width: parent.width;
+            height: parent.height;
+            VerticalLayout {
+                padding: 6px;
+                spacing: 2px;
+                if root.inactive-rows.length == 0: Text {
+                    text: "No disabled entries.";
+                    font-size: 12px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                }
+                for row in root.inactive-rows: Rectangle {
+                    height: 44px;
+                    background: Palette.container;
+                    border-radius: Palette.radius-lg;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 8px;
+                        spacing: 8px;
+                        Thumb {
+                            src: row.thumb;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 4px;
+                            background: Palette.outline;
+                        }
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            alignment: center;
+                            Text {
+                                text: row.name;
+                                font-size: 12px;
+                                font-weight: 700;
+                                color: Palette.on-variant;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: row.detail;
+                                font-size: 10px;
+                                color: Palette.on-variant;
+                                overflow: elide;
+                            }
+                        }
+                        GregButton {
+                            text: "Enable";
+                            has-icon: true;
+                            icon: IconSet.Power;
+                            variant: "primary";
+                            clicked => { root.toggle(row.index); }
+                        }
+                        GregButton {
+                            text: "Remove";
+                            has-icon: true;
+                            icon: IconSet.Trash2;
+                            variant: "danger";
+                            clicked => { root.remove(row.index); }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

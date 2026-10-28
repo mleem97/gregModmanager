@@ -54,12 +54,28 @@ pub fn default_game_dir() -> Option<PathBuf> {
     })
 }
 
-/// Default Steam library guess on Unix.
-#[cfg(not(target_os = "windows"))]
+/// Default Steam library guess on Linux.
+#[cfg(target_os = "linux")]
 pub fn default_game_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| {
         h.join(".steam")
             .join("steam")
+            .join("steamapps")
+            .join("common")
+            .join("Data Center")
+    })
+}
+
+/// Default Steam library guess on macOS.
+///
+/// Steam installs its standard library below the user's Application Support
+/// directory on macOS, rather than below `~/.steam` as on Linux.
+#[cfg(target_os = "macos")]
+pub fn default_game_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| {
+        h.join("Library")
+            .join("Application Support")
+            .join("Steam")
             .join("steamapps")
             .join("common")
             .join("Data Center")

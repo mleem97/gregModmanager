@@ -1,5 +1,8 @@
 # De-Mock Journal
 
+> NOTE: This journal describes the frozen C# / Avalonia implementation era
+> (see `.reference/modmanager-old/`). The active product code is Rust + Slint.
+
 ## 2026-06-29 - Initial Analysis
 **Mock Pattern:** Repository uses .NET 9 with Avalonia UI, Steam integration via Facepunch.Steamworks
 **Learning:** Cross-platform desktop app with platform-specific code (Windows/Linux). Steam API integration is core functionality.

@@ -1,0 +1,5 @@
+{
+  "slint.libraryPaths": {
+    "lucide": "crates/greg-app/ui/.generated/lucide.slint"
+  }
+}

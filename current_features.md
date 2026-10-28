@@ -375,7 +375,7 @@ Noch extern zu verifizieren sind insbesondere:
 - `TEILWEISE_IMPLEMENTIERT`: Profile, direkter Spielstart, transaktionales Deployment, Besitzdaten, Manifest-/Lockfile-Resolver und Webapp-Katalogclient fehlen weiterhin.
 - `FEHLERHAFT/RISIKO`: Der Desktop-Client nutzt bisher überwiegend Steam-native Browse-/Download-/Upload-Funktionen; die Webapp-Parität ist daher nicht gegeben.
 
-Belege: `src/GregModmanager.Core/Services/GameAdapters/`, `ModDependencyService.cs`, `ModsFolderSyncService.cs`, `tests/GregModmanager.Tests/GameAdapterTests.cs`.
+Belege: `crates/greg-loader/src/game.rs` (GameAdapterRegistry), `crates/greg-core/src/models/collections.rs` (workshop_dependency_ids), `crates/greg-loader/src/sync.rs` (Plugins/Dependencies), cargo-Workspace-Tests.
 
 ## Desktop-Erweiterungen dieser Arbeitseinheit (2026-07-29)
 

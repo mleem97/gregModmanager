@@ -54,6 +54,34 @@ struct Cli {
     #[arg(long, global = true)]
     autocommit: bool,
 
+    /// Publish target: `steam` (default) or `modstore`.
+    #[arg(long, global = true)]
+    to: Option<String>,
+
+    /// Modstore API token (or `GREG_MODSTORE_TOKEN`).
+    #[arg(long, global = true)]
+    token: Option<String>,
+
+    /// Modstore mod id for updates (or stored from the last publish).
+    #[arg(long = "mod-id", global = true)]
+    mod_id: Option<String>,
+
+    /// Modstore category (defaults to the project profile).
+    #[arg(long, global = true)]
+    category: Option<String>,
+
+    /// Modstore license (server default when omitted).
+    #[arg(long, global = true)]
+    license: Option<String>,
+
+    /// Modstore API base URL (or `GREG_MODSTORE_API_URL`).
+    #[arg(long = "api-url", global = true)]
+    api_url: Option<String>,
+
+    /// Upload one raw file instead of the zipped `content/` folder.
+    #[arg(long, global = true)]
+    file: Option<PathBuf>,
+
     /// Action to run.
     #[command(subcommand)]
     command: Option<Command>,
@@ -123,7 +151,14 @@ fn run(raw_args: Vec<String>) -> i32 {
         .filter(|s| !s.trim().is_empty());
     let code = match command {
         Command::Publish => match cli.path.clone() {
-            Some(path) => run_publish(&log, &path, manual.as_deref(), cli.autocommit),
+            Some(path) => {
+                let target = cli.to.as_deref().unwrap_or("steam");
+                if target.eq_ignore_ascii_case("modstore") {
+                    run_publish_modstore(&log, &cli, &path, manual.as_deref(), cli.autocommit)
+                } else {
+                    run_publish(&log, &path, manual.as_deref(), cli.autocommit)
+                }
+            }
             None => {
                 eprintln!("Missing --path <dir>.");
                 2
@@ -343,6 +378,180 @@ fn run_publish(
         );
     }
     0
+}
+
+/// Publishes a project to the Modstore (presigned upload + submit).
+fn run_publish_modstore(
+    log: &greg_platform::filelog::FileLog,
+    cli: &Cli,
+    project_root: &Path,
+    manual_changelog: Option<&str>,
+    autocommit: bool,
+) -> i32 {
+    use greg_modstore::publish::{PublishMetadata, PublishPayload, PublishPlan};
+    use greg_modstore::upload_client::ModStoreUploadClient;
+
+    let root = project_root.to_path_buf();
+    if !root.is_dir() {
+        eprintln!("Project path not found: {}", root.display());
+        return 2;
+    }
+    let token = cli
+        .token
+        .clone()
+        .or_else(|| std::env::var("GREG_MODSTORE_TOKEN").ok())
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty());
+    let Some(token) = token else {
+        eprintln!("Missing Modstore API token (--token or GREG_MODSTORE_TOKEN).");
+        eprintln!("Create one in the Modstore: Profile -> API Keys.");
+        return 2;
+    };
+    let base_url = cli
+        .api_url
+        .clone()
+        .or_else(|| std::env::var("GREG_MODSTORE_API_URL").ok())
+        .unwrap_or_else(greg_core::models::settings::modstore_api_url);
+
+    let mut meta = greg_platform::workspace::load_metadata(&root).unwrap_or_default();
+    meta.normalize();
+
+    // Readiness gate (same content checks as the UI/Steam flow).
+    let checks = greg_core::upload::check("en", &root, &meta, manual_changelog);
+    if !greg_core::models::is_ready_to_upload(&checks) {
+        for result in checks
+            .iter()
+            .filter(|r| r.severity == greg_core::models::UploadCheckSeverity::Error)
+        {
+            eprintln!("CHECK {}: {}", result.label, result.detail);
+        }
+        if autocommit {
+            write_ralph_status(&root, "modstore-publish", false, "Upload checks failed.");
+        }
+        return 1;
+    }
+
+    // Payload: one raw file or the zipped content folder.
+    let payload = match cli.file.clone() {
+        Some(file) if file.is_file() => PublishPayload::File { path: file },
+        Some(file) => {
+            eprintln!("File not found: {}", file.display());
+            return 2;
+        }
+        None => {
+            let content = root.join("content");
+            if !content.is_dir() {
+                eprintln!("Missing content folder: {}", content.display());
+                return 2;
+            }
+            let folder = root.file_name().and_then(|n| n.to_str()).unwrap_or("mod");
+            PublishPayload::Directory {
+                dir: content,
+                file_name: format!("{folder}.zip"),
+            }
+        }
+    };
+
+    let description = project_docs::resolve_modstore_description(&root, &meta.description).text;
+    let changelog =
+        project_docs::resolve_modstore_changelog(&root, &meta.version, manual_changelog).text;
+    let mod_id = cli
+        .mod_id
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()));
+    let category = cli.category.clone().or_else(|| {
+        let profile = meta.native_config_profile.trim();
+        (!profile.is_empty()).then(|| profile.to_string())
+    });
+    let plan = match PublishPlan::from_project(
+        &payload,
+        &PublishMetadata {
+            mod_id,
+            title: meta.title.clone(),
+            version: meta.version.clone(),
+            description,
+            changelog,
+            category,
+            license: cli.license.clone(),
+            tags: meta.tags.clone(),
+            installation: None,
+            support_url: None,
+            min_game_version: None,
+            recommended_game_version: None,
+        },
+    ) {
+        Ok(plan) => plan,
+        Err(e) => {
+            eprintln!("Packaging failed: {e}");
+            return 1;
+        }
+    };
+
+    let client = match ModStoreUploadClient::new(vec![base_url]) {
+        Ok(client) => client.with_token(token),
+        Err(e) => {
+            eprintln!("Modstore client: {e}");
+            return 2;
+        }
+    };
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Runtime: {e}");
+            return 2;
+        }
+    };
+    println!(
+        "Uploading {} ({} bytes) as {}...",
+        plan.file_name,
+        plan.bytes.len(),
+        plan.method
+    );
+    let outcome = runtime.block_on(plan.execute(&client, &|p| {
+        if p % 25 == 0 {
+            println!("Upload {p}%");
+        }
+    }));
+    match outcome {
+        Ok(response) => {
+            println!("Submitted. Mod id: {}", response.mod_id);
+            println!("Release id: {}", response.release_id);
+            println!("Scan status: {}", response.scan_status);
+            if response.manual_review_required {
+                println!("Manual review required — watch the moderation status.");
+            }
+            if !response.mod_id.trim().is_empty() {
+                meta.modstore_id = response.mod_id.clone();
+                let _ = greg_platform::workspace::save_metadata(&root, &meta);
+            }
+            log.info(&format!(
+                "Headless modstore publish: {} -> mod {}",
+                root.display(),
+                response.mod_id
+            ));
+            if autocommit {
+                write_ralph_status(
+                    &root,
+                    "modstore-publish",
+                    true,
+                    &format!("Submitted mod {}", response.mod_id),
+                );
+            }
+            0
+        }
+        Err(e) => {
+            eprintln!("Modstore publish failed: {e}");
+            log.error(&format!("Headless modstore publish failed: {e}"));
+            if autocommit {
+                write_ralph_status(&root, "modstore-publish", false, &e.to_string());
+            }
+            1
+        }
+    }
 }
 
 /// Writes `.ralph/tasks/status.json` beside the project on `--autocommit`.

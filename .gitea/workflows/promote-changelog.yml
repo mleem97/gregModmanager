@@ -66,21 +66,20 @@ jobs:
           print(f'Promoted [Unreleased] to [{ver}] - {date}')
           EOF
 
-      - name: Bump version (VERSION file + .csproj fallback copy)
+      - name: Bump version (VERSION file + workspace Cargo.toml fallback)
         shell: bash
         run: |
           ver='${{ github.event.inputs.version }}'
           printf '%s\n' "$ver" > VERSION
-          csproj='src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj'
-          old="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$csproj" | head -n 1)"
-          sed -i "s|<Version>[^<]*</Version>|<Version>${ver}</Version>|" "$csproj"
-          echo "Version: VERSION=$ver, .csproj: $old -> $ver"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)"
+          sed -i "s/^version = \"[^\"]*\"/version = \"$ver\"/" Cargo.toml
+          echo "Version: VERSION=$ver, Cargo.toml: $cargo_version -> $ver"
 
       - name: Commit and push to main
         run: |
           git config user.name "actions[bot]"
           git config user.email "actions[bot]@users.noreply.localhost"
-          git add CHANGELOG.md VERSION src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+          git add CHANGELOG.md VERSION Cargo.toml
           git commit -m "chore(release): promote changelog and bump version to ${{ github.event.inputs.version }}"
           git push origin main
 

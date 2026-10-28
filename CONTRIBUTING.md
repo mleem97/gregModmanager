@@ -6,12 +6,14 @@ Thank you for your interest in contributing to gregModmanager!
 
 1. Fork the repository (the primary instance is Forgejo — GitHub is a read-only mirror)
 2. Clone your fork locally
-3. Install the SDK pinned in [global.json](global.json)
+3. Install the Rust stable toolchain via [rustup](https://rustup.rs) and the native
+   Linux X11 / font / GL development packages required by Slint
+   (see [the devcontainer Dockerfile](../.devcontainer/Dockerfile))
 4. Build and test:
    ```bash
-   dotnet restore GregModmanager.sln
-   dotnet build GregModmanager.sln -c Release
-   dotnet test GregModmanager.sln -c Release
+   cargo build --workspace
+   cargo test --workspace
+   git diff --check
    ```
 5. Create a feature branch, make your changes, submit a PR against `main`
 
@@ -19,21 +21,22 @@ Thank you for your interest in contributing to gregModmanager!
 
 - Work on a feature branch — never push directly to `main`
 - Keep commits focused; one logical change per commit
-- Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:` …)
+- Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, …)
 - Update `CHANGELOG.md` under `[Unreleased]` for user-facing changes
 - Update `EXTERNAL_DEPENDENCIES.md` when adding, removing, or materially
   changing external packages, tools, services, or native binaries
 
 ## Code Style
 
-- C# latest language version, `Nullable` enabled
-- Follow existing naming conventions (PascalCase for public, `_camelCase` for private fields)
-- Core must not reference Avalonia — UI code lives in `GregModmanager.Avalonia`,
-  shared logic in `GregModmanager.Core`
-- Prefer `Path.Combine` and validated user paths over hard-coded platform paths;
-  guard platform-specific code with compile-time or runtime platform checks
-- UI strings go into `AppStrings.resx` **and** `AppStrings.de.resx` at minimum
-- Serialized DTOs must be registered in `AppJsonContext.cs`
+- Rust: latest stable edition, rustfmt defaults, clippy `-D warnings` in CI
+- Follow existing naming conventions (module/file PascalCase, items `snake_case`,
+  constants `SCREAMING_SNAKE_CASE`)
+- Core must not depend on UI crates (`slint`); UI code lives in `crates/greg-app`
+- Prefer `dirs`-provided known paths or validated user paths over hard-coded
+  platform paths; guard platform-specific code with `cfg(target_os = …)` in
+  `crates/greg-platform`
+- UI strings go through the `greg-core` l10n modules (English plus German at
+  minimum) — no hardcoded UI strings
 - Keep PRs small and focused
 
 ## Reporting Issues
@@ -47,7 +50,7 @@ Thank you for your interest in contributing to gregModmanager!
 
 - Target the `main` branch
 - Include a clear description of changes
-- Ensure the solution builds without errors and all tests pass
+- Ensure the workspace builds without errors and all tests pass (`cargo test --workspace`)
 - Keep PRs focused on a single feature or fix
 
 ## License

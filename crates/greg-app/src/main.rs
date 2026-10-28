@@ -79,6 +79,7 @@ fn main() -> anyhow::Result<()> {
         },
     );
     ui.run()?;
+    actions::finalize_game_state(&state);
     log.end_session();
     Ok(())
 }
@@ -97,6 +98,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_start_game(move |mode| actions::start_game(&state, &mode));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_stop_game(move || actions::stop_game(&state));
     }
     {
         let state = Arc::clone(state);
@@ -161,6 +166,39 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_problems_act(move |idx| actions::problems_act(&state, idx));
+    }
+    // Report assistant.
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_generate(move || actions::report_generate(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_collect_logs(move || actions::report_collect_logs(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_cancel(move || actions::report_cancel(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_submit(move || actions::report_submit(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_export(move || actions::report_export(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_attach(move || actions::report_attach(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_yes(move || actions::report_confirm_yes(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_no(move || actions::report_confirm_no(&state));
     }
     // Packs (Modpacks + Collections share one component).
     {
@@ -259,6 +297,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_ed_publish(move || actions::editor_publish(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_publish_modstore(move || actions::editor_publish_modstore(&state));
     }
     {
         let state = Arc::clone(state);
