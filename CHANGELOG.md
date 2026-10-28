@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sanitized Markdown body to disk. Submission via direct GitHub or operator
   service channels is intentionally not claimed before the backend report
   intake is deployed; the local export remains the supported delivery path.
+- Universal Report Assistant: env-gated GitHub issue delivery implemented via
+  the GitHub Issues API (`POST /repos/{repo}/issues`) using
+  `GREG_GITHUB_TOKEN` + `GREG_GITHUB_ISSUE_TARGET_REPO`; delivery is only
+  attempted when the credentials are configured, otherwise the local export
+  fallback remains active. Committed `.env.example` documents the
+  configuration keys for builds and CI (secrets are never committed).
 
 - Experimental macOS support for Steam library discovery, Unity `.app` game
   bundles, and macOS process supervision. Native Mac validation, signing, and
