@@ -3,9 +3,10 @@ import { IconSet } from "@lucide";
 import { Palette, SectionTitle, GregButton, FieldRow } from "theme.slint";
 
 // Universal Report Assistant page: category, free-text description and
-// category-dependent fields, plus a generated Markdown preview.
+// category-dependent fields, attachments, generated Markdown preview,
+// local export and submission with confirmation.
 // Rust owns the draft state and the workflow steps (validate → preview →
-// submit); this page only renders and forwards user intent.
+// confirm → submit / export); this page only renders and forwards user intent.
 
 export component ReportPage inherits VerticalLayout {
     in-out property <string> title;
@@ -19,9 +20,18 @@ export component ReportPage inherits VerticalLayout {
     in-out property <string> environment;
     in-out property <string> preview;
     in-out property <string> status;
+    in-out property <string> submission;
+    in-out property <[string]> attachments;
+    in-out property <bool> show-submit-confirm: false;
+    in-out property <string> submit-mode;
 
     callback generate();
     callback cancel();
+    callback submit();
+    callback export();
+    callback attach();
+    callback confirm-yes();
+    callback confirm-no();
 
     spacing: 8px;
     padding: 18px;
@@ -92,6 +102,16 @@ export component ReportPage inherits VerticalLayout {
         }
     }
 
+    // Attachment intake: user-selected files only; names reach the draft and
+    // the preview, contents are validated and sanitized downstream.
+    GregButton {
+        text: "Attach file";
+        has-icon: true;
+        icon: IconSet.Paperclip;
+        variant: "ghost";
+        clicked => { root.attach(); }
+    }
+
     SectionTitle { text: "PREVIEW"; }
 
     TextEdit {
@@ -105,6 +125,12 @@ export component ReportPage inherits VerticalLayout {
         color: Palette.on-variant;
         wrap: word-wrap;
     }
+    Text {
+        text: root.submission;
+        font-size: 11px;
+        color: Palette.primary;
+        wrap: word-wrap;
+    }
 
     HorizontalLayout {
         spacing: 10px;
@@ -116,10 +142,85 @@ export component ReportPage inherits VerticalLayout {
             clicked => { root.generate(); }
         }
         GregButton {
+            text: "Export";
+            has-icon: true;
+            icon: IconSet.Download;
+            variant: "ghost";
+            clicked => { root.export(); }
+        }
+        GregButton {
+            text: "Submit";
+            has-icon: true;
+            icon: IconSet.Send;
+            variant: "primary";
+            clicked => { root.submit(); }
+        }
+        GregButton {
             text: "Cancel";
             has-icon: true;
             icon: IconSet.Ban;
+            variant: "ghost";
             clicked => { root.cancel(); }
+        }
+    }
+
+    // Submission confirmation: the generated content is shown back before the
+    // delivery attempt starts.
+    if root.show-submit-confirm: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #00000099;
+        TouchArea { }
+        Rectangle {
+            width: 420px;
+            height: 220px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Palette.container;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.primary;
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+                alignment: center;
+                Text {
+                    text: "Submit report?";
+                    font-size: 14px;
+                    font-weight: 700;
+                    color: Palette.on-surface;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.submit-mode;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.status;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+                    GregButton {
+                        text: "Cancel";
+                        has-icon: true;
+                        icon: IconSet.Ban;
+                        clicked => { root.confirm-no(); }
+                    }
+                    GregButton {
+                        text: "Submit";
+                        has-icon: true;
+                        icon: IconSet.Send;
+                        clicked => { root.confirm-yes(); }
+                    }
+                }
+            }
         }
     }
 }

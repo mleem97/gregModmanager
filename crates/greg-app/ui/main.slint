@@ -141,6 +141,10 @@ export component MainWindow inherits Window {
     in-out property <string> rp-environment;
     in-out property <string> rp-preview;
     in-out property <string> rp-status;
+    in-out property <string> rp-submission;
+    in-out property <[string]> rp-attachments;
+    in-out property <bool> rp-submit-confirm: false;
+    in-out property <string> rp-submit-mode;
 
     // --- packs page state (one component serves Modpacks + Collections) ---
     in-out property <string> pack-kind;
@@ -201,6 +205,11 @@ export component MainWindow inherits Window {
     // --- report assistant callbacks ---
     callback rp-generate();
     callback rp-cancel();
+    callback rp-submit();
+    callback rp-export();
+    callback rp-attach();
+    callback rp-confirm-yes();
+    callback rp-confirm-no();
 
     // --- packs callbacks ---
     callback packs-create();
@@ -717,8 +726,17 @@ export component MainWindow inherits Window {
                                 environment <=> root.rp_environment;
                                 preview <=> root.rp_preview;
                                 status <=> root.rp_status;
+                                submission <=> root.rp_submission;
+                                attachments <=> root.rp_attachments;
+                                show-submit-confirm <=> root.rp_submit_confirm;
+                                submit-mode <=> root.rp_submit_mode;
                                 generate => { root.rp-generate(); }
                                 cancel => { root.rp-cancel(); }
+                                submit => { root.rp-submit(); }
+                                export => { root.rp-export(); }
+                                attach => { root.rp-attach(); }
+                                confirm-yes => { root.rp-confirm-yes(); }
+                                confirm-no => { root.rp-confirm-no(); }
                             }
                         }
                     }

@@ -176,6 +176,26 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         let state = Arc::clone(state);
         ui.on_rp_cancel(move || actions::report_cancel(&state));
     }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_submit(move || actions::report_submit(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_export(move || actions::report_export(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_attach(move || actions::report_attach(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_yes(move || actions::report_confirm_yes(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_no(move || actions::report_confirm_no(&state));
+    }
     // Packs (Modpacks + Collections share one component).
     {
         let state = Arc::clone(state);

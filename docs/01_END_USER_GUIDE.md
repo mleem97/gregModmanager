@@ -92,6 +92,27 @@ crash dumps, Windows application events from the previous 48 hours, machine and
 user names, and local paths. Inspect the ZIP and remove sensitive material before
 sharing it with anyone.
 
+## Reporting a problem
+
+The central **Report** tab in the navigation is the entry point for all user
+reports about the mod manager, mods and the surrounding Greg ecosystem:
+
+- Bug reports, crash reports, feature requests, improvements, performance,
+  compatibility, UI/UX, documentation, installation, configuration and security
+  reports — plus anything else.
+- The assistant asks for a category, then only the follow-up questions that are
+  relevant for the selected category. Missing information is never invented; the
+  preview marks unclear or missing fields.
+- The generated Markdown preview is sanitized (secrets redacted, logs truncated)
+  before it is shown or exported.
+- The **Export** action writes the sanitized report body to a local file.
+- **Submit** requires a confirmation step. Delivery is currently available as a
+  local export; submissions via the GitHub/operator channel are planned once the
+  backend report intake is deployed. Until then the local export is the supported
+  delivery path.
+
+Never paste passwords, session tokens, API keys or private keys into a report.
+
 ## Troubleshooting
 
 | Problem | First checks |

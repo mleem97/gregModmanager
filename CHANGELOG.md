@@ -42,6 +42,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with validation, secret redaction and log truncation from the new
   `greg-core::report` domain. Submission to GitHub issues follows in a
   later phase; the local fallback tracker hand-off stays available.
+- Universal Report Assistant foundation completed: versioned shared report
+  schema (`REPORT_SCHEMA_VERSION`, report id, creation timestamp, source
+  product, transmission mode, submission state, external issue reference),
+  typed submission lifecycle (`draft` → `in_progress` → `submitted` / `failed`
+  / `cancelled`) and transmission modes (`user_direct` / `operator_service` /
+  `local_export`), environment snapshot (OS + app version) auto-collected for
+  new drafts, optional user-provided environment override, optional
+  additional context section in the generated issue body, and local Markdown
+  export (`greg_core::report::export_markdown`) via user-chosen save location.
+- Universal Report Assistant UI: submission state surfaced in the page,
+  attachment intake (validated user-selected file names) and a submission
+  confirmation step before any delivery attempt; local export writes the
+  sanitized Markdown body to disk. Submission via direct GitHub or operator
+  service channels is intentionally not claimed before the backend report
+  intake is deployed; the local export remains the supported delivery path.
 
 - Experimental macOS support for Steam library discovery, Unity `.app` game
   bundles, and macOS process supervision. Native Mac validation, signing, and

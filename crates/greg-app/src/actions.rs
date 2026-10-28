@@ -2676,6 +2676,10 @@ pub fn report_open(state: &Arc<std::sync::Mutex<AppState>>) {
     guard.ui().set_rp_environment(String::new().into());
     guard.ui().set_rp_preview(String::new().into());
     guard.ui().set_rp_status(String::new().into());
+    guard.ui().set_rp_submission(String::new().into());
+    guard.ui().set_rp_attachments(model_of_strings(&[]));
+    guard.ui().set_rp_submit_confirm(false);
+    guard.ui().set_rp_submit_mode(String::new().into());
     let labels = [
         "Bug",
         "Crash",
@@ -2695,30 +2699,83 @@ pub fn report_open(state: &Arc<std::sync::Mutex<AppState>>) {
     ));
 }
 
-/// Pulls the assistant draft from the UI, validates it and fills the
-/// Markdown preview. Submission (GitHub) is a later phase; the fallback
-/// tracker hand-off (`bug_open_manager`) stays available.
-pub fn report_generate(state: &Arc<std::sync::Mutex<AppState>>) {
-    let guard = state.lock().expect("state");
-    let ui = &guard.ui();
+/// Builds the assistant draft from the current UI state and validates it.
+///
+/// The draft is stamped with the shared report schema version and source
+/// product; the transmission mode is resolved by the caller (operator service
+/// when a Modstore session is active, local export otherwise).
+fn report_draft(
+    ui: &crate::MainWindow,
+) -> (
+    greg_core::report::ReportData,
+    Vec<greg_core::report::ReportValidationIssue>,
+) {
     let category = greg_core::report::ReportCategory::all()
         .get(ui.get_rp_category_index().max(0) as usize)
         .map(|c| c.as_str().to_string())
         .unwrap_or_else(|| "other".to_string());
-    let draft = greg_core::report::ReportData {
-        title: ui.get_rp_title().to_string(),
-        category,
-        description: ui.get_rp_description().to_string(),
-        steps_to_reproduce: ui.get_rp_steps().to_string(),
-        expected_behavior: ui.get_rp_expected().to_string(),
-        actual_behavior: ui.get_rp_actual().to_string(),
-        logs: ui.get_rp_logs().to_string(),
-        environment: ui.get_rp_environment().to_string(),
-        project_id: None,
-        mod_id: None,
-        attachments: Vec::new(),
-    };
+    let mut draft = greg_core::report::ReportData::new(
+        greg_core::report::SOURCE_MODMANAGER,
+        greg_core::report::MODE_LOCAL_EXPORT,
+    );
+    draft.title = ui.get_rp_title().to_string();
+    draft.category = category;
+    draft.description = ui.get_rp_description().to_string();
+    draft.steps_to_reproduce = ui.get_rp_steps().to_string();
+    draft.expected_behavior = ui.get_rp_expected().to_string();
+    draft.actual_behavior = ui.get_rp_actual().to_string();
+    draft.logs = ui.get_rp_logs().to_string();
+    {
+        let model = ui.get_rp_attachments();
+        let Some(view) = model.as_any().downcast_ref::<VecModel<SharedString>>() else {
+            return (draft, Vec::new());
+        };
+        for i in 0..view.row_count() {
+            if let Some(s) = view.row_data(i) {
+                draft.attachments.push(s.to_string());
+            }
+        }
+    }
+    let mut environment = ui.get_rp_environment().to_string();
+    if environment.trim().is_empty() {
+        // Auto-collect version + OS context instead of guessing.
+        environment = greg_core::report::ReportEnvironment {
+            os: os_display_name(),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            game: String::new(),
+            loader: String::new(),
+        }
+        .describe();
+    }
+    draft.environment = environment;
     let issues = greg_core::report::validate(&draft);
+    (draft, issues)
+}
+
+/// Human-readable OS name for the auto-collected report environment.
+fn os_display_name() -> String {
+    let raw = std::env::consts::OS;
+    let mut chars = raw.chars();
+    let first = chars
+        .next()
+        .map(|c| c.to_ascii_uppercase())
+        .unwrap_or_default();
+    let rest: String = chars.collect();
+    format!("{first}{rest}")
+}
+
+/// Pulls the assistant draft from the UI, validates it and fills the
+/// Markdown preview. The generated body is sanitized (redaction + size cap)
+/// before it reaches the preview.
+pub fn report_generate(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    let (mut draft, issues) = report_draft(ui);
+    draft.set_transmission_mode(if guard.session.is_some() {
+        greg_core::report::ReportTransmissionMode::OperatorService
+    } else {
+        greg_core::report::ReportTransmissionMode::LocalExport
+    });
     if issues.iter().any(|i| i.is_error()) {
         let summary = issues
             .iter()
@@ -2735,6 +2792,189 @@ pub fn report_generate(state: &Arc<std::sync::Mutex<AppState>>) {
 /// Discards the assistant draft and resets the page.
 pub fn report_cancel(state: &Arc<std::sync::Mutex<AppState>>) {
     report_open(state);
+}
+
+/// Exports the generated Markdown report body to a user-chosen local file.
+///
+/// Local export is always available (offline / no backend channel); the written
+/// content is sanitized before it leaves the process.
+pub fn report_export(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (draft, issues) = {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        let (draft, issues) = report_draft(ui);
+        (draft, issues)
+    };
+    if issues.iter().any(|i| i.is_error()) {
+        let summary = issues
+            .iter()
+            .map(|i| format!("{}: {}", i.field, i.message))
+            .collect::<Vec<_>>()
+            .join(" · ");
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_status(format!("Validation: {summary}").into());
+        return;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let Some(path) = rfd::FileDialog::new()
+        .set_file_name(format!("gregmodmanager-report-{stamp}.md"))
+        .save_file()
+    else {
+        return;
+    };
+    if let Err(e) = greg_core::report::export_markdown(&draft, &path) {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_status(format!("Export failed: {e}").into());
+        return;
+    }
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_status(format!("Report exported to {}", path.display()).into());
+    AppState::append_log(state, &format!("Report exported to {}", path.display()));
+}
+
+/// Opens the submission confirmation step for the current draft.
+pub fn report_submit(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_submit_confirm(true);
+    let mode = if guard.session.is_some() {
+        "operator service"
+    } else {
+        "local export"
+    };
+    ui.set_rp_submit_mode(mode.into());
+    ui.set_rp_status("Review the generated report before submitting.".into());
+}
+
+/// Closes the submission confirmation without submitting.
+pub fn report_confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    guard.ui().set_rp_submit_confirm(false);
+}
+
+/// Confirms the submission and executes the delivery for the current draft.
+///
+/// Delivery modes implemented today:
+/// - `local_export`: the user picks a save location; the sanitized Markdown
+///   issue body is written locally (local fallback / offline support).
+/// - `user_direct` / `operator_service`: the corresponding backend channel is
+///   not wired in this build yet — the user gets an explanatory status and can
+///   still export the report locally. No unverified success is ever claimed.
+pub fn report_confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
+    let (draft, issues) = {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        let (draft, issues) = report_draft(ui);
+        (draft, issues)
+    };
+    {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        if issues.iter().any(|i| i.is_error()) {
+            let summary = issues
+                .iter()
+                .map(|i| format!("{}: {}", i.field, i.message))
+                .collect::<Vec<_>>()
+                .join(" · ");
+            ui.set_rp_status(format!("Validation: {summary}").into());
+            ui.set_rp_submit_confirm(false);
+            return;
+        }
+        ui.set_rp_submission("in_progress".into());
+        ui.set_rp_status("Submitting…".into());
+    }
+    let mode = draft.effective_transmission_mode();
+    if mode != greg_core::report::ReportTransmissionMode::LocalExport {
+        // User-direct / operator-service channels are not wired in this build
+        // yet — never pretend a delivery succeeded; keep the draft local.
+        let mode_label = mode.as_str().to_string();
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_status(
+            format!(
+                "Submission via {mode_label} is not available in this build yet. \
+             The report stays local — use local export to save it."
+            )
+            .into(),
+        );
+        ui.set_rp_submission("draft".into());
+        return;
+    }
+    // Local fallback delivery: user-chosen save location.
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let Some(path) = rfd::FileDialog::new()
+        .set_file_name(format!("gregmodmanager-report-{stamp}.md"))
+        .save_file()
+    else {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_submission("cancelled".into());
+        ui.set_rp_status("Submission cancelled.".into());
+        return;
+    };
+    if let Err(e) = greg_core::report::export_markdown(&draft, &path) {
+        let guard = state.lock().expect("state");
+        let ui = &guard.ui();
+        ui.set_rp_submit_confirm(false);
+        ui.set_rp_submission("failed".into());
+        ui.set_rp_status(format!("Local export failed: {e}").into());
+        return;
+    }
+    let guard = state.lock().expect("state");
+    let ui = &guard.ui();
+    ui.set_rp_submit_confirm(false);
+    ui.set_rp_submission("submitted".into());
+    ui.set_rp_status(format!("Report saved locally: {}", path.display()).into());
+    AppState::append_log(state, &format!("Report exported to {}", path.display()));
+}
+
+/// Adds a user-selected attachment file name to the draft.
+pub fn report_attach(state: &Arc<std::sync::Mutex<AppState>>) {
+    let Some(path) = rfd::FileDialog::new()
+        .add_filter(
+            "Report attachments",
+            &[
+                "log", "txt", "md", "json", "cfg", "ini", "png", "jpg", "jpeg", "gif", "pdf",
+            ],
+        )
+        .pick_file()
+    else {
+        return;
+    };
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("attachment")
+        .to_string();
+    let guard = state.lock().expect("state");
+    let mut names: Vec<String> = Vec::new();
+    {
+        let model = guard.ui().get_rp_attachments();
+        let Some(view) = model.as_any().downcast_ref::<VecModel<SharedString>>() else {
+            return;
+        };
+        for i in 0..view.row_count() {
+            if let Some(s) = view.row_data(i) {
+                names.push(s.to_string());
+            }
+        }
+    }
+    if names.iter().any(|n| n == &name) {
+        return;
+    }
+    names.push(name);
+    guard.ui().set_rp_attachments(model_of_strings(&names));
 }
 
 fn percent_encode_bug(value: &str) -> String {
