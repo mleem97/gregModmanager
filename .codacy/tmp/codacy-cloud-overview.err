@@ -1,0 +1,1 @@
+[31mError: Could not determine provider from git remote URL 'ssh://***@git.datacentermods.com:22222/teamGreg/gregModmanager.git'. Supported providers: github.com (gh), gitlab.com (gl), bitbucket.org (bb).[39m

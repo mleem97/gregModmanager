@@ -1,0 +1,316 @@
+[
+  {
+    "name": "Prospector",
+    "uuid": "25673894-eac1-4941-87a6-81f1abd5c321",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Pylint",
+    "uuid": "31677b6d-4ae0-4f56-8041-606a8d7a8e61",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "PMD7",
+    "uuid": "ed7e8287-707d-485a-a0cb-e211004432c2",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "Spectral",
+    "uuid": "fb60ff64-3d91-11ec-9bbc-0242ac130002",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "PSScriptAnalyzer",
+    "uuid": "8fb0fb29-fa6e-43f2-9a73-9cd3873b4d8a",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "remark-lint",
+    "uuid": "f1eec388-0526-4c6c-954e-9b20b51bd9e7",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "Ruff",
+    "uuid": "aac6ad5e-093d-47c4-97ff-87f91d6128a2",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "Opengrep",
+    "uuid": "6792c561-236d-41b7-ba5e-9d6bee0d548b",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160487,
+          "name": "AI Policy"
+        },
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Lizard",
+    "uuid": "76348462-84b3-409a-90d3-955e90abfb87",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Hadolint",
+    "uuid": "d3ec07a8-71b3-4b89-a25e-9c32ef827668",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "SonarC#",
+    "uuid": "8954dff3-f19c-429c-ac76-c45fa5e73b62",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Pylint (deprecated)",
+    "uuid": "34225275-f79e-4b85-8126-c7512c987c0d",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "Checkov",
+    "uuid": "13af9d89-1ce5-4fec-a168-765c3e7b26b3",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160487,
+          "name": "AI Policy"
+        }
+      ]
+    }
+  },
+  {
+    "name": "PMD",
+    "uuid": "9ed24812-b6ee-4a58-9004-0ed183c45b8f",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Unity Roslyn Analyzers",
+    "uuid": "aaf8a1d9-793a-450d-997b-db628a8084fd",
+    "isClientSide": true,
+    "settings": {
+      "isEnabled": false,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": []
+    }
+  },
+  {
+    "name": "Jackson Linter",
+    "uuid": "4f94ee55-6b76-4765-8f38-9ebb3920762b",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "markdownlint",
+    "uuid": "547ff16b-d57c-4d75-8067-5ccf3ea88a00",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Bandit",
+    "uuid": "89b6fc6a-9137-4cf3-8b9f-dcc3bedfa738",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Trivy",
+    "uuid": "2fd7fbe0-33f9-4ab3-ab73-e9b62404e2cb",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160487,
+          "name": "AI Policy"
+        },
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "ShellCheck",
+    "uuid": "233f8aac-4fb6-4193-8a17-e64515bea152",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  },
+  {
+    "name": "Agentlinter",
+    "uuid": "498c9a6e-5ff8-45de-9bd3-0fef69370617",
+    "isClientSide": false,
+    "settings": {
+      "isEnabled": true,
+      "hasConfigurationFile": false,
+      "usesConfigurationFile": false,
+      "enabledBy": [
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ]
+    }
+  }
+]
