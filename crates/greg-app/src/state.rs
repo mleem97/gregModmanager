@@ -36,6 +36,15 @@ pub enum UiEvent {
     AuthSessionEstablished(ActiveSession),
     /// OAuth browser flow failed (message for the log).
     AuthSessionFailed(String),
+    /// Report submission finished (background GitHub delivery task).
+    ReportSubmissionDone {
+        /// Whether the issue was created.
+        success: bool,
+        /// Human-readable outcome (no secret content).
+        message: String,
+        /// External issue URL when creation succeeded.
+        issue_url: Option<String>,
+    },
 }
 
 /// Shared application state (behind the Slint callbacks).

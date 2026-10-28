@@ -62,6 +62,26 @@ pub fn tick(state: &mut AppState) {
                 let ui = state.ui();
                 ui.set_ed_status(format!("Login failed: {message}").into());
             }
+            UiEvent::ReportSubmissionDone {
+                success,
+                message,
+                issue_url,
+            } => {
+                let ui = state.ui();
+                if success {
+                    ui.set_rp_submission("submitted".into());
+                    ui.set_rp_status(if let Some(url) = &issue_url {
+                        format!("Report submitted: {url}").into()
+                    } else {
+                        format!("Report submitted. {message}").into()
+                    });
+                } else {
+                    state.push_log(&format!("Report submission failed: {message}"));
+                    let ui = state.ui();
+                    ui.set_rp_submission("failed".into());
+                    ui.set_rp_status(format!("Report submission failed: {message}").into());
+                }
+            }
         }
     }
     // Steam re-check roughly every 60 s (400 × 150 ms).
@@ -2858,6 +2878,76 @@ pub fn report_confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
     guard.ui().set_rp_submit_confirm(false);
 }
 
+/// GitHub issue submission configuration.
+///
+/// Sourced exclusively from environment variables: `GREG_GITHUB_TOKEN`,
+/// `GREG_GITHUB_ISSUE_TARGET_REPO` and `GREG_GITHUB_API_URL`.
+///
+/// Returns `None` when the credentials are not configured — the local export
+/// delivery then remains the supported fallback.
+fn github_submit_config() -> Option<(String, String, String)> {
+    let token = std::env::var("GREG_GITHUB_TOKEN").ok()?.trim().to_string();
+    let repo = std::env::var("GREG_GITHUB_ISSUE_TARGET_REPO")
+        .ok()?
+        .trim()
+        .to_string();
+    if token.is_empty() || repo.is_empty() {
+        return None;
+    }
+    // Guard against malformed / path-traversing repository identifiers.
+    let parts: Vec<&str> = repo.split('/').collect();
+    if parts.len() != 2
+        || parts
+            .iter()
+            .any(|p| p.trim().is_empty() || *p == ".." || *p == ".")
+    {
+        return None;
+    }
+    let api = std::env::var("GREG_GITHUB_API_URL")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .unwrap_or_else(|| "https://api.github.com".to_string());
+    Some((token, repo, api))
+}
+
+/// Creates a GitHub issue from the sanitized report markdown.
+///
+/// Uses the canonical GitHub Issues REST endpoint. The body is already
+/// sanitized (redaction + size cap) via `generate_markdown`.
+async fn github_create_issue(
+    token: String,
+    repo: String,
+    api_base: String,
+    draft: greg_core::report::ReportData,
+    markdown: String,
+) -> (bool, String, Option<String>) {
+    let url = format!("{api_base}/repos/{repo}/issues");
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({ "title": draft.title, "body": markdown });
+    match client
+        .post(&url)
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => {
+            let created: serde_json::Value = resp.json().await.unwrap_or(serde_json::json!({}));
+            let issue_url = created
+                .get("html_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            (true, "Issue created.".to_string(), issue_url)
+        }
+        Ok(resp) => (
+            false,
+            format!("GitHub API error: status {}", resp.status()),
+            None,
+        ),
+        Err(_e) => (false, "GitHub API unreachable.".to_string(), None),
+    }
+}
+
 /// Confirms the submission and executes the delivery for the current draft.
 ///
 /// Delivery modes implemented today:
@@ -2866,6 +2956,10 @@ pub fn report_confirm_no(state: &Arc<std::sync::Mutex<AppState>>) {
 /// - `user_direct` / `operator_service`: the corresponding backend channel is
 ///   not wired in this build yet — the user gets an explanatory status and can
 ///   still export the report locally. No unverified success is ever claimed.
+///
+/// When GitHub submission credentials are configured via the environment
+/// (`GREG_GITHUB_TOKEN` + `GREG_GITHUB_ISSUE_TARGET_REPO`), the report is
+/// delivered as a GitHub issue through the GitHub Issues API instead.
 pub fn report_confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
     let (draft, issues) = {
         let guard = state.lock().expect("state");
@@ -2888,6 +2982,25 @@ pub fn report_confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
         }
         ui.set_rp_submission("in_progress".into());
         ui.set_rp_status("Submitting…".into());
+    }
+    // GitHub delivery (env-gated): user_direct-style issue creation via the
+    // GitHub Issues API using an environment-provided credential.
+    if let Some((token, repo, api_base)) = github_submit_config() {
+        let markdown = greg_core::report::generate_markdown(&draft);
+        let (tx, rt) = {
+            let guard = state.lock().expect("state");
+            (guard.events_tx.clone(), guard.runtime.handle().clone())
+        };
+        rt.spawn(async move {
+            let (success, message, issue_url) =
+                github_create_issue(token, repo, api_base, draft, markdown).await;
+            let _ = tx.send(UiEvent::ReportSubmissionDone {
+                success,
+                message,
+                issue_url,
+            });
+        });
+        return;
     }
     let mode = draft.effective_transmission_mode();
     if mode != greg_core::report::ReportTransmissionMode::LocalExport {
