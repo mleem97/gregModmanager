@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Local developer workflow scripts in `scripts/` (quality gate, dev build, app
+  start from source, headless CLI, release builds incl. Windows/Linux/macOS) and
+  the recurring local-workflow inventory in `AUDIT_LOCAL_DEV_WORKFLOWS.md`.
 - Universal Report Assistant: new central `Report` tab in the modmanager
   navigation (replaces the former bug-only link-out entry). Category
   selection (bug, crash, feature, improvement, performance, compatibility,
