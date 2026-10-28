@@ -36,6 +36,8 @@ export component IconButton inherits Rectangle {
     in property <Icon> icon;
     in property <string> tip;
     in property <bool> active;
+    // Red tint for destructive actions (e.g. logout).
+    in property <bool> danger: false;
     in property <bool> enabled <=> touch.enabled;
     callback clicked();
 
@@ -63,7 +65,7 @@ export component IconButton inherits Rectangle {
     IconDisplay {
         icon: root.icon;
         size: 22px;
-        stroke: !root.enabled ? Palette.outline : (root.active ? Palette.primary : Palette.on-variant);
+        stroke: !root.enabled ? Palette.outline : (root.danger ? Palette.error : (root.active ? Palette.primary : Palette.on-variant));
         stroke-width: 1.8;
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
@@ -88,7 +90,8 @@ export component GregButton inherits Rectangle {
     min-width: 84px;
     height: 32px;
     border-radius: Palette.radius-lg;
-    border-width: 1px;
+
+
 
     property <bool> is-primary: root.variant == "primary";
     property <bool> is-danger: root.variant == "danger";
@@ -114,18 +117,22 @@ export component GregButton inherits Rectangle {
         spacing: 6px;
         padding-left: 10px;
         padding-right: 10px;
-        if root.has-icon: IconDisplay {
-            icon: root.icon;
-            size: 15px;
-            stroke: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
-            stroke-width: 2.0;
+        if root.has-icon: VerticalLayout {
+            alignment: center;
+            IconDisplay {
+                icon: root.icon;
+                size: 15px;
+                stroke: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
+                stroke-width: 2.0;
+            }
         }
         Text {
             text: root.text;
             font-size: 12px;
             font-weight: root.is-primary ? 700 : 400;
+            horizontal-alignment: TextHorizontalAlignment.center;
             color: root.is-primary ? Palette.on-primary : (root.is-danger ? Palette.error : Palette.on-surface);
-            vertical-alignment: center;
+            vertical-alignment: TextVerticalAlignment.center;
         }
     }
 }

@@ -413,6 +413,13 @@ fn page_bugdialog(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
     shot(ui, window, "09-bugdialog");
 }
 
+fn page_report(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
+    page_mymods(ui, window);
+    ui.set_current_page("report".into());
+    ui.set_rp_categories(strings(&["Bug", "Crash", "Other"]));
+    shot(ui, window, "11-report");
+}
+
 #[test]
 fn screenshots() {
     let window = headless_window();
@@ -426,6 +433,7 @@ fn screenshots() {
     page_modpacks(&ui, &window);
     page_settings(&ui, &window);
     page_bugdialog(&ui, &window);
+    page_report(&ui, &window);
     // Profile session menu (logged-in header state).
     ui.set_show_bug_dialog(false);
     page_mymods(&ui, &window);

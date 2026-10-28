@@ -31,11 +31,6 @@ export component StorePage inherits VerticalLayout {
             height: parent.height;
             spacing: 8px;
             alignment: center;
-            LineEdit {
-                text <=> root.search;
-                placeholder-text: "Search Modstore…";
-                horizontal-stretch: 1;
-            }
             GregButton {
                 text: "Refresh";
                 has-icon: true;
@@ -49,6 +44,11 @@ export component StorePage inherits VerticalLayout {
                 icon: IconSet.Download;
                 enabled: !root.busy;
                 clicked => { root.check-updates(); }
+            }
+            LineEdit {
+                text <=> root.search;
+                placeholder-text: "Search Modstore…";
+                horizontal-stretch: 1;
             }
             if root.busy: GregButton {
                 text: "Cancel";

@@ -1,4 +1,4 @@
-import { LineEdit, TextEdit, ComboBox } from "std-widgets.slint";
+import { LineEdit, TextEdit, ComboBox, ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, GregButton, FieldRow } from "theme.slint";
 
@@ -8,7 +8,17 @@ import { Palette, SectionTitle, GregButton, FieldRow } from "theme.slint";
 // Rust owns the draft state and the workflow steps (validate → preview →
 // confirm → submit / export); this page only renders and forwards user intent.
 
-export component ReportPage inherits VerticalLayout {
+export component ReportPage inherits Rectangle {
+    // Constant size hints (no dependency on children or parent geometry): the
+    // parent layout stretches this page; the full-size overlay child and the
+    // ScrollView can therefore never feed back into layout info (binding loop /
+    // UI freeze).
+    min-width: 0px;
+    min-height: 0px;
+    preferred-width: 0px;
+    preferred-height: 0px;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
     in-out property <string> title;
     in-out property <int> category-index: 0;
     in-out property <[string]> categories;
@@ -34,6 +44,11 @@ export component ReportPage inherits VerticalLayout {
     callback confirm-yes();
     callback confirm-no();
 
+    ScrollView {
+    width: parent.width;
+    height: parent.height;
+    VerticalLayout {
+       
     spacing: 8px;
     padding: 18px;
 
@@ -170,6 +185,9 @@ export component ReportPage inherits VerticalLayout {
             variant: "ghost";
             clicked => { root.cancel(); }
         }
+    }
+
+    }
     }
 
     // Submission confirmation: the generated content is shown back before the
