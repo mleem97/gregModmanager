@@ -39,6 +39,7 @@ notarization, Gatekeeper testing, and a native dependency review.
 | WiX CLI 5 | Windows MSI |
 | nfpm and native package tools | DEB, RPM, APK, and Arch packages |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
+| Jenkins (self-hosted, multi-agent) | CI check/build matrix (`Jenkinsfile`): fmt, clippy, test, build on Linux, Windows and macOS agents |
 <<<<<<< HEAD
 | cargo-tarpaulin | Rust code coverage (LCOV) generated per workspace, uploaded to Codacy |
 | Codacy Coverage Reporter | uploads LCOV coverage reports to Codacy (CI job `coverage`) |

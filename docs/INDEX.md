@@ -19,6 +19,7 @@
 | --- | --- |
 | application version and runtime | `VERSION` + workspace `Cargo.toml` |
 | Rust toolchain | rustup (stable) |
+| Jenkins CI (multi-agent matrix) | `Jenkinsfile` — fmt, clippy, test, build matrix on Linux / Windows / macOS (`docs/JENKINS.md`) |
 | CI release outputs | `.forgejo/workflows/build-and-release.yml` |
 | local release orchestration | `xtask dist` (via `scripts/build-release.sh`) |
 | Linux package formats | `build/scripts/linux/build-rust-packages.sh` |
