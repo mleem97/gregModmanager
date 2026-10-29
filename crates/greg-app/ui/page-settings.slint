@@ -3,6 +3,7 @@ import { IconSet } from "@lucide";
 import { Palette, SectionTitle, FieldRow, GregButton, ListCard } from "theme.slint";
 import { AppIcon } from "icons.slint";
 import { HealthRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 export component SettingsPage inherits VerticalLayout {
     in-out property <string> workspace;
@@ -10,15 +11,18 @@ export component SettingsPage inherits VerticalLayout {
     in-out property <int> lang;
     in-out property <[string]> langs;
     in-out property <string> modstore-url;
+    in-out property <string> steam-web-api-key;
     in-out property <string> telemetry-text;
     in-out property <[HealthRow]> health;
     in-out property <[string]> log;
 
+    callback apply-lang();
     callback apply-workspace();
     callback browse-workspace();
     callback apply-gameroot();
     callback browse-gameroot();
     callback apply-modstore-url();
+    callback apply-steam-web-api-key();
     callback run-checks();
     callback open-logs();
     callback make-bundle();
@@ -32,18 +36,19 @@ export component SettingsPage inherits VerticalLayout {
         VerticalLayout {
             spacing: 8px;
 
-            SectionTitle { text: "GENERAL"; }
+            SectionTitle { text: Tr.settings-section-general; }
 
             FieldRow {
-                label: "Language";
+                label: Tr.settings-language;
                 ComboBox {
                     model: root.langs;
                     current-index <=> root.lang;
                     horizontal-stretch: 1;
+                    selected(_) => { root.apply-lang(); }
                 }
             }
             FieldRow {
-                label: "Workspace";
+                label: Tr.settings-workspace;
                 HorizontalLayout {
                     spacing: 6px;
                     horizontal-stretch: 1;
@@ -52,13 +57,13 @@ export component SettingsPage inherits VerticalLayout {
                         horizontal-stretch: 1;
                     }
                     GregButton {
-                        text: "Browse";
+                        text: Tr.settings-browse;
                         has-icon: true;
                         icon: IconSet.FolderOpen;
                         clicked => { root.browse-workspace(); }
                     }
                     GregButton {
-                        text: "Apply";
+                        text: Tr.settings-apply;
                         has-icon: true;
                         icon: IconSet.Check;
                         variant: "primary";
@@ -67,7 +72,7 @@ export component SettingsPage inherits VerticalLayout {
                 }
             }
             FieldRow {
-                label: "Game root";
+                label: Tr.settings-gameroot;
                 HorizontalLayout {
                     spacing: 6px;
                     horizontal-stretch: 1;
@@ -76,13 +81,13 @@ export component SettingsPage inherits VerticalLayout {
                         horizontal-stretch: 1;
                     }
                     GregButton {
-                        text: "Browse";
+                        text: Tr.settings-browse;
                         has-icon: true;
                         icon: IconSet.FolderOpen;
                         clicked => { root.browse-gameroot(); }
                     }
                     GregButton {
-                        text: "Apply";
+                        text: Tr.settings-apply;
                         has-icon: true;
                         icon: IconSet.Check;
                         variant: "primary";
@@ -91,7 +96,7 @@ export component SettingsPage inherits VerticalLayout {
                 }
             }
             FieldRow {
-                label: "Modstore API";
+                label: Tr.settings-modstore-api;
                 HorizontalLayout {
                     spacing: 6px;
                     horizontal-stretch: 1;
@@ -100,11 +105,31 @@ export component SettingsPage inherits VerticalLayout {
                         horizontal-stretch: 1;
                     }
                     GregButton {
-                        text: "Apply";
+                        text: Tr.settings-apply;
                         has-icon: true;
                         icon: IconSet.Check;
                         variant: "primary";
                         clicked => { root.apply-modstore-url(); }
+                    }
+                }
+            }
+            FieldRow {
+                label: Tr.settings-steam-web-api-key;
+                HorizontalLayout {
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    LineEdit {
+                        text <=> root.steam-web-api-key;
+                        placeholder-text: Tr.settings-steam-web-api-key-placeholder;
+                        input-type: password;
+                        horizontal-stretch: 1;
+                    }
+                    GregButton {
+                        text: Tr.settings-apply;
+                        has-icon: true;
+                        icon: IconSet.Check;
+                        variant: "primary";
+                        clicked => { root.apply-steam-web-api-key(); }
                     }
                 }
             }
@@ -114,9 +139,9 @@ export component SettingsPage inherits VerticalLayout {
                 color: Palette.on-variant;
             }
 
-            SectionTitle { text: "DIAGNOSTICS"; }
+            SectionTitle { text: Tr.settings-section-diagnostics; }
             GregButton {
-                text: "Run checks";
+                text: Tr.settings-run-checks;
                 has-icon: true;
                 icon: IconSet.Stethoscope;
                 clicked => { root.run-checks(); }
@@ -145,7 +170,7 @@ export component SettingsPage inherits VerticalLayout {
                 }
             }
 
-            SectionTitle { text: "SUPPORT"; }
+            SectionTitle { text: Tr.settings-section-support; }
             Rectangle {
                 height: 36px;
                 HorizontalLayout {
@@ -154,19 +179,19 @@ export component SettingsPage inherits VerticalLayout {
                     spacing: 8px;
                     alignment: center;
                     GregButton {
-                        text: "Open log folder";
+                        text: Tr.settings-open-log-folder;
                         has-icon: true;
                         icon: IconSet.FolderOpen;
                         clicked => { root.open-logs(); }
                     }
                     GregButton {
-                        text: "Support bundle";
+                        text: Tr.settings-support-bundle;
                         has-icon: true;
                         icon: IconSet.Package;
                         clicked => { root.make-bundle(); }
                     }
                     GregButton {
-                        text: "Register greg://";
+                        text: Tr.settings-register-protocol;
                         has-icon: true;
                         icon: IconSet.Plug;
                         clicked => { root.register-protocol(); }

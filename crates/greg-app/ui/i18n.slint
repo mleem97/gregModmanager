@@ -1,0 +1,206 @@
+// Global localization singleton for the Slint UI.
+// Populated and updated live by the Rust backend (`actions::apply_ui_translations`)
+// whenever the application starts or the user switches language in Settings.
+export global Tr {
+    // Shell & Navigation
+    in-out property <string> tip-modmanager: "Modmanager";
+    in-out property <string> tip-workshop: "Workshop Upload";
+    in-out property <string> tip-modstore: "Modstore";
+    in-out property <string> tip-settings: "Settings";
+    in-out property <string> tip-report-bug: "Report a bug";
+    in-out property <string> tip-login: "Login";
+    in-out property <string> tip-logout: "Logout";
+    in-out property <string> btn-start-game: "Start Game";
+    in-out property <string> tip-start-game-vanilla: "Start Game (vanilla)";
+    in-out property <string> btn-start-game-mods: "Start Game (with Mods)";
+    in-out property <string> tip-start-game-mods: "Start Game (with Mods)";
+    in-out property <string> btn-stop-game: "Stop Game";
+    in-out property <string> tip-stop-game: "Stop running game";
+    in-out property <string> btn-login: "Login";
+    in-out property <string> btn-logout: "Logout";
+    in-out property <string> btn-my-mods: "My Mods";
+    in-out property <string> btn-upload: "Upload";
+    in-out property <string> btn-settings: "Settings";
+    in-out property <string> nav-modmanager: "MODMANAGER";
+    in-out property <string> nav-workshop-upload: "WORKSHOP UPLOAD";
+    in-out property <string> nav-my-mods: "My Mods";
+    in-out property <string> nav-my-plugins: "My Plugins";
+    in-out property <string> nav-my-libs: "My Libs";
+    in-out property <string> nav-modpacks: "Modpacks";
+    in-out property <string> nav-collections: "Collections";
+    in-out property <string> nav-problems: "Problems";
+    in-out property <string> nav-report: "Report";
+    in-out property <string> nav-projects: "Projects";
+    in-out property <string> nav-new-project: "New Project";
+    in-out property <string> nav-browse: "Browse";
+    in-out property <string> nav-subscribed: "Subscribed";
+    in-out property <string> nav-favorited: "Favorited";
+    in-out property <string> status-steam-connected: "Steam Connected";
+    in-out property <string> status-steam-disconnected: "Steam Disconnected";
+    in-out property <string> status-steam-connecting: "Steam: connecting…";
+    in-out property <string> status-gregapi-connected: "gregAPI Online";
+    in-out property <string> status-gregapi-disconnected: "gregAPI Offline";
+    in-out property <string> status-gregapi-probing: "gregAPI: probing…";
+    in-out property <string> status-melonloader-checking: "MelonLoader: checking…";
+
+    // Modals (New Project, Confirm, Bug Dialog, Libraries, Plugins)
+    in-out property <string> new-modal-title: "CREATE NEW PROJECT";
+    in-out property <string> new-modal-folder-name: "Folder name";
+    in-out property <string> new-modal-folder-placeholder: "my-awesome-mod…";
+    in-out property <string> new-modal-template: "Template";
+    in-out property <string> new-modal-create-open: "Create & open";
+    in-out property <string> confirm-delete: "Delete";
+    in-out property <string> confirm-cancel: "Cancel";
+    in-out property <string> bug-dialog-title: "Report a Bug";
+    in-out property <string> bug-dialog-subtitle: "What is the bug about?";
+    in-out property <string> bug-dialog-this-app: "gregModmanager (this app)";
+    in-out property <string> bug-dialog-other-mods: "Other Greg mods & programs";
+    in-out property <string> lib-modal-title: "INSTALL FRAMEWORK LIBRARIES";
+    in-out property <string> lib-modal-subtitle: "Select gregFramework runtime libraries to install into UserLibs:";
+    in-out property <string> plugin-modal-title: "BROWSE & INSTALL PLUGINS";
+    in-out property <string> plugin-modal-subtitle: "Select official MelonLoader plugins to install into Plugins:";
+    in-out property <string> modal-select-missing: "Select Missing";
+    in-out property <string> modal-select-all: "Select All";
+    in-out property <string> modal-installed: "Installed";
+    in-out property <string> modal-missing: "Missing";
+    in-out property <string> modal-cancel: "Cancel";
+    in-out property <string> modal-installing: "Installing…";
+    in-out property <string> modal-install-selected: "Install Selected";
+
+    // Local Content Page (My Mods, My Plugins, My Libs)
+    in-out property <string> local-filter-placeholder: "Filter…";
+    in-out property <string> local-install-libs: "Install Libraries";
+    in-out property <string> local-browse-plugins: "Browse Plugins";
+    in-out property <string> local-install-plugins: "Install Plugins";
+    in-out property <string> local-rescan: "Rescan";
+    in-out property <string> local-open-folder: "Open folder";
+    in-out property <string> local-active-section: "ACTIVE";
+    in-out property <string> local-disabled-section: "DISABLED";
+    in-out property <string> local-no-active: "No active entries.";
+    in-out property <string> local-no-disabled: "No disabled entries.";
+    in-out property <string> local-disable: "Disable";
+    in-out property <string> local-enable: "Enable";
+    in-out property <string> local-remove: "Remove";
+
+    // Packs & Collections Page
+    in-out property <string> packs-new-name-placeholder: "New name…";
+    in-out property <string> packs-new: "New";
+    in-out property <string> packs-import: "Import";
+    in-out property <string> packs-on: "On";
+    in-out property <string> packs-off: "Off";
+    in-out property <string> packs-apply: "Apply";
+    in-out property <string> packs-add-local-file: "Add local file";
+    in-out property <string> packs-export: "Export";
+    in-out property <string> packs-delete-pack: "Delete pack";
+    in-out property <string> packs-remove: "Remove";
+
+    // Problems Page
+    in-out property <string> problems-title: "PROBLEMS";
+    in-out property <string> problems-recheck: "Re-check";
+
+    // Projects Page
+    in-out property <string> projects-title: "PROJECTS";
+    in-out property <string> projects-new-project: "New Project";
+    in-out property <string> projects-search-placeholder: "Search projects by name or title…";
+    in-out property <string> projects-refresh: "Refresh";
+    in-out property <string> projects-open-folder: "Open folder";
+    in-out property <string> projects-steam: "Steam";
+    in-out property <string> projects-edit: "Edit";
+
+    // Editor Page
+    in-out property <string> editor-section-details: "DETAILS";
+    in-out property <string> editor-section-deps: "DEPENDENCIES";
+    in-out property <string> editor-section-assets: "ASSETS";
+    in-out property <string> editor-section-changelog: "CHANGELOG";
+    in-out property <string> editor-section-checks: "UPLOAD CHECKS";
+    in-out property <string> editor-title: "Title";
+    in-out property <string> editor-version: "Version";
+    in-out property <string> editor-view-on-steam: "View on Steam";
+    in-out property <string> editor-description: "Description";
+    in-out property <string> editor-tags: "Tags (, separated)";
+    in-out property <string> editor-visibility: "Visibility";
+    in-out property <string> editor-profile: "Profile";
+    in-out property <string> editor-modtype: "Mod type";
+    in-out property <string> editor-needs-greg: "Needs gregCoreModFramework";
+    in-out property <string> editor-needs-ml: "Needs MelonLoader";
+    in-out property <string> editor-remove: "Remove";
+    in-out property <string> editor-workshop-id-placeholder: "Workshop ID…";
+    in-out property <string> editor-add-by-id: "Add by ID";
+    in-out property <string> editor-preview: "Preview:";
+    in-out property <string> editor-pick-preview: "Pick preview";
+    in-out property <string> editor-screenshots: "Screenshots:";
+    in-out property <string> editor-add-screenshot: "Add screenshot";
+    in-out property <string> editor-save: "Save";
+    in-out property <string> editor-save-and-upload: "Save & Upload";
+    in-out property <string> editor-modstore-upload: "Modstore Upload";
+    in-out property <string> editor-cancel: "Cancel";
+
+    // Browse Workshop Page
+    in-out property <string> browse-title: "WORKSHOP";
+    in-out property <string> browse-search-placeholder: "Search Workshop or enter Item ID (e.g. 3741628037)…";
+    in-out property <string> browse-tag: "Tag";
+    in-out property <string> browse-tag-placeholder: "tag…";
+    in-out property <string> browse-search: "Search";
+    in-out property <string> browse-lookup-id-placeholder: "Item ID (e.g. 3741628037)…";
+    in-out property <string> browse-lookup-id-btn: "Fetch ID";
+    in-out property <string> browse-cancel: "Cancel";
+    in-out property <string> browse-select-hint: "Select an item to see details.";
+    in-out property <string> browse-author-label: "Author:";
+    in-out property <string> browse-status-label: "Status:";
+    in-out property <string> browse-subscribe: "Subscribe";
+    in-out property <string> browse-unsubscribe: "Unsubscribe";
+    in-out property <string> browse-import: "Import";
+    in-out property <string> browse-steam-page: "Steam page";
+    in-out property <string> browse-prev: "Prev";
+    in-out property <string> browse-next: "Next";
+    in-out property <string> browse-page-word: "Page";
+    in-out property <string> browse-total-word: "total";
+
+    // Modstore Page
+    in-out property <string> store-title: "MODSTORE";
+    in-out property <string> store-refresh: "Refresh";
+    in-out property <string> store-updates: "Updates";
+    in-out property <string> store-search-placeholder: "Search Modstore…";
+    in-out property <string> store-cancel: "Cancel";
+    in-out property <string> store-catalog-tab: "Catalog";
+    in-out property <string> store-install: "Install";
+    in-out property <string> store-update: "Update";
+
+    // Settings Page
+    in-out property <string> settings-section-general: "GENERAL";
+    in-out property <string> settings-section-diagnostics: "DIAGNOSTICS";
+    in-out property <string> settings-section-support: "SUPPORT";
+    in-out property <string> settings-language: "Language";
+    in-out property <string> settings-workspace: "Workspace";
+    in-out property <string> settings-gameroot: "Game root";
+    in-out property <string> settings-modstore-api: "Modstore API";
+    in-out property <string> settings-steam-web-api-key: "Steam Web API Key";
+    in-out property <string> settings-steam-web-api-key-placeholder: "Optional fallback key when Steam client is offline…";
+    in-out property <string> settings-browse: "Browse";
+    in-out property <string> settings-apply: "Apply";
+    in-out property <string> settings-run-checks: "Run checks";
+    in-out property <string> settings-open-log-folder: "Open log folder";
+    in-out property <string> settings-support-bundle: "Support bundle";
+    in-out property <string> settings-register-protocol: "Register greg://";
+
+    // Report Assistant Page
+    in-out property <string> report-title: "REPORT";
+    in-out property <string> report-subtitle: "Describe what happened or what you want to achieve.";
+    in-out property <string> report-category: "Category";
+    in-out property <string> report-report-title: "Title";
+    in-out property <string> report-description: "Description";
+    in-out property <string> report-steps: "Steps to Reproduce";
+    in-out property <string> report-expected: "Expected Behavior";
+    in-out property <string> report-actual: "Actual Behavior";
+    in-out property <string> report-logs-crash: "Logs and Crash Output";
+    in-out property <string> report-measurements: "Measurements / Logs";
+    in-out property <string> report-environment: "Environment";
+    in-out property <string> report-attach-file: "Attach file";
+    in-out property <string> report-preview-section: "PREVIEW";
+    in-out property <string> report-collect-logs: "Collect Logs";
+    in-out property <string> report-generate-preview: "Generate Preview";
+    in-out property <string> report-export: "Export";
+    in-out property <string> report-submit: "Submit";
+    in-out property <string> report-cancel: "Cancel";
+    in-out property <string> report-confirm-title: "Submit report?";
+}

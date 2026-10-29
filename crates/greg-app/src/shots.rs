@@ -414,6 +414,7 @@ fn page_bugdialog(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
 }
 
 fn page_report(ui: &crate::MainWindow, window: &Rc<MinimalSoftwareWindow>) {
+    ui.set_show_bug_dialog(false);
     page_mymods(ui, window);
     ui.set_current_page("report".into());
     ui.set_rp_categories(strings(&["Bug", "Crash", "Other"]));
@@ -583,7 +584,7 @@ fn report_flow_collects_logs_into_draft() {
 
     crate::actions::report_open(&state);
     {
-        let mut guard = state.lock().expect("state");
+        let guard = state.lock().expect("state");
         guard.ui().set_rp_title("Crash on launch".into());
         guard.ui().set_rp_category_index(1);
         guard
@@ -606,7 +607,401 @@ fn report_flow_collects_logs_into_draft() {
             "logs: {logs}"
         );
         let preview = guard.ui().get_rp_preview().to_string();
-        assert!(preview.contains("## Logs and Diagnostics"), "preview: {preview}");
+        assert!(
+            preview.contains("## Logs and Diagnostics"),
+            "preview: {preview}"
+        );
         assert!(preview.contains("panic: boom"), "preview: {preview}");
     }
+}
+
+/// Regression test for My Mods Disable / Enable / Remove actions (including
+/// when a search filter is active and when Dolphin / another process has the
+/// game directory open).
+#[test]
+fn local_toggle_and_remove_work_even_with_filter() {
+    use greg_core::prefs::Preferences as _;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    let tmp = std::env::temp_dir().join(format!(
+        "greg-local-ui-test-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    let mods_dir = tmp.join("Mods");
+    std::fs::create_dir_all(&mods_dir).expect("mods dir");
+    std::fs::write(mods_dir.join("Alpha.dll"), b"alpha").expect("alpha");
+    std::fs::write(mods_dir.join("Beta.dll"), b"beta").expect("beta");
+
+    let old_root = {
+        let mut guard = state.lock().expect("state");
+        let prev = guard.prefs.get_string("GameRootPath", "");
+        guard
+            .prefs
+            .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.ui().set_current_page("mymods".into());
+        guard.ui().set_local_search("beta".into());
+        crate::actions::local_refresh(&mut guard);
+        prev
+    };
+
+    // Only Beta.dll matches the filter, but its `row.index` is 1 in `local_entries`.
+    let beta_idx = {
+        let rows = ui.get_local_active_rows();
+        assert_eq!(rows.row_count(), 1);
+        let row = rows.row_data(0).expect("beta row");
+        assert_eq!(row.name.as_str(), "Beta.dll");
+        row.index
+    };
+
+    // Disable Beta.dll via `local_toggle`.
+    crate::actions::local_toggle(&state, beta_idx);
+    assert!(
+        mods_dir.join("Beta.dll.disabled").is_file(),
+        "Beta.dll should be renamed to Beta.dll.disabled"
+    );
+    assert_eq!(ui.get_local_active_rows().row_count(), 0);
+    assert_eq!(ui.get_local_inactive_rows().row_count(), 1);
+
+    // Remove Beta.dll.disabled via `local_remove` + `confirm_yes`.
+    let disabled_idx = ui
+        .get_local_inactive_rows()
+        .row_data(0)
+        .expect("disabled beta")
+        .index;
+    crate::actions::local_remove(&state, disabled_idx);
+    assert!(ui.get_show_confirm(), "confirm dialog should open");
+    crate::actions::confirm_yes(&state);
+    assert!(!mods_dir.join("Beta.dll.disabled").exists());
+
+    // Restore preference and clean up.
+    state
+        .lock()
+        .expect("state")
+        .prefs
+        .set_string("GameRootPath", &old_root);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn mylibs_install_modal_populates_and_selects_libraries() {
+    use greg_core::prefs::Preferences as _;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    let tmp = std::env::temp_dir().join(format!(
+        "greg-mylibs-modal-test-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    let user_libs = tmp.join("UserLibs");
+    std::fs::create_dir_all(&user_libs).expect("UserLibs dir");
+    std::fs::write(user_libs.join("Jint.dll"), b"jint").expect("Jint.dll");
+
+    let old_root = {
+        let mut guard = state.lock().expect("state");
+        let prev = guard.prefs.get_string("GameRootPath", "");
+        guard
+            .prefs
+            .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.ui().set_current_page("mylibs".into());
+        crate::actions::local_refresh(&mut guard);
+        prev
+    };
+
+    // Open the Install Libraries modal.
+    crate::actions::lib_open_modal(&state);
+    assert!(ui.get_show_lib_modal());
+    let catalog = ui.get_lib_catalog();
+    assert_eq!(catalog.row_count(), 9);
+
+    // Jint.dll is already in UserLibs -> installed == true, selected == false.
+    // Acornima.dll is missing -> installed == false, selected == true.
+    let acornima = catalog.row_data(0).expect("acornima");
+    assert_eq!(acornima.name.as_str(), "Acornima.dll");
+    assert!(!acornima.installed);
+    assert!(acornima.selected);
+
+    let jint = catalog.row_data(1).expect("jint");
+    assert_eq!(jint.name.as_str(), "Jint.dll");
+    assert!(jint.installed);
+    assert!(!jint.selected);
+
+    // Select All selects all 9 (including already-installed Jint.dll).
+    crate::actions::lib_select_all(&state);
+    for i in 0..9 {
+        assert!(ui.get_lib_catalog().row_data(i).expect("row").selected);
+    }
+
+    // Select All again when all 9 are selected deselects all 9.
+    crate::actions::lib_select_all(&state);
+    for i in 0..9 {
+        assert!(!ui.get_lib_catalog().row_data(i).expect("row").selected);
+    }
+
+    // Select Missing restores selection of the 8 missing libraries.
+    crate::actions::lib_select_missing(&state);
+    assert!(ui.get_lib_catalog().row_data(0).expect("acornima").selected);
+    assert!(!ui.get_lib_catalog().row_data(1).expect("jint").selected);
+
+    crate::actions::lib_close_modal(&state);
+    assert!(!ui.get_show_lib_modal());
+
+    state
+        .lock()
+        .expect("state")
+        .prefs
+        .set_string("GameRootPath", &old_root);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn myplugins_browse_modal_populates_and_selects_plugins() {
+    use greg_core::prefs::Preferences as _;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    let tmp = std::env::temp_dir().join(format!(
+        "greg-myplugins-modal-test-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    let plugins_dir = tmp.join("Plugins");
+    std::fs::create_dir_all(&plugins_dir).expect("Plugins dir");
+    std::fs::write(plugins_dir.join("gregPlugin.Companion.dll"), b"companion")
+        .expect("Companion.dll");
+
+    let old_root = {
+        let mut guard = state.lock().expect("state");
+        let prev = guard.prefs.get_string("GameRootPath", "");
+        guard
+            .prefs
+            .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.ui().set_current_page("myplugins".into());
+        crate::actions::local_refresh(&mut guard);
+        prev
+    };
+
+    // Open the Browse Plugins modal.
+    crate::actions::plugin_open_modal(&state);
+    assert!(ui.get_show_plugin_modal());
+    let catalog = ui.get_plugin_catalog();
+    assert_eq!(
+        catalog.row_count(),
+        greg_loader::local_content::FRAMEWORK_PLUGINS.len()
+    );
+
+    // Il2CppAssemblyFixerPlugin.dll (index 0) is missing -> installed == false, selected == true.
+    let fixer = catalog.row_data(0).expect("fixer");
+    assert!(fixer
+        .detail
+        .as_str()
+        .contains("Il2CppAssemblyFixerPlugin.dll"));
+    assert!(!fixer.installed);
+    assert!(fixer.selected);
+
+    // gregPlugin.Companion.dll (index 1) is present -> installed == true, selected == false.
+    let companion = catalog.row_data(1).expect("companion");
+    assert!(companion
+        .detail
+        .as_str()
+        .contains("gregPlugin.Companion.dll"));
+    assert!(companion.installed);
+    assert!(!companion.selected);
+
+    // Select All selects all plugins.
+    crate::actions::plugin_select_all(&state);
+    for i in 0..catalog.row_count() {
+        assert!(ui.get_plugin_catalog().row_data(i).expect("row").selected);
+    }
+
+    // Select Missing restores missing-only selection.
+    crate::actions::plugin_select_missing(&state);
+    assert!(ui.get_plugin_catalog().row_data(0).expect("fixer").selected);
+    assert!(
+        !ui.get_plugin_catalog()
+            .row_data(1)
+            .expect("companion")
+            .selected
+    );
+
+    crate::actions::plugin_close_modal(&state);
+    assert!(!ui.get_show_plugin_modal());
+
+    state
+        .lock()
+        .expect("state")
+        .prefs
+        .set_string("GameRootPath", &old_root);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn workshop_item_3741628037_metadata_and_preview_binds_to_browse_ui() {
+    use greg_core::prefs::Preferences as _;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    // Configure Steam Web API key in Settings UI and apply it.
+    let old_key = state
+        .lock()
+        .expect("state")
+        .prefs
+        .get_string("SteamWebApiKey", "");
+    ui.set_se_steam_web_api_key("TEST_STEAM_WEB_API_KEY_123".into());
+    crate::actions::settings_apply_steam_web_api_key(&state);
+    assert_eq!(
+        state.lock().expect("state").steam.web_api_key().as_deref(),
+        Some("TEST_STEAM_WEB_API_KEY_123")
+    );
+
+    // Simulate a resolved ItemDetail for item 3741628037 arriving via browse_job + cached preview.
+    let tmp = std::env::temp_dir().join(format!(
+        "greg-workshop-3741628037-test-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&tmp).expect("tmp dir");
+    // Minimal 1x1 PNG for preview verification.
+    let png_1x1: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F,
+        0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, b'I', b'D', b'A', b'T', 0x78, 0x9C, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, b'I',
+        b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ];
+    let preview_path = tmp.join("3741628037.png");
+    std::fs::write(&preview_path, png_1x1).expect("write png");
+
+    let item_id = greg_steam::models::EXAMPLE_WORKSHOP_ITEM_ID;
+    assert_eq!(item_id, 3741628037);
+    let detail = greg_steam::models::ItemDetail {
+        published_file_id: item_id,
+        title: "Data Center Workshop Example 3741628037".into(),
+        description: "Full workshop description for item 3741628037".into(),
+        owner_steam_id: 76561198000000001,
+        owner_name: "teamGreg".into(),
+        visibility: "Public".into(),
+        status_state: "OK · Public · Updated 1700000000".into(),
+        source: "web_api".into(),
+        tags: vec!["DataCenterMod".into(), "gregCore".into()],
+        preview_image_url: "https://steamuserimages-a.akamaihd.net/ugc/3741628037/preview.png"
+            .into(),
+        score: 4.9,
+        size_bytes: 2048,
+        is_subscribed: true,
+        dependency_hint_compact: "Requires gregCore".into(),
+        ..Default::default()
+    };
+    let payload = serde_json::to_string(&detail).expect("json");
+    {
+        let mut guard = state.lock().expect("state");
+        guard
+            .thumb_done
+            .insert(item_id.to_string(), preview_path.clone());
+        guard.browse_job = Some(crate::worker::JobHandle::spawn(move |_sink| {
+            crate::worker::JobOutcome {
+                success: true,
+                message: format!("FULL:{payload}"),
+            }
+        }));
+    }
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let mut guard = state.lock().expect("state");
+        crate::actions::tick(&mut guard);
+        if ui.get_br_has_detail() {
+            break;
+        }
+    }
+    assert!(ui.get_br_has_detail());
+    assert_eq!(
+        ui.get_br_d_title().as_str(),
+        "Data Center Workshop Example 3741628037"
+    );
+    assert_eq!(ui.get_br_d_author().as_str(), "teamGreg");
+    assert!(ui
+        .get_br_d_status_state()
+        .as_str()
+        .contains("OK · Public · Updated 1700000000"));
+    assert_eq!(
+        ui.get_br_d_desc().as_str(),
+        "Full workshop description for item 3741628037"
+    );
+    assert_eq!(ui.get_br_d_preview().size().width, 1);
+
+    state
+        .lock()
+        .expect("state")
+        .prefs
+        .set_string("SteamWebApiKey", &old_key);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn i18n_language_switch_updates_tr_global_and_navigation() {
+    use greg_core::prefs::Preferences as _;
+
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = crate::state::AppState::new(ui.as_weak());
+
+    let old_lang = state
+        .lock()
+        .expect("state")
+        .prefs
+        .get_string("AppLanguage", "");
+
+    // Switch to German (index 2 = "de").
+    ui.set_se_lang(2);
+    crate::actions::settings_apply_lang(&state);
+    assert_eq!(state.lock().expect("state").lang, "de");
+    assert_eq!(
+        ui.global::<crate::Tr>().get_btn_start_game().as_str(),
+        greg_core::l10n::get("de", "Ui_Btn_StartGame")
+    );
+    assert_eq!(
+        ui.global::<crate::Tr>().get_local_install_libs().as_str(),
+        greg_core::l10n::get("de", "Ui_Local_InstallLibs")
+    );
+    assert_eq!(
+        ui.global::<crate::Tr>().get_local_browse_plugins().as_str(),
+        greg_core::l10n::get("de", "Ui_Local_BrowsePlugins")
+    );
+    assert_eq!(
+        ui.global::<crate::Tr>().get_settings_language().as_str(),
+        "Sprache"
+    );
+
+    // Switch back to English (index 1 = "en").
+    ui.set_se_lang(1);
+    crate::actions::settings_apply_lang(&state);
+    assert_eq!(state.lock().expect("state").lang, "en");
+    assert_eq!(
+        ui.global::<crate::Tr>().get_settings_language().as_str(),
+        "Language"
+    );
+
+    state
+        .lock()
+        .expect("state")
+        .prefs
+        .set_string("AppLanguage", &old_lang);
 }

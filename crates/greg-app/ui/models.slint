@@ -87,3 +87,12 @@ export struct PackEntryRow {
     // Opaque index into the pack's entries.
     index: int,
 }
+
+export struct LibInstallRow {
+    name: string,
+    detail: string,
+    installed: bool,
+    selected: bool,
+    // Index into FRAMEWORK_LIBRARIES.
+    index: int,
+}

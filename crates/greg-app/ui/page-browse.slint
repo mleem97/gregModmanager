@@ -4,6 +4,7 @@ import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { AppIcon } from "icons.slint";
 import { BrowseRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 export component BrowsePage inherits VerticalLayout {
     in-out property <int> list;
@@ -18,6 +19,9 @@ export component BrowsePage inherits VerticalLayout {
     in-out property <string> selected;
     in-out property <bool> has-detail;
     in-out property <string> d-title;
+    in-out property <string> d-author;
+    in-out property <string> d-status-state;
+    in-out property <image> d-preview;
     in-out property <string> d-meta;
     in-out property <string> d-tags;
     in-out property <string> d-desc;
@@ -40,7 +44,7 @@ export component BrowsePage inherits VerticalLayout {
     spacing: 8px;
     padding: 18px;
 
-    SectionTitle { text: "WORKSHOP"; }
+    SectionTitle { text: Tr.browse-title; }
 
     Rectangle {
         height: 36px;
@@ -73,30 +77,30 @@ export component BrowsePage inherits VerticalLayout {
             alignment: center;
             LineEdit {
                 text <=> root.search;
-                placeholder-text: "Search Workshop…";
+                placeholder-text: Tr.browse-search-placeholder;
                 horizontal-stretch: 1;
                 accepted => { root.search-go(); }
             }
             Text {
-                text: "Tag";
+                text: Tr.browse-tag;
                 font-size: 12px;
                 color: Palette.on-variant;
                 vertical-alignment: center;
             }
             LineEdit {
                 text <=> root.tag;
-                placeholder-text: "tag…";
+                placeholder-text: Tr.browse-tag-placeholder;
                 width: 140px;
             }
             GregButton {
-                text: "Search";
+                text: Tr.browse-search;
                 has-icon: true;
                 icon: IconSet.Search;
                 enabled: !root.busy;
                 clicked => { root.search-go(); }
             }
             if root.busy: GregButton {
-                text: "Cancel";
+                text: Tr.browse-cancel;
                 has-icon: true;
                 icon: IconSet.Ban;
                 clicked => { root.cancel(); }
@@ -173,9 +177,22 @@ export component BrowsePage inherits VerticalLayout {
                     padding: 10px;
                     spacing: 6px;
                     if !root.has-detail: Text {
-                        text: "Select an item to see details.";
+                        text: Tr.browse-select-hint;
                         font-size: 12px;
                         color: Palette.on-variant;
+                    }
+                    if root.has-detail && root.d-preview.width > 0: Rectangle {
+                        height: 140px;
+                        background: Palette.container-low;
+                        border-radius: Palette.radius;
+                        border-width: 1px;
+                        border-color: Palette.outline;
+                        Image {
+                            source: root.d-preview;
+                            width: 100%;
+                            height: 100%;
+                            image-fit: contain;
+                        }
                     }
                     if root.has-detail: Text {
                         text: root.d-title;
@@ -183,6 +200,37 @@ export component BrowsePage inherits VerticalLayout {
                         font-weight: 700;
                         color: Palette.on-surface;
                         wrap: word-wrap;
+                    }
+                    if root.has-detail && root.d-author != "": HorizontalLayout {
+                        spacing: 6px;
+                        Text {
+                            text: Tr.browse-author-label;
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: Palette.on-variant;
+                        }
+                        Text {
+                            text: root.d-author;
+                            font-size: 11px;
+                            color: Palette.on-surface;
+                            overflow: elide;
+                        }
+                    }
+                    if root.has-detail && root.d-status-state != "": HorizontalLayout {
+                        spacing: 6px;
+                        Text {
+                            text: Tr.browse-status-label;
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: Palette.on-variant;
+                        }
+                        Text {
+                            text: root.d-status-state;
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: Palette.secondary;
+                            overflow: elide;
+                        }
                     }
                     if root.has-detail: Text {
                         text: root.d-meta;
@@ -216,19 +264,19 @@ export component BrowsePage inherits VerticalLayout {
                             spacing: 8px;
                             alignment: center;
                             GregButton {
-                                text: root.d-subscribed ? "Unsubscribe" : "Subscribe";
+                                text: root.d-subscribed ? Tr.browse-unsubscribe : Tr.browse-subscribe;
                                 has-icon: true;
                                 icon: root.d-subscribed ? IconSet.BellOff : IconSet.Bell;
                                 clicked => { root.subscribe-toggle(); }
                             }
                             GregButton {
-                                text: "Import";
+                                text: Tr.browse-import;
                                 has-icon: true;
                                 icon: IconSet.Download;
                                 clicked => { root.import-item(); }
                             }
                             GregButton {
-                                text: "Steam page";
+                                text: Tr.browse-steam-page;
                                 has-icon: true;
                                 icon: IconSet.ExternalLink;
                                 clicked => { root.view-on-steam(); }
@@ -248,19 +296,19 @@ export component BrowsePage inherits VerticalLayout {
             spacing: 8px;
             alignment: center;
             GregButton {
-                text: "Prev";
+                text: Tr.browse-prev;
                 has-icon: true;
                 icon: IconSet.ChevronLeft;
                 clicked => { root.prev-page(); }
             }
             Text {
-                text: "Page " + root.page + " (" + root.total + " total)";
+                text: Tr.browse-page-word + " " + root.page + " (" + root.total + " " + Tr.browse-total-word + ")";
                 font-size: 11px;
                 color: Palette.on-variant;
                 vertical-alignment: center;
             }
             GregButton {
-                text: "Next";
+                text: Tr.browse-next;
                 has-icon: true;
                 icon: IconSet.ChevronRight;
                 clicked => { root.next-page(); }

@@ -6,8 +6,8 @@
     "organization": null,
     "repositoryId": null,
     "repositoryName": null,
-    "createdAt": "2026-10-28T13:41:25.645Z",
-    "updatedAt": "2026-10-28T13:41:25.645Z",
+    "createdAt": "2026-10-29T14:24:34.081Z",
+    "updatedAt": "2026-10-29T14:24:34.081Z",
     "languages": [
       "CSharp",
       "Dockerfile",
@@ -2381,7 +2381,7 @@
         {
           "patternId": "Lizard_file-nloc-medium",
           "parameters": {
-            "threshold": "760"
+            "threshold": "910"
           }
         },
         {
@@ -2396,7 +2396,7 @@
         {
           "patternId": "Lizard_nloc-critical",
           "parameters": {
-            "threshold": "370"
+            "threshold": "400"
           }
         },
         {
@@ -2414,7 +2414,7 @@
         {
           "patternId": "Lizard_file-nloc-critical",
           "parameters": {
-            "threshold": "3820"
+            "threshold": "4650"
           }
         }
       ]

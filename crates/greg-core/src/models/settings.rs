@@ -72,6 +72,14 @@ pub const MELON_LOADER_LATEST_API_URL: &str =
 pub const STEAM_MODFIX_LATEST_API_URL: &str =
     "https://api.github.com/repos/mleem97/gregPlugin.SteamModfix/releases/latest";
 
+/// Datacentermods Forgejo/Gitea API URL for IL2CPP Assembly Fixer releases (primary).
+pub const IL2CPP_ASSEMBLY_FIXER_DATACENTERMODS_API_URL: &str =
+    "https://git.datacentermods.com/api/v1/repos/teamGreg/Il2CppAssemblyFixer/releases";
+
+/// GitHub API URL for the latest IL2CPP Assembly Fixer release (fallback).
+pub const IL2CPP_ASSEMBLY_FIXER_GITHUB_API_URL: &str =
+    "https://api.github.com/repos/mleem97/Il2CppAssemblyFixer/releases/latest";
+
 /// Whether the Modstore integration is enabled.
 pub fn is_modstore_enabled() -> bool {
     std::env::var("GREG_MODSTORE_DISABLED")

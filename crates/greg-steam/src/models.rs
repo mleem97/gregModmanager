@@ -1,6 +1,11 @@
 //! Steam Workshop view models (serde).
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
+
+/// Reference Workshop Item ID used in documentation and integration tests.
+pub const EXAMPLE_WORKSHOP_ITEM_ID: u64 = 3_741_628_037;
 
 /// Browse sort orders.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -68,7 +73,7 @@ pub struct ItemDetail {
     pub owner_name: String,
     #[serde(default)]
     pub owner_steam_id: u64,
-    #[serde(default)]
+    #[serde(default, alias = "preview_url", alias = "previewUrl")]
     pub preview_image_url: String,
     #[serde(default)]
     pub created: u32,
@@ -84,12 +89,42 @@ pub struct ItemDetail {
     pub visibility: String,
     #[serde(default)]
     pub url: String,
+    /// Human-readable status / update state (e.g. `"Subscribed · Installed"`,
+    /// `"Subscribed · Download pending"`, `"Available (Steamworks)"`, `"Available (Web API)"`).
+    #[serde(default)]
+    pub status_state: String,
+    /// Origin tier that produced this metadata (`"steamworks"` or `"web_api"`).
+    #[serde(default)]
+    pub source: String,
     #[serde(default)]
     pub dependency_hint_compact: String,
     #[serde(default)]
     pub dependency_hint_block: String,
     #[serde(default)]
     pub has_dependency_hints: bool,
+}
+
+/// Alias for [`ItemDetail`] representing Workshop item metadata across Tier 1 and Tier 2.
+pub type WorkshopItemMetadata = ItemDetail;
+
+/// Downloaded and validated Workshop preview image ready for Slint UI rendering.
+///
+/// Provides both a local cached file path (for `slint::Image::load_from_path`)
+/// and parsed dimensions + RGBA8 pixel buffer (for `slint::SharedPixelBuffer`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedPreviewImage {
+    /// Image width in pixels (parsed from header, or `1` fallback).
+    pub width: u32,
+    /// Image height in pixels (parsed from header, or `1` fallback).
+    pub height: u32,
+    /// RGBA8 pixel buffer (`width * height * 4` bytes).
+    pub rgba8: Vec<u8>,
+    /// Original encoded image bytes (PNG/JPEG/GIF/WebP).
+    pub raw_bytes: Vec<u8>,
+    /// Sniffed file extension (e.g. `".png"`, `".jpg"`, `".gif"`, `".webp"`).
+    pub extension: &'static str,
+    /// Local filesystem path where the image was cached for `slint::Image::load_from_path`.
+    pub cached_path: Option<PathBuf>,
 }
 
 /// One of the user's own published items (compact).

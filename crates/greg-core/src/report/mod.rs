@@ -257,7 +257,7 @@ impl ReportSubmissionState {
         let normalized = value.trim().to_ascii_lowercase();
         Some(match normalized.as_str() {
             "draft" => Self::Draft,
-            "validating" | "validating" => Self::Validating,
+            "validating" => Self::Validating,
             "pending" => Self::Pending,
             "submitting" => Self::Submitting,
             "in_progress" | "inprogress" | "in-progress" => Self::InProgress,

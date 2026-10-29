@@ -6,10 +6,15 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use greg_core::l10n;
+
+/// Process-wide log sink (buffer + file). `AppState::append_log` writes here
+/// instead of locking the `AppState` mutex, so it can never deadlock when the
+/// caller already holds the state guard.
+static LOG_SINK: OnceLock<(Arc<Mutex<Vec<String>>>, FileLog)> = OnceLock::new();
 use greg_core::models::ActiveSession;
 use greg_core::models::{ProjectSyncState, WorkshopMetadata};
 use greg_core::prefs::Preferences;
@@ -19,6 +24,7 @@ use greg_steam::service::WorkshopService;
 
 use crate::worker::JobHandle;
 use crate::MainWindow;
+use slint::ComponentHandle;
 
 /// Icon ids.
 pub const ICON_MODMANAGER: &str = "modmanager";
@@ -104,6 +110,14 @@ pub struct AppState {
     pub pending_remove: Option<std::path::PathBuf>,
     /// Last scan signature of the visible local page (change detection).
     pub local_sig: String,
+    /// Selection flags for the "Install Libraries" modal (`FRAMEWORK_LIBRARIES` order).
+    pub lib_selected: Vec<bool>,
+    /// Background job for installing selected framework libraries.
+    pub lib_job: Option<JobHandle>,
+    /// Selection flags for the "Browse Plugins" modal (`FRAMEWORK_PLUGINS` order).
+    pub plugin_selected: Vec<bool>,
+    /// Background job for installing MelonLoader plugins.
+    pub plugin_job: Option<JobHandle>,
     /// Active Modstore session (OAuth browser flow).
     pub session: Option<ActiveSession>,
     /// Tracked game session (supervised direct-exe launch).
@@ -169,9 +183,13 @@ impl AppState {
         let _ = workspace.ensure_structure();
         let _ = workspace.migrate_legacy_projects();
 
+        let web_api_key = prefs.get_string("SteamWebApiKey", "");
         let backend: Arc<dyn SteamBackend> =
             Arc::from(greg_steam::backend::UnavailableBackend::new("connecting…"));
         let steam = Arc::new(WorkshopService::new(Arc::clone(&backend), lang.clone()));
+        if !web_api_key.trim().is_empty() {
+            steam.set_web_api_key(Some(web_api_key));
+        }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
@@ -179,6 +197,9 @@ impl AppState {
         let file_log = FileLog::shared().clone();
         let (events_tx, events_rx) = mpsc::channel();
         let probe_wake = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let log_lines = Arc::new(Mutex::new(Vec::new()));
+        let _ = LOG_SINK.set((Arc::clone(&log_lines), file_log.clone()));
 
         let state = Arc::new(Mutex::new(Self {
             weak,
@@ -189,7 +210,7 @@ impl AppState {
             backend,
             runtime,
             file_log,
-            log_lines: Arc::new(Mutex::new(Vec::new())),
+            log_lines,
             project_rows: Vec::new(),
             project_sync: HashMap::new(),
             sync_job: None,
@@ -210,6 +231,10 @@ impl AppState {
             local_entries: Vec::new(),
             pending_remove: None,
             local_sig: String::new(),
+            lib_selected: vec![false; greg_loader::local_content::FRAMEWORK_LIBRARIES.len()],
+            lib_job: None,
+            plugin_selected: vec![false; greg_loader::local_content::FRAMEWORK_PLUGINS.len()],
+            plugin_job: None,
             session: None,
             game_session: None,
             steam_released: false,
@@ -279,13 +304,19 @@ impl AppState {
 
         // Background: Steam connect, then GregApi probes. No AppState
         // crosses threads here; the UI timer (owned by `main`) drains.
-        Self::spawn_probe(
-            state.lock().expect("state").events_tx.clone(),
-            Arc::clone(&probe_wake),
-            true,
-        );
+        // Disabled under `cfg(test)` so parallel unit tests creating `AppState`
+        // do not race on the process-global Steamworks C++ singleton
+        // (`SteamAPI_Init` / `SteamAPI_Shutdown`) or fire live HTTP probes.
+        if !cfg!(test) {
+            Self::spawn_probe(
+                state.lock().expect("state").events_tx.clone(),
+                Arc::clone(&probe_wake),
+                true,
+            );
+        }
         {
             let mut guard = state.lock().expect("state");
+            crate::actions::apply_ui_translations(&mut guard);
             crate::actions::refresh_projects(&mut guard);
             crate::actions::refresh_settings(&mut guard);
             // Crash recovery: files disabled by a killed vanilla session are
@@ -309,29 +340,42 @@ impl AppState {
     pub fn apply_icon_state(ui: &MainWindow, icon: &str, page: &str) {
         ui.set_current_icon(icon.into());
         ui.set_current_page(page.into());
+        let tr = ui.global::<crate::Tr>();
         match icon {
             ICON_MODMANAGER => {
                 ui.set_nav_visible(true);
-                ui.set_nav_title("MODMANAGER".into());
+                ui.set_nav_title(tr.get_nav_modmanager());
+                let mymods = tr.get_nav_my_mods();
+                let myplugins = tr.get_nav_my_plugins();
+                let mylibs = tr.get_nav_my_libs();
+                let modpacks = tr.get_nav_modpacks();
+                let collections = tr.get_nav_collections();
+                let problems = tr.get_nav_problems();
+                let report = tr.get_nav_report();
                 ui.set_nav_items(model_of_structs(vec![
-                    ("mymods", "My Mods"),
-                    ("myplugins", "My Plugins"),
-                    ("mylibs", "My Libs"),
-                    ("modpacks", "Modpacks"),
-                    ("collections", "Collections"),
-                    ("problems", "Problems"),
-                    ("report", "Report"),
+                    ("mymods", mymods.as_str()),
+                    ("myplugins", myplugins.as_str()),
+                    ("mylibs", mylibs.as_str()),
+                    ("modpacks", modpacks.as_str()),
+                    ("collections", collections.as_str()),
+                    ("problems", problems.as_str()),
+                    ("report", report.as_str()),
                 ]));
             }
             ICON_WORKSHOP => {
                 ui.set_nav_visible(true);
-                ui.set_nav_title("WORKSHOP UPLOAD".into());
+                ui.set_nav_title(tr.get_nav_workshop_upload());
+                let projects = tr.get_nav_projects();
+                let new_project = tr.get_nav_new_project();
+                let browse = tr.get_nav_browse();
+                let subscribed = tr.get_nav_subscribed();
+                let favorited = tr.get_nav_favorited();
                 ui.set_nav_items(model_of_structs(vec![
-                    ("projects", "Projects"),
-                    ("new", "New Project"),
-                    ("browse", "Browse"),
-                    ("subscribed", "Subscribed"),
-                    ("favorited", "Favorited"),
+                    ("projects", projects.as_str()),
+                    ("new", new_project.as_str()),
+                    ("browse", browse.as_str()),
+                    ("subscribed", subscribed.as_str()),
+                    ("favorited", favorited.as_str()),
                 ]));
             }
             _ => {
@@ -351,28 +395,31 @@ impl AppState {
         steam_hint: String,
         gregapi_ok: bool,
     ) {
+        let tr = ui.global::<crate::Tr>();
         if steam_ok {
             ui.set_steam_ok(true);
+            let base = tr.get_status_steam_connected();
             ui.set_steam_text(
                 format!(
-                    "Steam Connected{}",
+                    "{base}{}",
                     steam_user.map(|u| format!(" · {u}")).unwrap_or_default()
                 )
                 .into(),
             );
         } else {
             ui.set_steam_ok(false);
+            let base = tr.get_status_steam_disconnected();
             ui.set_steam_text(if steam_hint.is_empty() {
-                "Steam Disconnected".into()
+                base
             } else {
-                format!("Steam Disconnected · {steam_hint}").into()
+                format!("{base} · {steam_hint}").into()
             });
         }
         ui.set_gregapi_ok(gregapi_ok);
         ui.set_gregapi_text(if gregapi_ok {
-            "gregAPI Online".into()
+            tr.get_status_gregapi_connected()
         } else {
-            "gregAPI Offline".into()
+            tr.get_status_gregapi_disconnected()
         });
         // Gating: GregApi red → login hidden, Modstore unavailable.
         let modstore_enabled = greg_core::models::settings::is_modstore_enabled();
@@ -436,6 +483,13 @@ impl AppState {
     /// Logs to buffer + file.
     /// Appends a log line from `&mut self` contexts (tick/drains).
     pub fn push_log(&mut self, line: &str) {
+        self.log_line(line);
+    }
+
+    /// Appends a log line through a shared `&self`. Use this while the caller
+    /// already holds the `AppState` guard: `append_log(state, ..)` re-locks the
+    /// non-reentrant mutex and would deadlock the UI thread.
+    pub fn log_line(&self, line: &str) {
         if let Ok(mut lines) = self.log_lines.lock() {
             lines.push(line.to_string());
             if lines.len() > 500 {
@@ -447,8 +501,13 @@ impl AppState {
 
     /// Logs to buffer + file.
     pub fn append_log(state: &Arc<Mutex<Self>>, line: &str) {
-        let lines = state.lock().expect("state").log_lines.clone();
-        let file_log = state.lock().expect("state").file_log.clone();
+        let (lines, file_log) = match LOG_SINK.get() {
+            Some((lines, file_log)) => (Arc::clone(lines), file_log.clone()),
+            None => {
+                let guard = state.lock().expect("state");
+                (Arc::clone(&guard.log_lines), guard.file_log.clone())
+            }
+        };
         {
             let mut guard = lines.lock().expect("log lock");
             guard.push(line.to_string());

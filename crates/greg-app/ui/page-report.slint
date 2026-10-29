@@ -1,6 +1,7 @@
 import { LineEdit, TextEdit, ComboBox, ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, GregButton, FieldRow } from "theme.slint";
+import { Tr } from "i18n.slint";
 
 // Universal Report Assistant page: category, free-text description and
 // category-dependent fields, attachments, generated Markdown preview,
@@ -52,16 +53,16 @@ export component ReportPage inherits Rectangle {
     spacing: 8px;
     padding: 18px;
 
-    SectionTitle { text: "REPORT"; }
+    SectionTitle { text: Tr.report-title; }
 
     Text {
-        text: "Describe what happened or what you want to achieve.";
+        text: Tr.report-subtitle;
         font-size: 11px;
         color: Palette.on-variant;
     }
 
     FieldRow {
-        label: "Category";
+        label: Tr.report-category;
         ComboBox {
             width: 220px;
             model: root.categories;
@@ -70,7 +71,7 @@ export component ReportPage inherits Rectangle {
     }
 
     FieldRow {
-        label: "Title";
+        label: Tr.report-report-title;
         LineEdit {
             text <=> root.title;
             horizontal-stretch: 1;
@@ -78,7 +79,7 @@ export component ReportPage inherits Rectangle {
     }
 
     Text {
-        text: "Description";
+        text: Tr.report-description;
         font-size: 12px;
         color: Palette.on-variant;
     }
@@ -90,27 +91,27 @@ export component ReportPage inherits Rectangle {
     // Category-dependent sections (conditional layout children).
     if root.category-index == 0: VerticalLayout {
         spacing: 8px;
-        Text { text: "Steps to Reproduce"; font-size: 12px; color: Palette.on-variant; }
+        Text { text: Tr.report-steps; font-size: 12px; color: Palette.on-variant; }
         TextEdit { text <=> root.steps; height: 90px; }
-        Text { text: "Expected Behavior"; font-size: 12px; color: Palette.on-variant; }
+        Text { text: Tr.report-expected; font-size: 12px; color: Palette.on-variant; }
         TextEdit { text <=> root.expected; height: 90px; }
-        Text { text: "Actual Behavior"; font-size: 12px; color: Palette.on-variant; }
+        Text { text: Tr.report-actual; font-size: 12px; color: Palette.on-variant; }
         TextEdit { text <=> root.actual; height: 90px; }
     }
     if root.category-index == 1: VerticalLayout {
         spacing: 8px;
-        Text { text: "Logs and Crash Output"; font-size: 12px; color: Palette.on-variant; }
+        Text { text: Tr.report-logs-crash; font-size: 12px; color: Palette.on-variant; }
         TextEdit { text <=> root.logs; height: 140px; }
     }
     if root.category-index == 4: VerticalLayout {
         spacing: 8px;
-        Text { text: "Measurements / Logs"; font-size: 12px; color: Palette.on-variant; }
+        Text { text: Tr.report-measurements; font-size: 12px; color: Palette.on-variant; }
         TextEdit { text <=> root.logs; height: 140px; }
     }
     if root.category-index == 10: VerticalLayout {
         spacing: 8px;
         FieldRow {
-            label: "Environment";
+            label: Tr.report-environment;
             LineEdit {
                 text <=> root.environment;
                 horizontal-stretch: 1;
@@ -121,14 +122,14 @@ export component ReportPage inherits Rectangle {
     // Attachment intake: user-selected files only; names reach the draft and
     // the preview, contents are validated and sanitized downstream.
     GregButton {
-        text: "Attach file";
+        text: Tr.report-attach-file;
         has-icon: true;
         icon: IconSet.Paperclip;
         variant: "ghost";
         clicked => { root.attach(); }
     }
 
-    SectionTitle { text: "PREVIEW"; }
+    SectionTitle { text: Tr.report-preview-section; }
 
     TextEdit {
         text <=> root.preview;
@@ -151,35 +152,35 @@ export component ReportPage inherits Rectangle {
     HorizontalLayout {
         spacing: 10px;
         GregButton {
-            text: "Collect Logs";
+            text: Tr.report-collect-logs;
             has-icon: true;
             icon: IconSet.Stethoscope;
             variant: "ghost";
             clicked => { root.collect-logs(); }
         }
         GregButton {
-            text: "Generate Preview";
+            text: Tr.report-generate-preview;
             has-icon: true;
             icon: IconSet.RefreshCw;
             variant: "primary";
             clicked => { root.generate(); }
         }
         GregButton {
-            text: "Export";
+            text: Tr.report-export;
             has-icon: true;
             icon: IconSet.Download;
             variant: "ghost";
             clicked => { root.export(); }
         }
         GregButton {
-            text: "Submit";
+            text: Tr.report-submit;
             has-icon: true;
             icon: IconSet.Send;
             variant: "primary";
             clicked => { root.submit(); }
         }
         GregButton {
-            text: "Cancel";
+            text: Tr.report-cancel;
             has-icon: true;
             icon: IconSet.Ban;
             variant: "ghost";
@@ -211,7 +212,7 @@ export component ReportPage inherits Rectangle {
                 spacing: 10px;
                 alignment: center;
                 Text {
-                    text: "Submit report?";
+                    text: Tr.report-confirm-title;
                     font-size: 14px;
                     font-weight: 700;
                     color: Palette.on-surface;
@@ -234,13 +235,13 @@ export component ReportPage inherits Rectangle {
                     spacing: 10px;
                     alignment: center;
                     GregButton {
-                        text: "Cancel";
+                        text: Tr.report-cancel;
                         has-icon: true;
                         icon: IconSet.Ban;
                         clicked => { root.confirm-no(); }
                     }
                     GregButton {
-                        text: "Submit";
+                        text: Tr.report-submit;
                         has-icon: true;
                         icon: IconSet.Send;
                         clicked => { root.confirm-yes(); }

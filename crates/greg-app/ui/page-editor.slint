@@ -3,6 +3,7 @@ import { IconSet } from "@lucide";
 import { Palette, SectionTitle, FieldRow, GregButton, ListCard } from "theme.slint";
 import { AppIcon } from "icons.slint";
 import { CheckRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 export component EditorPage inherits VerticalLayout {
     in-out property <string> title;
@@ -56,10 +57,10 @@ export component EditorPage inherits VerticalLayout {
         VerticalLayout {
             spacing: 8px;
 
-            SectionTitle { text: "DETAILS"; }
+            SectionTitle { text: Tr.editor-section-details; }
 
             FieldRow {
-                label: "Title";
+                label: Tr.editor-title;
                 title-box := LineEdit {
                     text <=> root.title;
                     horizontal-stretch: 1;
@@ -70,7 +71,7 @@ export component EditorPage inherits VerticalLayout {
                 spacing: 8px;
                 Text {
                     width: 130px;
-                    text: "Version";
+                    text: Tr.editor-version;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
@@ -87,7 +88,7 @@ export component EditorPage inherits VerticalLayout {
                     horizontal-stretch: 1;
                 }
                 if root.fileid-text != "": GregButton {
-                    text: "View on Steam";
+                    text: Tr.editor-view-on-steam;
                     has-icon: true;
                     icon: IconSet.ExternalLink;
                     clicked => { root.view-on-steam(); }
@@ -95,7 +96,7 @@ export component EditorPage inherits VerticalLayout {
             }
 
             Text {
-                text: "Description";
+                text: Tr.editor-description;
                 font-size: 12px;
                 color: Palette.on-variant;
             }
@@ -111,7 +112,7 @@ export component EditorPage inherits VerticalLayout {
             }
 
             FieldRow {
-                label: "Tags (, separated)";
+                label: Tr.editor-tags;
                 LineEdit {
                     text <=> root.tags;
                     horizontal-stretch: 1;
@@ -123,7 +124,7 @@ export component EditorPage inherits VerticalLayout {
                 spacing: 8px;
                 Text {
                     width: 130px;
-                    text: "Visibility";
+                    text: Tr.editor-visibility;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
@@ -133,7 +134,7 @@ export component EditorPage inherits VerticalLayout {
                     current-index <=> root.visibility;
                 }
                 Text {
-                    text: "Profile";
+                    text: Tr.editor-profile;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
@@ -143,7 +144,7 @@ export component EditorPage inherits VerticalLayout {
                     current-index <=> root.profile;
                 }
                 Text {
-                    text: "Mod type";
+                    text: Tr.editor-modtype;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
@@ -157,18 +158,18 @@ export component EditorPage inherits VerticalLayout {
             HorizontalLayout {
                 spacing: 16px;
                 CheckBox {
-                    text: "Needs gregCoreModFramework";
+                    text: Tr.editor-needs-greg;
                     checked <=> root.needs-greg;
                     toggled => { root.changed(); }
                 }
                 CheckBox {
-                    text: "Needs MelonLoader";
+                    text: Tr.editor-needs-ml;
                     checked <=> root.needs-ml;
                     toggled => { root.changed(); }
                 }
             }
 
-            SectionTitle { text: "DEPENDENCIES"; }
+            SectionTitle { text: Tr.editor-section-deps; }
             for dep[idx] in root.deps: HorizontalLayout {
                 spacing: 8px;
                 Text {
@@ -179,7 +180,7 @@ export component EditorPage inherits VerticalLayout {
                     vertical-alignment: center;
                 }
                 GregButton {
-                    text: "Remove";
+                    text: Tr.editor-remove;
                     has-icon: true;
                     icon: IconSet.Trash2;
                     variant: "danger";
@@ -190,18 +191,18 @@ export component EditorPage inherits VerticalLayout {
                 spacing: 8px;
                 LineEdit {
                     text <=> root.dep-add-text;
-                    placeholder-text: "Workshop ID…";
+                    placeholder-text: Tr.editor-workshop-id-placeholder;
                     horizontal-stretch: 1;
                 }
                 GregButton {
-                    text: "Add by ID";
+                    text: Tr.editor-add-by-id;
                     has-icon: true;
                     icon: IconSet.ListPlus;
                     clicked => { root.dep-add(); }
                 }
             }
 
-            SectionTitle { text: "ASSETS"; }
+            SectionTitle { text: Tr.editor-section-assets; }
             ListCard {
                 height: 120px;
                 Image {
@@ -214,7 +215,7 @@ export component EditorPage inherits VerticalLayout {
             HorizontalLayout {
                 spacing: 8px;
                 Text {
-                    text: "Preview:";
+                    text: Tr.editor-preview;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
@@ -228,7 +229,7 @@ export component EditorPage inherits VerticalLayout {
                     overflow: elide;
                 }
                 GregButton {
-                    text: "Pick preview";
+                    text: Tr.editor-pick-preview;
                     has-icon: true;
                     icon: IconSet.ImagePlus;
                     clicked => { root.pick-preview(); }
@@ -237,13 +238,13 @@ export component EditorPage inherits VerticalLayout {
             HorizontalLayout {
                 spacing: 8px;
                 Text {
-                    text: "Screenshots:";
+                    text: Tr.editor-screenshots;
                     font-size: 12px;
                     color: Palette.on-variant;
                     vertical-alignment: center;
                 }
                 GregButton {
-                    text: "Add screenshot";
+                    text: Tr.editor-add-screenshot;
                     has-icon: true;
                     icon: IconSet.ImagePlus;
                     clicked => { root.add-shot(); }
@@ -260,7 +261,7 @@ export component EditorPage inherits VerticalLayout {
                     overflow: elide;
                 }
                 GregButton {
-                    text: "Remove";
+                    text: Tr.editor-remove;
                     has-icon: true;
                     icon: IconSet.Trash2;
                     variant: "danger";
@@ -268,7 +269,7 @@ export component EditorPage inherits VerticalLayout {
                 }
             }
 
-            SectionTitle { text: "CHANGELOG"; }
+            SectionTitle { text: Tr.editor-section-changelog; }
             TextEdit {
                 text <=> root.changelog;
                 height: 90px;
@@ -281,7 +282,7 @@ export component EditorPage inherits VerticalLayout {
                 wrap: word-wrap;
             }
 
-            SectionTitle { text: "UPLOAD CHECKS"; }
+            SectionTitle { text: Tr.editor-section-checks; }
             Text {
                 text: root.readiness-text;
                 font-size: 12px;
@@ -316,13 +317,13 @@ export component EditorPage inherits VerticalLayout {
                 spacing: 8px;
                 alignment: end;
                 GregButton {
-                    text: "Save";
+                    text: Tr.editor-save;
                     has-icon: true;
                     icon: IconSet.Save;
                     clicked => { root.save(); }
                 }
                 GregButton {
-                    text: "Save & Upload";
+                    text: Tr.editor-save-and-upload;
                     has-icon: true;
                     icon: IconSet.CloudUpload;
                     variant: "primary";
@@ -330,14 +331,14 @@ export component EditorPage inherits VerticalLayout {
                     clicked => { root.publish(); }
                 }
                 GregButton {
-                    text: "Modstore Upload";
+                    text: Tr.editor-modstore-upload;
                     has-icon: true;
                     icon: IconSet.ShoppingBag;
                     enabled: !root.publishing;
                     clicked => { root.publish-modstore(); }
                 }
                 if root.publishing: GregButton {
-                    text: "Cancel";
+                    text: Tr.editor-cancel;
                     has-icon: true;
                     icon: IconSet.Ban;
                     clicked => { root.cancel-publish(); }

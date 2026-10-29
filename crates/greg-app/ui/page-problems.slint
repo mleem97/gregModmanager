@@ -3,6 +3,7 @@ import { IconSet } from "@lucide";
 import { Palette, SectionTitle, GregButton, ListCard } from "theme.slint";
 import { AppIcon } from "icons.slint";
 import { ProblemRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 // Problems inbox: aggregated diagnostics (game root, Steam, GregApi,
 // health checks, unpublished project changes). Each row can jump to the
@@ -17,12 +18,12 @@ export component ProblemsPage inherits VerticalLayout {
     spacing: 8px;
     padding: 18px;
 
-    SectionTitle { text: "PROBLEMS"; }
+    SectionTitle { text: Tr.problems-title; }
 
     HorizontalLayout {
         spacing: 8px;
         GregButton {
-            text: "Re-check";
+            text: Tr.problems-recheck;
             has-icon: true;
             icon: IconSet.RefreshCw;
             clicked => { root.refresh(); }

@@ -1,28 +1,34 @@
 # gregModmanager
 
-> Cross-platform desktop mod manager for the **gregFramework** ecosystem — local Workshop projects, Steam Workshop publishing, Mod Store, and one-click game launch for **Data Center**.
+> Cross-platform desktop mod manager for the **_gregFramework ecosystem_** — local Workshop projects, Steam Workshop publishing, Mod Store, and one-click game launch for **_Data Center_** _(by Waseku)_.
 
-[![Rust](https://github.com/mleem97/gregModmanager/actions/workflows/rust.yml/badge.svg)](https://github.com/mleem97/gregModmanager/actions/workflows/rust.yml)
-----
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/greg)
-[![gregFramework](https://img.shields.io/badge/gregFramework-Website-blue?style=for-the-badge)](https://gregframework.eu)
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.7.5-orange?style=for-the-badge)](VERSION)
-[![Release](https://img.shields.io/badge/Release-Download-blueviolet?style=for-the-badge&logo=github)](https://github.com/mleem97/gregModmanager/releases)
-[![Sponsors](https://img.shields.io/badge/Sponsors-Support-ea4aaa?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/mleem97)
-[![Rust](https://img.shields.io/badge/Rust-stable-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Slint](https://img.shields.io/badge/Slint-1.18-8c7ff0?style=for-the-badge&logo=slate&logoColor=white)](https://slang.dev)
-[![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows)](https://github.com/mleem97/gregModmanager/releases)
-[![Linux](https://img.shields.io/badge/Linux-x64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/mleem97/gregModmanager/releases)
-<!-- TODO(instance): Forgejo CI badge once the instance URL is fixed:
-[![CI](https://img.shields.io/badge/CI-Forgejo-orange?style=for-the-badge)](<forgejo-url>/mleem97/gregModmanager/actions)
--->
+[![Built With Rust](https://forthebadge.com/images/badges/built-with-rust.svg)](https://www.rust-lang.org)
+[![Made With Slint](https://img.shields.io/badge/MADE_WITH-SLINT-%238C7FF0?style=for-the-badge&logo=slate&logoColor=white)](https://slang.dev)
+[![Discord Join](https://img.shields.io/badge/DISCORD-JOIN_GREGFRAMEWORK-%235865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/greg)
+[![Modmanager Website](https://img.shields.io/badge/MODMANAGER-WEBSITE-%23007ACC?style=for-the-badge)](https://modmanager.gregframework.eu)
+[![License Apache](https://forthebadge.com/images/badges/license-apache-2.0.svg)](LICENSE)
+[![Release Version](https://raw.githubusercontent.com/mleem97/gregModmanager/main/VERSION)](https://github.com/mleem97/gregModmanager/releases)
+[![Release Version Staging](https://raw.githubusercontent.com/mleem97/gregModmanager/staging/VERSION)](https://github.com/mleem97/gregModmanager/tree/staging)
+[![Release Version Dev](https://raw.githubusercontent.com/mleem97/gregModmanager/dev/VERSION)](https://github.com/mleem97/gregModmanager/tree/dev)
+[![GitHub Sponsors](https://img.shields.io/badge/GITHUB-SPONSORS-%23EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/mleem97)
+[![Rust Version](https://img.shields.io/badge/RUST-STABLE-%23CE422B?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Slint Version](https://img.shields.io/badge/SLINT-V1.18.1-%238C7FF0?style=for-the-badge&logo=slate&logoColor=white)](https://slang.dev)
+[![Supported OS Linux & Windows](https://img.shields.io/badge/SUPPORTED_OS-LINUX_%7C_WINDOWS-%230078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/mleem97/gregModmanager/releases)
+
+<!-- Alternative mit macOS (Ausgeklammert für später): -->
+<!-- [![Supported OS All](https://img.shields.io/badge/SUPPORTED_OS-LINUX_%7C_WINDOWS_%7C_MACOS(SOON)-%2389B4FA?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/mleem97/gregModmanager/releases) -->
+
+[![Powered by MelonLoader](https://img.shields.io/badge/POWERED_BY-MELONLOADER-%23303030?style=for-the-badge)](https://melonwiki.xyz)
+[![Powered by Datacentermods](https://img.shields.io/badge/POWERED_BY-DATACENTERMODS.COM-%231E1E2E?style=for-the-badge)](https://datacentermods.com)
+
+---
 
 ## Links
 
 - **Repository:** [github.com/mleem97/gregModmanager](https://github.com/mleem97/gregModmanager) (mirror — primary instance is Forgejo)
 - **Discord / Support:** [discord.gg/greg](https://discord.gg/greg)
 - **Website:** [gregframework.eu](https://gregframework.eu)
+- **Modmanager Website:** [modmanager.gregframework.eu](https://modmanager.gregframework.eu)
 - **Releases:** [github.com/mleem97/gregModmanager/releases](https://github.com/mleem97/gregModmanager/releases)
 
 ## Overview
@@ -31,17 +37,17 @@
 
 ## Compatibility
 
-| Platform | Build status | Distribution status |
-| --- | --- | --- |
-| Windows x64 | Supported | Portable ZIP, Inno Setup EXE, WiX MSI |
-| Linux x64 | Supported | Portable ZIP/tarball, DEB, RPM, APK, Arch package |
+| Platform        | Build status | Distribution status                                              |
+| --------------- | ------------ | ---------------------------------------------------------------- |
+| Windows x64     | Supported    | Portable ZIP, Inno Setup EXE, WiX MSI                            |
+| Linux x64       | Supported    | Portable ZIP/tarball, DEB, RPM, APK, Arch package                |
 | macOS x64/arm64 | Experimental | Real-Mac validation required; no signed or notarized release yet |
 
-| Requirement | Version |
-| --- | --- |
+| Requirement    | Version                                |
+| -------------- | -------------------------------------- |
 | Rust toolchain | stable via [rustup](https://rustup.rs) |
-| Steam client | running (for Workshop features) |
-| Data Center | Steam AppID `4170200` |
+| Steam client   | running (for Workshop features)        |
+| Data Center    | Steam AppID `4170200`                  |
 
 ## Features
 
@@ -105,11 +111,12 @@ cd gregModmanager
 cargo build --workspace
 cargo test --workspace
 cargo run -p greg-app
+
 ```
 
 For release artifacts, start with `cargo xtask dist` (portable package incl. native
-Steam library). See [the build-script reference](build/scripts/README.md) and
-[Docker build and test containers](docker/README.md).
+Steam library). See [the build-script reference](https://www.google.com/search?q=build/scripts/README.md) and
+[Docker build and test containers](https://www.google.com/search?q=docker/README.md).
 
 The Windows release build produces the portable ZIP via `cargo xtask dist`; the
 Setup EXE is produced best-effort via Inno Setup under Wine (CI parity). Linux
@@ -134,6 +141,7 @@ docs/                            repository documentation
 .forgejo/workflows/ + .gitea/workflows/   CI pipelines, byte-identical (Forgejo + Gitea Actions; GitHub is a read-only archive mirror)
 VERSION                          single source of truth for the version (workspace Cargo.toml is the fallback)
 LICENSE                          Apache 2.0
+
 ```
 
 `SubDirectoryFixer` targets .NET 6 because MelonLoader requires that runtime. It
@@ -143,20 +151,20 @@ Rust workspace.
 ## Documentation
 
 - [QuickStart guide](QUICKSTART.md)
-- [Documentation index](docs/INDEX.md)
-- [User guide](docs/01_END_USER_GUIDE.md)
-- [Creator guide](docs/02_MOD_CREATOR_GUIDE.md)
-- [Contributor guide](docs/03_CONTRIBUTOR_GUIDE.md)
-- [Build scripts](build/scripts/README.md)
-- [Docker build and test containers](docker/README.md)
-- [Code-signing behaviour](build/installer/CODE_SIGNING.md)
-- [Dependency and licence inventory](EXTERNAL_DEPENDENCIES.md)
+- [Documentation index](https://www.google.com/search?q=docs/INDEX.md)
+- [User guide](https://www.google.com/search?q=docs/01_END_USER_GUIDE.md)
+- [Creator guide](https://www.google.com/search?q=docs/02_MOD_CREATOR_GUIDE.md)
+- [Contributor guide](https://www.google.com/search?q=docs/03_CONTRIBUTOR_GUIDE.md)
+- [Build scripts](https://www.google.com/search?q=build/scripts/README.md)
+- [Docker build and test containers](https://www.google.com/search?q=docker/README.md)
+- [Code-signing behaviour](https://www.google.com/search?q=build/installer/CODE_SIGNING.md)
+- [Dependency and licence inventory](https://www.google.com/search?q=EXTERNAL_DEPENDENCIES.md)
 - [Changelog](CHANGELOG.md)
 
 ## Credits
 
-| Role | Contributor |
-| --- | --- |
+| Role         | Contributor                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------- |
 | **Codebase** | [mleem97](https://github.com/mleem97) ([TeamGreg Modding](https://github.com/teamGregModding)) |
 
 ## Contributing
@@ -165,9 +173,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the **Apache License 2.0**. See [`LICENSE`](LICENSE).
+This project is licensed under the **Apache License 2.0**. See [`LICENSE`](https://www.google.com/search?q=LICENSE).
 
-## 🚀 Join the gregFramework Team!
+## 🚀 Join the gregFramework Team
 
 Building the ultimate modding framework for Data Center is a massive undertaking. gregFramework is currently maintained by a passionate core team of three, and we are looking for fellow creators to help us scale this mission!
 
@@ -184,8 +192,9 @@ Building the ultimate modding framework for Data Center is a massive undertaking
 - ⚙️ **System Guardians** — Maintain our Linux servers, Docker containers, and infrastructure
 - 🤝 **Community Managers** — Foster our Discord community, gather feedback, and keep the energy high
 
-Interested in joining the project? Everyone is absolutely welcome! Send us an email at **[apply@gregframework.eu](mailto:apply@gregframework.eu)**, shoot a quick DM, or drop a message on [Discord](https://discord.gg/greg).
+Interested in joining the project? Everyone is absolutely welcome! Send us an email at **[apply@gregframework.eu](https://www.google.com/search?q=mailto%3Aapply%40gregframework.eu)**, shoot a quick DM, or drop a message on [Discord](https://discord.gg/greg).
 
 ---
 
 **gregFramework — powered by the community.**
+

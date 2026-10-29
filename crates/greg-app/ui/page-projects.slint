@@ -3,6 +3,7 @@ import { ScrollView, HorizontalBox } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { ProjectRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 export component ProjectsPage inherits VerticalLayout {
     in-out property <string> search;
@@ -17,7 +18,7 @@ export component ProjectsPage inherits VerticalLayout {
     spacing: 12px;
     padding: 18px;
 
-    SectionTitle { text: "PROJECTS"; }
+    SectionTitle { text: Tr.projects-title; }
 
     // Such- und Aktionsleiste oben
     Rectangle {
@@ -28,7 +29,7 @@ export component ProjectsPage inherits VerticalLayout {
             spacing: 8px;
             alignment: start;
             GregButton {
-                text: "New Project";
+                text: Tr.projects-new-project;
                 has-icon: true;
                 icon: IconSet.Plus;
                 variant: "primary";
@@ -36,7 +37,7 @@ export component ProjectsPage inherits VerticalLayout {
             }
             LineEdit {
                 text <=> root.search;
-                placeholder-text: "Search projects by name or title…";
+                placeholder-text: Tr.projects-search-placeholder;
                 horizontal-stretch: 1;
             }
         }
@@ -48,13 +49,13 @@ export component ProjectsPage inherits VerticalLayout {
             
             
             GregButton {
-                text: "Refresh";
+                text: Tr.projects-refresh;
                 has-icon: true;
                 icon: IconSet.RefreshCw;
                 clicked => { root.refresh(); }
             }
             GregButton {
-                text: "Open folder";
+                text: Tr.projects-open-folder;
                 has-icon: true;
                 icon: IconSet.FolderOpen;
                 clicked => { root.open-folder(); }
@@ -107,14 +108,14 @@ export component ProjectsPage inherits VerticalLayout {
                         }
 
                         if row.fileid != "": GregButton {
-                            text: "Steam";
+                            text: Tr.projects-steam;
                             has-icon: true;
                             icon: IconSet.ExternalLink;
                             clicked => { root.view-on-steam(row.fileid); }
                         }
 
                         GregButton {
-                            text: "Edit";
+                            text: Tr.projects-edit;
                             has-icon: true;
                             icon: IconSet.PenLine;
                             variant: "primary";

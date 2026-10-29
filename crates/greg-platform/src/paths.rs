@@ -42,6 +42,11 @@ pub fn legacy_fallback_workspace() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join("DataCenterWS"))
 }
 
+/// User NuGet global-packages cache (`~/.nuget/packages`).
+pub fn nuget_packages_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".nuget").join("packages"))
+}
+
 /// Default Steam library guess (`<x86>/Steam/steamapps/common/Data Center`).
 /// Real resolution happens via the Steam client in `greg-steam`.
 #[cfg(target_os = "windows")]

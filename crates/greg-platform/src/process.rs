@@ -308,19 +308,39 @@ fn scan_proc_exe(want_lower: &str) -> Vec<u32> {
             .unwrap_or_default();
         // Native Linux processes expose the executable through `/proc`. Wine
         // / Proton processes often expose the Wine loader instead, so inspect
-        // the command line as a fallback and match the Windows game name.
-        let command_line_matches = std::fs::read(format!("/proc/{pid}/cmdline"))
-            .ok()
-            .map(|bytes| {
-                bytes.split(|byte| *byte == 0).any(|arg| {
-                    std::path::Path::new(std::str::from_utf8(arg).unwrap_or_default())
+        // the command line as a fallback and match the Windows `.exe` name
+        // (only when the process itself is Wine/Proton or has the `.exe` as
+        // `argv[0]`, never when a file manager like Dolphin has the game
+        // folder open as an argument).
+        let command_line_matches = want_lower.ends_with(".exe")
+            && std::fs::read(format!("/proc/{pid}/cmdline"))
+                .ok()
+                .map(|bytes| {
+                    let first = bytes
+                        .split(|byte| *byte == 0)
+                        .next()
+                        .and_then(|arg| std::str::from_utf8(arg).ok())
+                        .unwrap_or_default();
+                    let first_name = std::path::Path::new(first)
                         .file_name()
                         .and_then(|name| name.to_str())
-                        .map(|name| name.to_lowercase() == *want_lower)
-                        .unwrap_or(false)
+                        .map(str::to_lowercase)
+                        .unwrap_or_default();
+                    let is_wine_or_exe = first_name == *want_lower
+                        || file.contains("wine")
+                        || file.contains("proton")
+                        || first_name.contains("wine")
+                        || first_name.contains("proton");
+                    is_wine_or_exe
+                        && bytes.split(|byte| *byte == 0).any(|arg| {
+                            std::path::Path::new(std::str::from_utf8(arg).unwrap_or_default())
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .map(|name| name.to_lowercase() == *want_lower)
+                                .unwrap_or(false)
+                        })
                 })
-            })
-            .unwrap_or(false);
+                .unwrap_or(false);
         if file == *want_lower || command_line_matches {
             out.push(pid);
         }

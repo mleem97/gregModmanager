@@ -1,4 +1,5 @@
 import { IconSet } from "@lucide";
+import { Button, VerticalBox, HorizontalBox, LineEdit, ComboBox, StandardButton, ScrollView } from "std-widgets.slint";
 import {
     Palette,
     IconButton,
@@ -8,6 +9,7 @@ import {
     TopBarButton,
     TopIconButton,
     GregButton,
+    ListCard,
 } from "theme.slint";
 import { AppIcon } from "icons.slint";
 import {
@@ -22,6 +24,7 @@ import {
     ProblemRow,
     PackRow,
     PackEntryRow,
+    LibInstallRow,
 } from "models.slint";
 import { LocalPage } from "page-local.slint";
 import { PacksPage } from "page-packs.slint";
@@ -32,6 +35,9 @@ import { BrowsePage } from "page-browse.slint";
 import { StorePage } from "page-store.slint";
 import { SettingsPage } from "page-settings.slint";
 import { ReportPage } from "page-report.slint";
+import { Tr } from "i18n.slint";
+
+export { Tr }
 
 export component MainWindow inherits Window {
     title: "gregModmanager";
@@ -73,6 +79,8 @@ export component MainWindow inherits Window {
     in-out property <string> new-folder;
     in-out property <int> new-template;
     in-out property <[string]> new-templates;
+    in-out property <int> project-filter-index: 0;
+    in-out property <[string]> project-filters: ["All", "Published", "Updated", "Unreleased"];
 
     // --- editor page state ---
     in-out property <string> ed-title;
@@ -117,6 +125,9 @@ export component MainWindow inherits Window {
     in-out property <string> br-selected;
     in-out property <bool> br-has-detail;
     in-out property <string> br-d-title;
+    in-out property <string> br-d-author;
+    in-out property <string> br-d-status-state;
+    in-out property <image> br-d-preview;
     in-out property <string> br-d-meta;
     in-out property <string> br-d-tags;
     in-out property <string> br-d-desc;
@@ -139,6 +150,14 @@ export component MainWindow inherits Window {
     in-out property <[LocalRow]> local-active-rows;
     in-out property <[LocalRow]> local-inactive-rows;
     in-out property <string> local-status;
+    in-out property <bool> show-lib-modal: false;
+    in-out property <[LibInstallRow]> lib-catalog;
+    in-out property <bool> lib-busy: false;
+    in-out property <string> lib-status;
+    in-out property <bool> show-plugin-modal: false;
+    in-out property <[LibInstallRow]> plugin-catalog;
+    in-out property <bool> plugin-busy: false;
+    in-out property <string> plugin-status;
 
     // --- problems page state ---
     in-out property <[ProblemRow]> problem-rows;
@@ -180,6 +199,7 @@ export component MainWindow inherits Window {
     in-out property <int> se-lang;
     in-out property <[string]> se-langs;
     in-out property <string> se-modstore-url;
+    in-out property <string> se-steam-web-api-key;
     in-out property <string> se-telemetry-text;
     in-out property <[HealthRow]> se-health;
     in-out property <[string]> se-log;
@@ -200,6 +220,19 @@ export component MainWindow inherits Window {
     callback local-toggle(int);
     callback local-remove(int);
     callback local-open-folder();
+    callback lib-open-modal();
+    callback lib-toggle-select(int);
+    callback lib-select-missing();
+    callback lib-select-all();
+    callback lib-install-selected();
+    callback lib-close-modal();
+    callback plugin-open-modal();
+    callback plugin-toggle-select(int);
+    callback plugin-select-missing();
+    callback plugin-select-all();
+    callback plugin-install-selected();
+    callback plugin-install-default();
+    callback plugin-close-modal();
     callback confirm-yes();
     callback confirm-no();
     callback bug-open-manager();
@@ -234,6 +267,7 @@ export component MainWindow inherits Window {
     callback project-open-folder();
     callback project-create();
     callback project-view-steam(string);
+    callback project-filter-changed(int);
 
     callback ed-changed();
     callback ed-save();
@@ -263,11 +297,13 @@ export component MainWindow inherits Window {
     callback st-install(int);
     callback st-install-update(int);
 
+    callback se-apply-lang();
     callback se-apply-workspace();
     callback se-browse-workspace();
     callback se-apply-gameroot();
     callback se-browse-gameroot();
     callback se-apply-modstore-url();
+    callback se-apply-steam-web-api-key();
     callback se-run-checks();
     callback se-open-logs();
     callback se-make-bundle();
@@ -316,7 +352,7 @@ export component MainWindow inherits Window {
                         cross-axis-alignment: center;
                         IconButton {
                             icon: IconSet.LayoutGrid;
-                            tip: "Modmanager";
+                            tip: Tr.tip-modmanager;
                             active: root.current-icon == "modmanager";
                             clicked => {
                                 root.icon-clicked("modmanager");
@@ -325,7 +361,7 @@ export component MainWindow inherits Window {
 
                         IconButton {
                             icon: IconSet.Upload;
-                            tip: "Workshop Upload";
+                            tip: Tr.tip-workshop;
                             active: root.current-icon == "workshop";
                             clicked => {
                                 root.icon-clicked("workshop");
@@ -334,7 +370,7 @@ export component MainWindow inherits Window {
 
                         IconButton {
                             icon: IconSet.ShoppingBag;
-                            tip: "Modstore";
+                            tip: Tr.tip-modstore;
                             active: root.current-icon == "modstore";
                             enabled: root.modstore-available;
                             clicked => {
@@ -344,7 +380,7 @@ export component MainWindow inherits Window {
 
                         IconButton {
                             icon: IconSet.Settings;
-                            tip: "Settings";
+                            tip: Tr.tip-settings;
                             active: root.current-icon == "settings";
                             clicked => {
                                 root.icon-clicked("settings");
@@ -353,7 +389,7 @@ export component MainWindow inherits Window {
 
                         IconButton {
                             icon: IconSet.Bug;
-                            tip: "Report a bug";
+                            tip: Tr.tip-report-bug;
                             clicked => {
                                 root.bug-open-manager();
                             }
@@ -361,7 +397,7 @@ export component MainWindow inherits Window {
 
                         IconButton {
                             icon: root.profile-visible ? IconSet.LogOut : IconSet.LogIn;
-                            tip: root.profile-visible ? "Logout" : "Login";
+                            tip: root.profile-visible ? Tr.tip-logout : Tr.tip-login;
                             danger: root.profile-visible;
                             clicked => {
                                 if (root.profile-visible) {
@@ -411,21 +447,30 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             alignment: center;
 
-                            TopIconButton {
+                            if !root.game-running: TopIconButton {
                                 icon: IconSet.Play;
-                                tip: "Start Game (vanilla)";
-                                text: "Start Game";
+                                tip: Tr.tip-start-game-vanilla;
+                                text: Tr.btn-start-game;
                                 clicked => {
                                     root.start-game("vanilla");
                                 }
                             }
 
-                            TopIconButton {
+                            if !root.game-running: TopIconButton {
                                 icon: IconSet.PlayCircle;
-                                tip: "Start Game (with Mods)";
-                                text: "Start Game (with Mods)";
+                                tip: Tr.tip-start-game-mods;
+                                text: Tr.btn-start-game-mods;
                                 clicked => {
                                     root.start-game("mods");
+                                }
+                            }
+
+                            if root.game-running: TopIconButton {
+                                icon: IconSet.Square;
+                                tip: Tr.tip-stop-game;
+                                text: Tr.btn-stop-game;
+                                clicked => {
+                                    root.stop-game();
                                 }
                             }
                         }
@@ -435,7 +480,7 @@ export component MainWindow inherits Window {
                         }
 
                         if root.login-visible: TopBarButton {
-                            text: "Login";
+                            text: Tr.btn-login;
                             btn-width: 72px;
                             clicked => {
                                 root.login-clicked();
@@ -588,6 +633,8 @@ export component MainWindow inherits Window {
 
                             if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
                                 vertical-stretch: 1;
+                                is-libs: root.current-page == "mylibs";
+                                is-plugins: root.current-page == "myplugins";
                                 title <=> root.local-title;
                                 search <=> root.local-search;
                                 active-rows <=> root.local-active-rows;
@@ -597,6 +644,9 @@ export component MainWindow inherits Window {
                                 toggle(idx) => { root.local-toggle(idx); }
                                 remove(idx) => { root.local-remove(idx); }
                                 open-folder => { root.local-open-folder(); }
+                                open-lib-modal => { root.lib-open-modal(); }
+                                open-plugin-modal => { root.plugin-open-modal(); }
+                                install-plugins => { root.plugin-install-default(); }
                             }
                             if root.current-page == "problems": ProblemsPage {
                                 vertical-stretch: 1;
@@ -691,6 +741,9 @@ export component MainWindow inherits Window {
                                 selected <=> root.br-selected;
                                 has-detail <=> root.br-has-detail;
                                 d-title <=> root.br-d-title;
+                                d-author <=> root.br-d-author;
+                                d-status-state <=> root.br-d-status-state;
+                                d-preview <=> root.br-d-preview;
                                 d-meta <=> root.br-d-meta;
                                 d-tags <=> root.br-d-tags;
                                 d-desc <=> root.br-d-desc;
@@ -730,14 +783,17 @@ export component MainWindow inherits Window {
                                 lang <=> root.se-lang;
                                 langs <=> root.se-langs;
                                 modstore-url <=> root.se-modstore-url;
+                                steam-web-api-key <=> root.se-steam-web-api-key;
                                 telemetry-text <=> root.se-telemetry-text;
                                 health <=> root.se-health;
                                 log <=> root.se-log;
+                                apply-lang => { root.se-apply-lang(); }
                                 apply-workspace => { root.se-apply-workspace(); }
                                 browse-workspace => { root.se-browse-workspace(); }
                                 apply-gameroot => { root.se-apply-gameroot(); }
                                 browse-gameroot => { root.se-browse-gameroot(); }
                                 apply-modstore-url => { root.se-apply-modstore-url(); }
+                                apply-steam-web-api-key => { root.se-apply-steam-web-api-key(); }
                                 run-checks => { root.se-run-checks(); }
                                 open-logs => { root.se-open-logs(); }
                                 make-bundle => { root.se-make-bundle(); }
@@ -816,7 +872,6 @@ export component MainWindow inherits Window {
 
         // --- Modals & Overlays ---
 
-        // Globales Modal für neues Projekt (bluriert/schattet die gesamte App ab)
         if root.show-new-modal: Rectangle {
             width: parent.width;
             height: parent.height;
@@ -844,28 +899,31 @@ export component MainWindow inherits Window {
                     padding: 20px;
                     spacing: 14px;
 
-                    SectionTitle {
-                        text: "CREATE NEW PROJECT";
+                    Text {
+                        text: Tr.new-modal-title;
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: Palette.on-surface;
                     }
 
                     VerticalLayout {
                         spacing: 4px;
                         Text {
-                            text: "Folder name";
+                            text: Tr.new-modal-folder-name;
                             font-size: 11px;
                             color: Palette.on-variant;
                         }
 
                         LineEdit {
                             text <=> root.new-folder;
-                            placeholder-text: "my-awesome-mod…";
+                            placeholder-text: Tr.new-modal-folder-placeholder;
                         }
                     }
 
                     VerticalLayout {
                         spacing: 4px;
                         Text {
-                            text: "Template";
+                            text: Tr.new-modal-template;
                             font-size: 11px;
                             color: Palette.on-variant;
                         }
@@ -884,7 +942,7 @@ export component MainWindow inherits Window {
                         spacing: 10px;
                         alignment: end;
                         GregButton {
-                            text: "Cancel";
+                            text: Tr.modal-cancel;
                             has-icon: true;
                             icon: IconSet.Ban;
                             clicked => {
@@ -893,7 +951,7 @@ export component MainWindow inherits Window {
                         }
 
                         GregButton {
-                            text: "Create & open";
+                            text: Tr.new-modal-create-open;
                             has-icon: true;
                             icon: IconSet.Plus;
                             variant: "primary";
@@ -939,7 +997,7 @@ export component MainWindow inherits Window {
                         spacing: 10px;
                         alignment: center;
                         GregButton {
-                            text: "Delete";
+                            text: Tr.confirm-delete;
                             has-icon: true;
                             icon: IconSet.Trash2;
                             variant: "danger";
@@ -949,7 +1007,7 @@ export component MainWindow inherits Window {
                         }
 
                         GregButton {
-                            text: "Cancel";
+                            text: Tr.confirm-cancel;
                             has-icon: true;
                             icon: IconSet.Ban;
                             clicked => {
@@ -982,7 +1040,7 @@ export component MainWindow inherits Window {
                     spacing: 10px;
                     alignment: center;
                     Text {
-                        text: "Report a Bug";
+                        text: Tr.bug-dialog-title;
                         font-size: 14px;
                         font-weight: 700;
                         color: Palette.on-surface;
@@ -990,14 +1048,14 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "What is the bug about?";
+                        text: Tr.bug-dialog-subtitle;
                         font-size: 11px;
                         color: Palette.on-variant;
                         horizontal-alignment: center;
                     }
 
                     GregButton {
-                        text: "gregModmanager (this app)";
+                        text: Tr.bug-dialog-this-app;
                         has-icon: true;
                         icon: IconSet.LayoutGrid;
                         clicked => {
@@ -1006,7 +1064,7 @@ export component MainWindow inherits Window {
                     }
 
                     GregButton {
-                        text: "Other Greg mods & programs";
+                        text: Tr.bug-dialog-other-mods;
                         has-icon: true;
                         icon: IconSet.Package;
                         clicked => {
@@ -1015,7 +1073,7 @@ export component MainWindow inherits Window {
                     }
 
                     GregButton {
-                        text: "Cancel";
+                        text: Tr.modal-cancel;
                         has-icon: true;
                         icon: IconSet.Ban;
                         clicked => {
@@ -1051,7 +1109,7 @@ export component MainWindow inherits Window {
                     spacing: 4px;
                     alignment: start;
                     GregButton {
-                        text: "My Mods";
+                        text: Tr.btn-my-mods;
                         has-icon: true;
                         icon: IconSet.Package;
                         clicked => {
@@ -1060,7 +1118,7 @@ export component MainWindow inherits Window {
                     }
 
                     GregButton {
-                        text: "Upload";
+                        text: Tr.btn-upload;
                         has-icon: true;
                         icon: IconSet.Upload;
                         clicked => {
@@ -1069,7 +1127,7 @@ export component MainWindow inherits Window {
                     }
 
                     GregButton {
-                        text: "Settings";
+                        text: Tr.btn-settings;
                         has-icon: true;
                         icon: IconSet.Settings;
                         clicked => {
@@ -1078,11 +1136,381 @@ export component MainWindow inherits Window {
                     }
 
                     GregButton {
-                        text: "Logout";
+                        text: Tr.btn-logout;
                         has-icon: true;
                         icon: IconSet.LogOut;
                         clicked => {
                             root.profile-menu-clicked("logout");
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.show-lib-modal: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+
+            TouchArea {
+                clicked => {
+                    if (!root.lib-busy) {
+                        root.lib-close-modal();
+                    }
+                }
+            }
+
+            Rectangle {
+                width: min(580px, parent.width - 40px);
+                height: min(490px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+
+                TouchArea {}
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: Tr.lib-modal-title;
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                            }
+                            Text {
+                                text: Tr.lib-modal-subtitle;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+                            GregButton {
+                                text: Tr.modal-select-missing;
+                                enabled: !root.lib-busy;
+                                clicked => { root.lib-select-missing(); }
+                            }
+                            GregButton {
+                                text: Tr.modal-select-all;
+                                enabled: !root.lib-busy;
+                                clicked => { root.lib-select-all(); }
+                            }
+                        }
+                    }
+
+                    ListCard {
+                        vertical-stretch: 1;
+                        min-height: 200px;
+                        ScrollView {
+                            width: parent.width;
+                            height: parent.height;
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 4px;
+                                for row in root.lib-catalog: Rectangle {
+                                    height: 40px;
+                                    background: row.selected ? Palette.avatar-bg : Palette.container;
+                                    border-radius: Palette.radius;
+                                    border-width: 1px;
+                                    border-color: row.selected ? Palette.primary : Palette.outline;
+
+                                    TouchArea {
+                                        mouse-cursor: root.lib-busy ? default : pointer;
+                                        clicked => {
+                                            if (!root.lib-busy) {
+                                                root.lib-toggle-select(row.index);
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+                                        Rectangle {
+                                            width: 18px;
+                                            height: 18px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: row.selected ? Palette.primary : Palette.outline;
+                                            background: row.selected ? Palette.primary : Palette.container-low;
+                                            if row.selected: AppIcon {
+                                                icon: IconSet.Check;
+                                                size: 12px;
+                                                stroke: Palette.on-primary;
+                                                x: (parent.width - self.width) / 2;
+                                                y: (parent.height - self.height) / 2;
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            alignment: center;
+                                            Text {
+                                                text: row.name;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                color: Palette.on-surface;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: row.detail;
+                                                font-size: 10px;
+                                                color: Palette.on-variant;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: 78px;
+                                            height: 22px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 11px;
+                                            background: Palette.container-low;
+                                            border-width: 1px;
+                                            border-color: row.installed ? Palette.secondary : Palette.outline;
+                                            Text {
+                                                text: row.installed ? Tr.modal-installed : Tr.modal-missing;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: row.installed ? Palette.secondary : Palette.on-variant;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: root.lib-status;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        overflow: elide;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: end;
+                        GregButton {
+                            text: Tr.modal-cancel;
+                            has-icon: true;
+                            icon: IconSet.Ban;
+                            enabled: !root.lib-busy;
+                            clicked => {
+                                root.lib-close-modal();
+                            }
+                        }
+                        GregButton {
+                            text: root.lib-busy ? Tr.modal-installing : Tr.modal-install-selected;
+                            has-icon: true;
+                            icon: IconSet.Plus;
+                            variant: "primary";
+                            enabled: !root.lib-busy;
+                            clicked => {
+                                root.lib-install-selected();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.show-plugin-modal: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+
+            TouchArea {
+                clicked => {
+                    if (!root.plugin-busy) {
+                        root.plugin-close-modal();
+                    }
+                }
+            }
+
+            Rectangle {
+                width: min(580px, parent.width - 40px);
+                height: min(460px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+
+                TouchArea {}
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: Tr.plugin-modal-title;
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                            }
+                            Text {
+                                text: Tr.plugin-modal-subtitle;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+                            GregButton {
+                                text: Tr.modal-select-missing;
+                                enabled: !root.plugin-busy;
+                                clicked => { root.plugin-select-missing(); }
+                            }
+                            GregButton {
+                                text: Tr.modal-select-all;
+                                enabled: !root.plugin-busy;
+                                clicked => { root.plugin-select-all(); }
+                            }
+                        }
+                    }
+
+                    ListCard {
+                        vertical-stretch: 1;
+                        min-height: 180px;
+                        ScrollView {
+                            width: parent.width;
+                            height: parent.height;
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 4px;
+                                for row in root.plugin-catalog: Rectangle {
+                                    height: 44px;
+                                    background: row.selected ? Palette.avatar-bg : Palette.container;
+                                    border-radius: Palette.radius;
+                                    border-width: 1px;
+                                    border-color: row.selected ? Palette.primary : Palette.outline;
+
+                                    TouchArea {
+                                        mouse-cursor: root.plugin-busy ? default : pointer;
+                                        clicked => {
+                                            if (!root.plugin-busy) {
+                                                root.plugin-toggle-select(row.index);
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+                                        Rectangle {
+                                            width: 18px;
+                                            height: 18px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: row.selected ? Palette.primary : Palette.outline;
+                                            background: row.selected ? Palette.primary : Palette.container-low;
+                                            if row.selected: AppIcon {
+                                                icon: IconSet.Check;
+                                                size: 12px;
+                                                stroke: Palette.on-primary;
+                                                x: (parent.width - self.width) / 2;
+                                                y: (parent.height - self.height) / 2;
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            alignment: center;
+                                            Text {
+                                                text: row.name;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                color: Palette.on-surface;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: row.detail;
+                                                font-size: 10px;
+                                                color: Palette.on-variant;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: 78px;
+                                            height: 22px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 11px;
+                                            background: Palette.container-low;
+                                            border-width: 1px;
+                                            border-color: row.installed ? Palette.secondary : Palette.outline;
+                                            Text {
+                                                text: row.installed ? Tr.modal-installed : Tr.modal-missing;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: row.installed ? Palette.secondary : Palette.on-variant;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: root.plugin-status;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        overflow: elide;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: end;
+                        GregButton {
+                            text: Tr.modal-cancel;
+                            has-icon: true;
+                            icon: IconSet.Ban;
+                            enabled: !root.plugin-busy;
+                            clicked => {
+                                root.plugin-close-modal();
+                            }
+                        }
+                        GregButton {
+                            text: root.plugin-busy ? Tr.modal-installing : Tr.modal-install-selected;
+                            has-icon: true;
+                            icon: IconSet.Plus;
+                            variant: "primary";
+                            enabled: !root.plugin-busy;
+                            clicked => {
+                                root.plugin-install-selected();
+                            }
                         }
                     }
                 }

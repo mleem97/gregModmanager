@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use greg_core::docs::project_docs;
@@ -18,10 +18,17 @@ use crate::backend::{
     outcome_from_submit, BackendStatus, PageQuery, QueryKind, SteamBackend, UpdateRequest,
 };
 use crate::error::{Result, SteamError};
-use crate::models::{
-    BrowseResult, ImportOutcome, ItemDetail, PublishOutcome, PublishedItem, WorkshopSortMode,
+pub use crate::models::{
+    BrowseResult, DecodedPreviewImage, ImportOutcome, ItemDetail, PublishOutcome, PublishedItem,
+    WorkshopItemMetadata, WorkshopSortMode, EXAMPLE_WORKSHOP_ITEM_ID,
 };
 use crate::rate_limit::PublishRateLimiter;
+pub use crate::web_api::{
+    download_and_cache_preview_image, download_and_cache_preview_image_blocking,
+    download_preview_image, download_preview_image_blocking, fetch_item_detail_web_api,
+    fetch_item_detail_web_api_blocking, parse_get_details_response, parse_persona_name_response,
+    DEFAULT_STEAM_WEB_API_BASE_URL, STEAM_WEB_API_KEY_ENV,
+};
 
 /// Marker placed in workshop content for install routing.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -35,6 +42,8 @@ pub struct WorkshopService {
     backend: Arc<dyn SteamBackend>,
     limiter: PublishRateLimiter,
     lang: String,
+    web_api_key: RwLock<Option<String>>,
+    web_api_base_url: RwLock<String>,
 }
 
 impl WorkshopService {
@@ -44,7 +53,58 @@ impl WorkshopService {
             backend,
             limiter: PublishRateLimiter::shared(),
             lang: lang.into(),
+            web_api_key: RwLock::new(None),
+            web_api_base_url: RwLock::new(DEFAULT_STEAM_WEB_API_BASE_URL.to_string()),
         }
+    }
+
+    /// Builder-style configuration for an optional Steam Web API key (Tier 2 fallback).
+    pub fn with_web_api_key(self, key: impl Into<String>) -> Self {
+        self.set_web_api_key(Some(key.into()));
+        self
+    }
+
+    /// Sets or clears the optional Steam Web API key used for Tier 2 fallback when
+    /// local Steamworks (Tier 1) is unavailable.
+    pub fn set_web_api_key(&self, key: Option<String>) {
+        let normalized = key.map(|k| k.trim().to_string()).filter(|k| !k.is_empty());
+        if let Ok(mut guard) = self.web_api_key.write() {
+            *guard = normalized;
+        }
+    }
+
+    /// Returns the effective Steam Web API key (configured key or `STEAM_WEB_API_KEY` env var).
+    pub fn web_api_key(&self) -> Option<String> {
+        if let Ok(guard) = self.web_api_key.read() {
+            if let Some(key) = guard.as_ref().filter(|k| !k.trim().is_empty()) {
+                return Some(key.clone());
+            }
+        }
+        std::env::var(STEAM_WEB_API_KEY_ENV)
+            .ok()
+            .map(|k| k.trim().to_string())
+            .filter(|k| !k.is_empty())
+    }
+
+    /// Overrides the Steam Web API base URL (used by unit tests with a local mock server).
+    pub fn set_web_api_base_url(&self, base_url: impl Into<String>) {
+        let url = base_url.into();
+        let trimmed = url.trim();
+        if let Ok(mut guard) = self.web_api_base_url.write() {
+            *guard = if trimmed.is_empty() {
+                DEFAULT_STEAM_WEB_API_BASE_URL.to_string()
+            } else {
+                trimmed.to_string()
+            };
+        }
+    }
+
+    /// Current Steam Web API base URL.
+    pub fn web_api_base_url(&self) -> String {
+        self.web_api_base_url
+            .read()
+            .map(|g| g.clone())
+            .unwrap_or_else(|_| DEFAULT_STEAM_WEB_API_BASE_URL.to_string())
     }
 
     /// Availability snapshot.
@@ -363,9 +423,149 @@ impl WorkshopService {
         )
     }
 
-    /// Full item detail.
+    /// Full item detail using the strict Two-Tier Fallback Principle:
+    /// 1. **Tier 1 (Primary — Local Steamworks):** Queries `self.backend.details(id, cancel)`.
+    ///    Requires no Web API key; Steam only needs to be running locally.
+    /// 2. **Tier 2 (Secondary — Steam Web API Fallback):** If Tier 1 fails, checks for an
+    ///    optional Steam Web API key (`self.web_api_key()`). If none is configured, returns
+    ///    [`SteamError::WebApiKeyMissing`] with a clear message. If configured, fetches
+    ///    the item metadata from the Steam Web API.
     pub fn item_details(&self, id: u64, cancel: &AtomicBool) -> Result<ItemDetail> {
-        self.backend.details(id, cancel)
+        match self.backend.details(id, cancel) {
+            Ok(detail) => Ok(self.enrich_tier1_detail(id, detail)),
+            Err(SteamError::Cancelled) => Err(SteamError::Cancelled),
+            Err(tier1_err) => {
+                let Some(api_key) = self.web_api_key() else {
+                    return Err(SteamError::WebApiKeyMissing(tier1_err.to_string()));
+                };
+                let base_url = self.web_api_base_url();
+                let mut detail = fetch_item_detail_web_api_blocking(
+                    &base_url, &api_key, id, &self.lang, cancel,
+                )?;
+                self.enrich_tier2_detail(id, &mut detail);
+                Ok(detail)
+            }
+        }
+    }
+
+    /// Async version of [`Self::item_details`] implementing the Two-Tier Fallback Principle.
+    pub async fn item_details_async(&self, id: u64, cancel: &AtomicBool) -> Result<ItemDetail> {
+        match self.backend.details(id, cancel) {
+            Ok(detail) => Ok(self.enrich_tier1_detail(id, detail)),
+            Err(SteamError::Cancelled) => Err(SteamError::Cancelled),
+            Err(tier1_err) => {
+                let Some(api_key) = self.web_api_key() else {
+                    return Err(SteamError::WebApiKeyMissing(tier1_err.to_string()));
+                };
+                let base_url = self.web_api_base_url();
+                let mut detail =
+                    fetch_item_detail_web_api(&base_url, &api_key, id, &self.lang, cancel).await?;
+                self.enrich_tier2_detail(id, &mut detail);
+                Ok(detail)
+            }
+        }
+    }
+
+    /// Fetches Workshop item metadata (Tier 1 -> Tier 2 fallback) and downloads/validates
+    /// its `preview_url` image into `cache_dir` for Slint UI rendering.
+    pub async fn fetch_item_metadata_and_preview(
+        &self,
+        id: u64,
+        cache_dir: &Path,
+        cancel: &AtomicBool,
+    ) -> Result<(ItemDetail, Option<PathBuf>)> {
+        let detail = self.item_details_async(id, cancel).await?;
+        if detail.preview_image_url.trim().is_empty() {
+            return Ok((detail, None));
+        }
+        let cached =
+            download_and_cache_preview_image(&detail.preview_image_url, id, cache_dir, cancel)
+                .await
+                .ok()
+                .and_then(|decoded| decoded.cached_path);
+        Ok((detail, cached))
+    }
+
+    /// Blocking counterpart of [`Self::fetch_item_metadata_and_preview`].
+    pub fn fetch_item_metadata_and_preview_blocking(
+        &self,
+        id: u64,
+        cache_dir: &Path,
+        cancel: &AtomicBool,
+    ) -> Result<(ItemDetail, Option<PathBuf>)> {
+        let detail = self.item_details(id, cancel)?;
+        if detail.preview_image_url.trim().is_empty() {
+            return Ok((detail, None));
+        }
+        let cached = download_and_cache_preview_image_blocking(
+            &detail.preview_image_url,
+            id,
+            cache_dir,
+            cancel,
+        )
+        .ok()
+        .and_then(|decoded| decoded.cached_path);
+        Ok((detail, cached))
+    }
+
+    fn enrich_tier1_detail(&self, id: u64, mut detail: ItemDetail) -> ItemDetail {
+        if detail.published_file_id == 0 {
+            detail.published_file_id = id;
+        }
+        if detail.source.trim().is_empty() {
+            detail.source = "steamworks".to_string();
+        }
+        if detail.url.trim().is_empty() {
+            detail.url = format!(
+                "https://steamcommunity.com/sharedfiles/filedetails/?id={}",
+                detail.published_file_id
+            );
+        }
+        if let Some(install) = self.backend.install_info(detail.published_file_id) {
+            if detail.size_bytes == 0 && install.size_on_disk > 0 {
+                detail.size_bytes = install.size_on_disk;
+            }
+            if detail.status_state.trim().is_empty() {
+                detail.status_state = if detail.is_subscribed {
+                    "Subscribed · Installed".to_string()
+                } else {
+                    "Installed".to_string()
+                };
+            }
+        } else if detail.status_state.trim().is_empty() {
+            detail.status_state = if detail.is_subscribed {
+                "Subscribed · Download pending".to_string()
+            } else {
+                "Available (Steamworks)".to_string()
+            };
+        }
+        if !detail.has_dependency_hints
+            && detail.dependency_hint_compact.is_empty()
+            && (!detail.tags.is_empty() || !detail.description.is_empty())
+        {
+            let hints = crate::inference::infer(&self.lang, &detail.tags, &detail.description);
+            detail.dependency_hint_compact = hints.compact_line;
+            detail.dependency_hint_block = hints.bullet_block;
+            detail.has_dependency_hints = hints.has_any;
+        }
+        detail
+    }
+
+    fn enrich_tier2_detail(&self, id: u64, detail: &mut ItemDetail) {
+        if detail.published_file_id == 0 {
+            detail.published_file_id = id;
+        }
+        if detail.source.trim().is_empty() {
+            detail.source = "web_api".to_string();
+        }
+        if let Some(install) = self.backend.install_info(detail.published_file_id) {
+            if detail.size_bytes == 0 && install.size_on_disk > 0 {
+                detail.size_bytes = install.size_on_disk;
+            }
+            detail.status_state = "Installed · Web API".to_string();
+        } else if detail.status_state.trim().is_empty() {
+            detail.status_state = "Available (Web API)".to_string();
+        }
     }
 
     /// Subscribe / unsubscribe / favorite / vote passthroughs.
@@ -865,5 +1065,349 @@ mod download_gallery_tests {
         assert!(out.is_empty());
         assert!(!dir.join("screenshots").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod workshop_metadata_and_preview_tests {
+    use super::*;
+    use crate::backend::{
+        BackendStatus, InstallDir, PageQuery, PageResult, SteamBackend, SubmitOutcome,
+        UnavailableBackend, UpdateRequest,
+    };
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
+    /// Valid 2x2 PNG header (8-byte magic + 13-byte IHDR chunk for 2x2 image).
+    const VALID_2X2_PNG: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, // IHDR length = 13
+        b'I', b'H', b'D', b'R', // "IHDR"
+        0x00, 0x00, 0x00, 0x02, // width = 2
+        0x00, 0x00, 0x00, 0x02, // height = 2
+        0x08, 0x06, 0x00, 0x00, 0x00, // bit depth 8, RGBA
+    ];
+
+    struct Tier1AvailableBackend {
+        installed: bool,
+    }
+
+    impl SteamBackend for Tier1AvailableBackend {
+        fn status(&self) -> BackendStatus {
+            BackendStatus::Available {
+                user_name: "GregLocalUser".into(),
+            }
+        }
+        fn page(&self, _q: &PageQuery, _c: &AtomicBool) -> Result<PageResult> {
+            Err(SteamError::NotAvailable("unused".into()))
+        }
+        fn details(&self, id: u64, _c: &AtomicBool) -> Result<ItemDetail> {
+            assert_eq!(id, EXAMPLE_WORKSHOP_ITEM_ID);
+            Ok(ItemDetail {
+                published_file_id: id,
+                title: "Greg Data Center Rack Pack".into(),
+                description: "Local Steamworks description for item 3741628037.".into(),
+                tags: vec!["greg".into(), "decoration".into()],
+                owner_name: "TeamGreg".into(),
+                owner_steam_id: 76561198012345678,
+                preview_image_url:
+                    "https://steamuserimages-a.akamaihd.net/ugc/3741628037/preview.png".into(),
+                created: 1_730_000_000,
+                updated: 1_730_500_000,
+                score: 4.8,
+                size_bytes: 2_048_000,
+                is_subscribed: true,
+                visibility: "Public".into(),
+                ..Default::default()
+            })
+        }
+        fn subscribe(&self, _id: u64) -> Result<()> {
+            Ok(())
+        }
+        fn unsubscribe(&self, _id: u64) -> Result<()> {
+            Ok(())
+        }
+        fn favorite(&self, _id: u64, _fav: bool) -> Result<()> {
+            Ok(())
+        }
+        fn vote(&self, _id: u64, _up: bool) -> Result<()> {
+            Ok(())
+        }
+        fn own_ids(&self) -> Result<Vec<u64>> {
+            Ok(vec![EXAMPLE_WORKSHOP_ITEM_ID])
+        }
+        fn submit(
+            &self,
+            _req: &UpdateRequest,
+            _progress: &dyn Fn(f32),
+            _cancel: &AtomicBool,
+        ) -> Result<SubmitOutcome> {
+            Err(SteamError::NotAvailable("unused".into()))
+        }
+        fn upload_gallery(
+            &self,
+            _file_id: u64,
+            _screenshots: &[PathBuf],
+            _log: &dyn Fn(&str),
+            _cancel: &AtomicBool,
+        ) -> Result<usize> {
+            Ok(0)
+        }
+        fn additional_preview_urls(
+            &self,
+            _file_id: u64,
+            _cancel: &AtomicBool,
+        ) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+        fn download(
+            &self,
+            _id: u64,
+            _progress: &dyn Fn(f32),
+            _cancel: &AtomicBool,
+        ) -> Result<PathBuf> {
+            Err(SteamError::NotAvailable("unused".into()))
+        }
+        fn install_info(&self, id: u64) -> Option<InstallDir> {
+            if self.installed && id == EXAMPLE_WORKSHOP_ITEM_ID {
+                Some(InstallDir {
+                    folder: PathBuf::from("/tmp/steamapps/workshop/content/3022670/3741628037"),
+                    size_on_disk: 2_048_000,
+                })
+            } else {
+                None
+            }
+        }
+        fn open_in_browser(&self, _id: u64) {}
+    }
+
+    #[test]
+    fn tier1_steamworks_succeeds_without_web_api_key_for_3741628037() {
+        let backend = Arc::new(Tier1AvailableBackend { installed: true });
+        let service = WorkshopService::new(backend, "en");
+        service.set_web_api_key(None);
+
+        let cancel = AtomicBool::new(false);
+        let detail = service
+            .item_details(EXAMPLE_WORKSHOP_ITEM_ID, &cancel)
+            .expect("Tier 1 local Steamworks should succeed without a Web API key");
+
+        assert_eq!(detail.published_file_id, 3_741_628_037);
+        assert_eq!(detail.title, "Greg Data Center Rack Pack");
+        assert_eq!(
+            detail.description,
+            "Local Steamworks description for item 3741628037."
+        );
+        assert_eq!(detail.owner_name, "TeamGreg");
+        assert_eq!(detail.status_state, "Subscribed · Installed");
+        assert_eq!(detail.source, "steamworks");
+        assert_eq!(
+            detail.preview_image_url,
+            "https://steamuserimages-a.akamaihd.net/ugc/3741628037/preview.png"
+        );
+        assert!(detail.has_dependency_hints);
+    }
+
+    #[test]
+    fn tier1_failure_without_web_api_key_returns_clear_error_for_3741628037() {
+        let backend = Arc::new(UnavailableBackend::new("Steam client is not running"));
+        let service = WorkshopService::new(backend, "en");
+        service.set_web_api_key(None);
+        // Ensure env var does not interfere if set in test environment.
+        std::env::remove_var(STEAM_WEB_API_KEY_ENV);
+
+        let cancel = AtomicBool::new(false);
+        let err = service
+            .item_details(EXAMPLE_WORKSHOP_ITEM_ID, &cancel)
+            .expect_err("Should fail when Tier 1 is unavailable and no Web API key is set");
+
+        assert!(
+            matches!(err, SteamError::WebApiKeyMissing(_)),
+            "Expected SteamError::WebApiKeyMissing, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Steam is not available locally")
+                && msg.contains("Steam Web API key")
+                && msg.contains("Settings"),
+            "Unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn parses_steam_web_api_get_details_json_for_3741628037() {
+        let sample_json = r#"{
+            "response": {
+                "result": 1,
+                "resultcount": 1,
+                "publishedfiledetails": [
+                    {
+                        "result": 1,
+                        "publishedfileid": "3741628037",
+                        "creator": "76561198012345678",
+                        "file_size": "4194304",
+                        "preview_url": "https://steamuserimages-a.akamaihd.net/ugc/3741628037/preview_3741628037.png",
+                        "title": "High-Density Blade Server 3741628037",
+                        "file_description": "Adds a modular blade server rack to Data Center. Requires gregCoreModFramework.",
+                        "time_created": 1731000000,
+                        "time_updated": 1731500000,
+                        "visibility": 0,
+                        "banned": 0,
+                        "vote_data": {
+                            "score": 0.96,
+                            "votes_up": 96,
+                            "votes_down": 4
+                        },
+                        "tags": [
+                            { "tag": "greg", "display_name": "greg" },
+                            { "tag": "server", "display_name": "Server" }
+                        ]
+                    }
+                ]
+            }
+        }"#;
+
+        let mut detail = parse_get_details_response(sample_json, "en")
+            .expect("valid Web API JSON for 3741628037");
+        assert_eq!(detail.published_file_id, 3_741_628_037);
+        assert_eq!(detail.title, "High-Density Blade Server 3741628037");
+        assert!(detail
+            .description
+            .contains("Adds a modular blade server rack"));
+        assert_eq!(detail.owner_steam_id, 76561198012345678);
+        assert_eq!(detail.owner_name, "76561198012345678");
+        assert_eq!(detail.status_state, "Available (Web API)");
+        assert_eq!(detail.source, "web_api");
+        assert_eq!(
+            detail.preview_image_url,
+            "https://steamuserimages-a.akamaihd.net/ugc/3741628037/preview_3741628037.png"
+        );
+        assert_eq!(detail.size_bytes, 4_194_304);
+        assert_eq!(detail.visibility, "Public");
+        assert!(detail.has_dependency_hints);
+
+        let player_json = r#"{
+            "response": {
+                "players": [
+                    {
+                        "steamid": "76561198012345678",
+                        "personaname": "MarvinGregDev"
+                    }
+                ]
+            }
+        }"#;
+        let persona =
+            parse_persona_name_response(player_json, detail.owner_steam_id).expect("persona");
+        detail.owner_name = persona;
+        assert_eq!(detail.owner_name, "MarvinGregDev");
+    }
+
+    #[test]
+    fn tier2_web_api_fallback_and_preview_download_for_3741628037() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind mock server");
+        let addr = listener.local_addr().expect("local addr");
+        let base_url = format!("http://{addr}");
+        let preview_url = format!("{base_url}/ugc/3741628037/preview.png");
+        let preview_url_for_server = preview_url.clone();
+
+        // Serve 3 requests: GetDetails, GetPlayerSummaries, and the preview PNG.
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(3) {
+                let Ok(mut stream) = stream else { break };
+                use std::io::{Read, Write};
+                let mut req_buf = [0u8; 2048];
+                let n = stream.read(&mut req_buf).unwrap_or(0);
+                let req_line = String::from_utf8_lossy(&req_buf[..n]);
+                if req_line.contains("GetDetails") {
+                    let body = format!(
+                        r#"{{
+                            "response": {{
+                                "publishedfiledetails": [{{
+                                    "result": 1,
+                                    "publishedfileid": "3741628037",
+                                    "creator": "76561198012345678",
+                                    "title": "Workshop Item 3741628037 via Web API",
+                                    "file_description": "Fallback metadata fetched via Steam Web API.",
+                                    "preview_url": "{preview_url_for_server}",
+                                    "file_size": "512000",
+                                    "time_created": 1730000000,
+                                    "time_updated": 1730600000,
+                                    "visibility": 0,
+                                    "tags": [{{"tag": "decoration"}}]
+                                }}]
+                            }}
+                        }}"#
+                    );
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                } else if req_line.contains("GetPlayerSummaries") {
+                    let body = r#"{"response":{"players":[{"steamid":"76561198012345678","personaname":"GregWorkshopAuthor"}]}}"#;
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes());
+                } else {
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        VALID_2X2_PNG.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(VALID_2X2_PNG);
+                }
+            }
+        });
+
+        let backend = Arc::new(UnavailableBackend::new("Steam client offline"));
+        let service =
+            WorkshopService::new(backend, "en").with_web_api_key("TEST_STEAM_WEB_API_KEY_123");
+        service.set_web_api_base_url(&base_url);
+
+        let cache_dir = std::env::temp_dir().join(format!(
+            "greg-preview-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let cancel = AtomicBool::new(false);
+
+        let (detail, cached_path) = service
+            .fetch_item_metadata_and_preview_blocking(EXAMPLE_WORKSHOP_ITEM_ID, &cache_dir, &cancel)
+            .expect("Tier 2 fallback + preview download should succeed");
+
+        assert_eq!(detail.published_file_id, 3_741_628_037);
+        assert_eq!(detail.title, "Workshop Item 3741628037 via Web API");
+        assert_eq!(
+            detail.description,
+            "Fallback metadata fetched via Steam Web API."
+        );
+        assert_eq!(detail.owner_name, "GregWorkshopAuthor");
+        assert_eq!(detail.status_state, "Available (Web API)");
+        assert_eq!(detail.source, "web_api");
+        assert_eq!(detail.preview_image_url, preview_url);
+
+        let path = cached_path.expect("preview image should be cached on disk");
+        assert!(path.is_file(), "cached preview file must exist");
+
+        let decoded = crate::web_api::decode_and_cache_preview_bytes(
+            VALID_2X2_PNG.to_vec(),
+            &detail.preview_image_url,
+            EXAMPLE_WORKSHOP_ITEM_ID,
+            None,
+        )
+        .expect("decode 2x2 PNG");
+        assert_eq!(decoded.width, 2);
+        assert_eq!(decoded.height, 2);
+        assert_eq!(decoded.rgba8.len(), 2 * 2 * 4);
+        assert_eq!(decoded.extension, ".png");
+
+        let _ = std::fs::remove_dir_all(&cache_dir);
     }
 }

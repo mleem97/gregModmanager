@@ -152,6 +152,59 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     }
     {
         let state = Arc::clone(state);
+        ui.on_lib_open_modal(move || actions::lib_open_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_toggle_select(move |idx| actions::lib_toggle_select(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_select_missing(move || actions::lib_select_missing(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_select_all(move || actions::lib_select_all(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_install_selected(move || actions::lib_install_selected(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_close_modal(move || actions::lib_close_modal(&state));
+    }
+    // Browse & Install Plugins ("My Plugins").
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_open_modal(move || actions::plugin_open_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_toggle_select(move |idx| actions::plugin_toggle_select(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_select_missing(move || actions::plugin_select_missing(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_select_all(move || actions::plugin_select_all(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_install_selected(move || actions::plugin_install_selected(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_install_default(move || actions::plugin_install_default(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_close_modal(move || actions::plugin_close_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
         ui.on_confirm_yes(move || actions::confirm_yes(&state));
     }
     {
@@ -436,5 +489,13 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_se_register_protocol(move || actions::settings_register_protocol(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_se_apply_lang(move || actions::settings_apply_lang(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_se_apply_steam_web_api_key(move || actions::settings_apply_steam_web_api_key(&state));
     }
 }

@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { StoreRow, UpdateRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 // Modstore needs no side navigation — Catalog / Updates tabs suffice.
 export component StorePage inherits VerticalLayout {
@@ -22,7 +23,7 @@ export component StorePage inherits VerticalLayout {
     spacing: 8px;
     padding: 18px;
 
-    SectionTitle { text: "MODSTORE"; }
+    SectionTitle { text: Tr.store-title; }
 
     Rectangle {
         height: 36px;
@@ -32,14 +33,14 @@ export component StorePage inherits VerticalLayout {
             spacing: 8px;
             alignment: center;
             GregButton {
-                text: "Refresh";
+                text: Tr.store-refresh;
                 has-icon: true;
                 icon: IconSet.RefreshCw;
                 enabled: !root.busy;
                 clicked => { root.refresh(); }
             }
             GregButton {
-                text: "Updates";
+                text: Tr.store-updates;
                 has-icon: true;
                 icon: IconSet.Download;
                 enabled: !root.busy;
@@ -47,11 +48,11 @@ export component StorePage inherits VerticalLayout {
             }
             LineEdit {
                 text <=> root.search;
-                placeholder-text: "Search Modstore…";
+                placeholder-text: Tr.store-search-placeholder;
                 horizontal-stretch: 1;
             }
             if root.busy: GregButton {
-                text: "Cancel";
+                text: Tr.store-cancel;
                 has-icon: true;
                 icon: IconSet.Ban;
                 clicked => { root.cancel(); }
@@ -79,13 +80,13 @@ export component StorePage inherits VerticalLayout {
             spacing: 8px;
             alignment: start;
             GregButton {
-                text: "Catalog";
+                text: Tr.store-catalog-tab;
                 has-icon: true;
                 icon: IconSet.LayoutGrid;
                 clicked => { root.show-updates = false; }
             }
             GregButton {
-                text: "Updates (" + root.updates.length + ")";
+                text: Tr.store-updates + " (" + root.updates.length + ")";
                 has-icon: true;
                 icon: IconSet.Download;
                 clicked => { root.show-updates = true; }
@@ -129,7 +130,7 @@ export component StorePage inherits VerticalLayout {
                             }
                         }
                         GregButton {
-                            text: "Install";
+                            text: Tr.store-install;
                             has-icon: true;
                             icon: IconSet.Download;
                             variant: "primary";
@@ -173,7 +174,7 @@ export component StorePage inherits VerticalLayout {
                             }
                         }
                         GregButton {
-                            text: "Update";
+                            text: Tr.store-update;
                             has-icon: true;
                             icon: IconSet.Download;
                             variant: "primary";
