@@ -38,3 +38,14 @@
 1. Offene Konzept-Entscheidungen aus `CONCEPT.md` Abschnitt 11 (Implementierungsstand) priorisieren.
 2. Desktop-/Webapp-Paritäts-Lücken aus `desktop-gap-matrix.md` gegen `TODO.md`-Punkten abschließen.
 3. Neue Funktionen nur mit bestehendem Rust-Stack (`greg-core`, `greg-platform`, `greg-steam`, `greg-modstore`, `greg-loader`, `greg-app`, `greg-cli`) umsetzen.
+
+## Update-Mechanismus (GitHub Releases)
+
+> Konkreter Implementierungsplan (Umfang, Abhängigkeiten, Risiken): `UPDATE_MECHANISM.md`.
+
+- [ ] Update-Mechanismus basierend auf GitHub Releases planen und implementieren (In-App-Updater).
+- [ ] Versionsabgleich (lokale Versionsangabe ↔ GitHub Release) umsetzen.
+- [ ] Update-Assets je Plattform und Checksum-Verfahren finalisieren.
+- [ ] Installationslogik inkl. Backup und Neustart nach Update umsetzen.
+- [ ] Manuelles und automatisches Update in der UI bereitstellen.
+- [ ] Stable-/Beta-Kanal-Trennung und Release-Pipeline mit GitHub Releases verknüpfen.

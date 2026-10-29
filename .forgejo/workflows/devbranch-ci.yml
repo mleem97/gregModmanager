@@ -1,0 +1,89 @@
+name: Dev Pipeline & Staging Promotion
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  test-and-build:
+    name: Test, Security & Build (Dev)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js (>= 25)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+
+      - name: Verify Node Version
+        run: node -v && npm -v
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo Dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install System Dependencies (Slint / GUI Requirements)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfontconfig1-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libgl1-mesa-dev
+
+      - name: Format Check
+        run: cargo fmt -- --check
+
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run Unit & Integration Tests
+        run: cargo test --all-features --verbose
+
+      - name: Security & Vulnerability Audit (Cargo Audit)
+        uses: cargo-bins/cargo-binstall@main
+      - name: Run cargo-audit
+        run: |
+          cargo binstall -y cargo-audit
+          cargo audit
+
+      - name: Code Coverage (Tarpaulin / Llvm-cov)
+        run: |
+          cargo install cargo-llvm-cov --locked
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+
+      - name: Build Release Binary
+        run: cargo build --release --all-features
+
+      - name: Clean up temporary build artifacts before promotion stage
+        run: |
+          echo "Verwerfe temporäre Build-Artefakte, behalte nur das finale Release-Binary..."
+          cargo clean --release
+          # Falls spezifische Ordner existieren:
+          rm -rf target/debug/ deps/ incremental/
+
+      - name: Promote to Staging Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "Greg"
+          git config --global user.email "ci@datacentermods.com"
+          
+          # Auf Staging-Branch wechseln oder erstellen
+          git checkout -B staging
+          
+          # Hier kannst du festlegen, was in den Staging-Branch gepusht werden soll
+          # Z.B. das frisch gebaute Binary oder ein Status-Commit
+          git add -f target/release/ || true
+          git commit -m "chore(ci): Promote dev build to staging after successful verification [skip ci]" || echo "No changes to commit"
+          
+          # Push zu Staging (funktioniert sowohl auf GitHub als auch auf Forgejo bei korrekten Token-Rechten)
+          git push origin staging --force

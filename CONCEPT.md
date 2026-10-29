@@ -345,6 +345,40 @@ Dieses Konzept beschreibt die Zielarchitektur und funktionalen Anforderungen. De
 - `docs/` (PLATFORMS, CI/CD, TROUBLESHOOTING, ROADMAP).
 - `desktop-gap-matrix.md` (Desktop-/Webapp-Paritäts-Status).
 
+## 12. Geplanter Update-Mechanismus
+
+**Stand: 2026-10-29:** Ein In-App-Update-Mechanismus ist noch nicht implementiert; die folgenden Punkte sind als Konzept-Ergänzung und Planung zu verstehen.
+
+### Ziel
+
+Die Anwendung soll Nutzer:innen ermöglichen, über GitHub Releases auf neue Versionen aktualisiert zu werden – manuell und optional automatisch.
+
+### Quellen
+
+- GitHub Releases des Repositories `mleem97/gregModmanager` (Tags `v*`).
+- Plattformartefakte: Windows (portable ZIP, Inno Setup), Linux (portable tar.gz, DEB/RPM/APK/Arch), macOS (experimentell).
+
+### Geplanter Ablauf
+
+1. Abgleich der lokalen Versionsangabe mit dem neuesten GitHub Release.
+2. Auswahl des passenden Release-Assets für die installierte Plattform.
+3. Validierung der Integrität (Checksums/SHA-256) vor Installation.
+4. Installationsdurchführung inkl. Backup der bisherigen Version.
+5. Neustart der Anwendung nach erfolgreichem Update.
+
+### Sicherheits- und Qualitätsanforderungen
+
+- Checksummäßige Validierung vor jedem Update-Download.
+- Trennung von Stable- und Beta-/Pre-Release-Kanälen.
+- Keine Updates auf schreibgeschützte Systempfade.
+- Update-Quelle ausschließlich die offiziellen GitHub Releases.
+
+### Offene Punkte
+
+- Finales Artifact-Format und Checksum-Verfahren je Plattform festlegen.
+- Release-Pipeline mit GitHub Releases verknüpfen.
+- UI für manuelles und automatisches Update bereitstellen.
+
 # Erweiterungen: Authentifizierung, Git-Integration und zentralisiertes Bugreporting
 
 ## 1. Authentifizierung und Account-Integrationen
