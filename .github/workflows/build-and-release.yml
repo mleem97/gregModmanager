@@ -83,6 +83,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build Windows portable package
         run: cargo run -p xtask -- dist
+      # Inno resolves SourceDir relative to build/installer/gregModmanager.iss.
       - name: Build Windows installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
@@ -90,7 +91,7 @@ jobs:
           options: >-
             /DMyAppVersion=${{ needs.version.outputs.version }}
             /DMyAppNumericVersion=${{ needs.version.outputs.numeric_version }}
-            /DSourceDir=dist/gregmodmanager-${{ needs.version.outputs.version }}-win-x64
+            /DSourceDir=../../dist/gregmodmanager-${{ needs.version.outputs.version }}-win-x64
             /DMyAppExeName=gregmodmanager.exe
             /DSkipVCRedist
       - name: Upload Windows artifacts
