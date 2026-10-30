@@ -3,7 +3,8 @@
 # Writes gate-report.txt, sets verdict= / sha= in $GITHUB_OUTPUT.
 set -u
 STAGE="${STAGE:?}"; KIND="${KIND:?}"; NEEDS_REFS="${NEEDS_REFS:-false}"
-git fetch origin "$STAGE" --depth=100 >/dev/null 2>&1 || git fetch origin "$STAGE" >/dev/null 2>&1 || true
+BASELINE_FETCH_OK=true
+git fetch origin "$STAGE" >/dev/null 2>&1 || BASELINE_FETCH_OK=false
 git fetch origin --tags --force >/dev/null 2>&1 || true
 SHA="$(git rev-parse HEAD)"
 : > gate-report.txt
@@ -13,6 +14,15 @@ gfail() { GATES_OK=false; report "GATE $1: FAIL - $2"; }
 gpass() { report "GATE $1: PASS - $2"; }
 gna()   { report "GATE $1: N/A (pass, annotated) - $2"; }
 report "# greg gates: dev -> $STAGE @ $SHA (kind=$KIND)"
+# A missing baseline must never turn history/coverage checks into a pass.
+if [ "$BASELINE_FETCH_OK" != true ] || ! git rev-parse --verify "origin/$STAGE^{commit}" >/dev/null 2>&1 ||
+   ! git merge-base "origin/$STAGE" HEAD >/dev/null 2>&1; then
+  report "GATE baseline: FAIL - staging ref or common history unavailable"
+  report "OVERALL: FAIL (staging NOT updated)"
+  printf 'verdict=fail\nsha=%s\n' "$SHA" >> "$GITHUB_OUTPUT"
+  exit 1
+fi
+
 
 CHANGED="$(git diff --name-only "origin/$STAGE...HEAD" 2>/dev/null | sort -u || true)"
 
@@ -115,11 +125,20 @@ if [ "$HAVE_TESTS" = true ] && [ "$TESTS_RC" -eq 0 ]; then
       ;;
     rust)
       if command -v cargo-tarpaulin >/dev/null; then
-        DEV_COV="$(cargo tarpaulin --out Xml --output-dir /tmp 2>/dev/null | grep -oE '[0-9]+\.[0-9]+%' | tail -n 1 | tr -d '%')"
-        rm -rf /tmp/gbase && git worktree add --detach /tmp/gbase "origin/$STAGE" >/dev/null 2>&1
-        BASE_COV="$(cd /tmp/gbase && cargo tarpaulin --out Xml --output-dir /tmp 2>/dev/null | grep -oE '[0-9]+\.[0-9]+%' | tail -n 1 | tr -d '%')"
-        git worktree remove --force /tmp/gbase >/dev/null 2>&1 || true
-        DEV_COV="${DEV_COV:-0}"; BASE_COV="${BASE_COV:-0}"
+        COV_OK=true
+        DEV_COV="$(set -o pipefail; cargo tarpaulin --out Xml --output-dir /tmp 2>coverage-dev.log | grep -oE '[0-9]+\.[0-9]+%' | tail -n 1 | tr -d '%')" || COV_OK=false
+        BASE_DIR="$(mktemp -d)"
+        if git worktree add --detach "$BASE_DIR" "origin/$STAGE" >coverage-base.log 2>&1; then
+          BASE_COV="$(set -o pipefail; cd "$BASE_DIR" && cargo tarpaulin --out Xml --output-dir "$BASE_DIR" 2>>"$OLDPWD/coverage-base.log" | grep -oE '[0-9]+\.[0-9]+%' | tail -n 1 | tr -d '%')" || COV_OK=false
+          git worktree remove --force "$BASE_DIR" >/dev/null 2>&1 || true
+        else
+          COV_OK=false
+          rmdir "$BASE_DIR" 2>/dev/null || true
+        fi
+        if [ "$COV_OK" != true ] || [ -z "$DEV_COV" ] || [ -z "${BASE_COV:-}" ]; then
+          gfail coverage "measurement or baseline failed (see coverage-dev.log / coverage-base.log)"
+          DEV_COV=0; BASE_COV=100
+        fi
         if python3 -c "import sys; sys.exit(0 if ($DEV_COV >= 90 and ($BASE_COV - $DEV_COV) <= 5) else 1)"; then
           gpass coverage "dev=${DEV_COV}% base=${BASE_COV}%"
         else gfail coverage "need >=90%% and drop<=5pp (dev=${DEV_COV}% base=${BASE_COV}%)"; fi
@@ -150,7 +169,7 @@ case "$KIND" in
     ;;
   rust)
     if [ -f Cargo.lock ]; then cargo audit >cargo-audit.log 2>&1 && gpass security-deps "cargo audit clean" || gfail security-deps "cargo audit findings";
-    else gna security-deps "no Cargo.lock"; fi
+    else gfail security-deps "no Cargo.lock (cannot audit dependencies)"; fi
     ;;
   node)
     if [ -f package-lock.json ]; then npm audit --audit-level=high >npm-audit.log 2>&1 && gpass security-deps "npm audit clean" || gfail security-deps "npm audit high+ findings";
@@ -170,6 +189,12 @@ def sh(*a):
 ver = open("VERSION").read().strip()
 base = re.sub(r"-dev$", "", ver)
 ok = True; notes = []
+if __import__("os").path.isfile("Cargo.toml"):
+    import tomllib
+    cargo = tomllib.load(open("Cargo.toml", "rb"))
+    cv = cargo.get("workspace", {}).get("package", {}).get("version") or cargo.get("package", {}).get("version")
+    if not isinstance(cv, str) or re.sub(r"-dev$", "", cv) != base:
+        ok = False; notes.append(f"Cargo.toml version={cv} (expected {base})")
 for cs in glob.glob("*.csproj"):
     t = open(cs).read()
     m = re.search(r"<Version>([^<]+)</Version>", t)
