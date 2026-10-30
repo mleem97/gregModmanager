@@ -46,7 +46,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5.8"
 walkdir = "2.5.0"
-zip = "2"
+zip = "9"
 tar = "0.4"
 flate2 = "1"
 
