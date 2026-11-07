@@ -11,6 +11,7 @@ a release.
 | Rust `slint` / `slint-build` 1.18.1 + `lucide-slint` 1.49.1 | cross-platform desktop UI (retained mode, single binary) | [MIT OR Apache-2.0](https://github.com/slint-ui/slint) + [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) for the icon artwork |
 | Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (`greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
 | Rust `tokio`, `reqwest` (rustls), `serde`, `serde_json`, `thiserror`, `anyhow`, `semver`, `dirs`, `clap`, `rfd`, `notify`, `zip`, `tracing` | async runtime, Modstore REST + OAuth, models/errors, validation, paths, dialogs, packaging, logging | crate-specific licences |
+| Rust `zip` 9 (locked 9.1.3) / `rustls` 0.23.46 | ZIP packaging and extraction / TLS | [MIT](https://github.com/zip-rs/zip2) / [Apache-2.0 OR ISC OR MIT](https://github.com/rustls/rustls) |
 | Rust `rusqlite` 0.41.1 + bundled `libsqlite3-sys` 0.39.1 | embedded SQLite settings database, no database server | [MIT](https://github.com/rusqlite/rusqlite) / SQLite public domain |
 | Rust `image` 0.25.10 (PNG/JPEG/GIF/WebP) | bounded preview decoding and resizing | MIT OR Apache-2.0 |
 | Rust toolchain via rustup (stable) | build, test, release | [MIT OR Apache-2.0](https://github.com/rust-lang/rust) |

@@ -402,7 +402,10 @@ fn extract_zip_safely(archive: &Path, destination: &Path) -> Result<()> {
         let mut entry = zip
             .by_index(i)
             .map_err(|e| ModStoreError::InvalidArtefact(format!("bad zip entry: {e}")))?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| ModStoreError::InvalidArtefact(format!("bad zip entry name: {e}")))?
+            .into_owned();
         if name.starts_with('/') || name.starts_with('\\') || name.contains("..") {
             return Err(ModStoreError::InvalidArtefact(format!(
                 "blocked unsafe zip path: {name}"
