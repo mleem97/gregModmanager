@@ -1,0 +1,159 @@
+name: greg promote dev -> staging
+
+# Branch model: contribute-here -> dev -> staging -> main.
+# This workflow auto-promotes dev to staging when ALL quality gates pass.
+# Gates (enforced in code, owner: mleem97):
+#   build, tests, coverage>=90%% with <=5pp drop vs staging,
+#   security (gitleaks=0, dep-vuln high/critical=0, .NET warnings delta<=0),
+#   version-consistency (mods), conventional-commits.
+# Gate rule: build must pass; tests/coverage enforced for dotnet/rust kinds
+# (fail closed when missing); security/consistency/conventional always enforced.
+# Promotion pushes only for github.actor == 'mleem97'. No push on failure;
+# a tracking issue (label staging-gate) is opened/updated/closed instead.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Evaluate gates only (no push)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: promote-dev-staging-gregModmanager
+  cancel-in-progress: false
+
+env:
+  STAGE: staging
+  KIND: rust
+  NEEDS_REFS: 'false'
+
+jobs:
+  gates:
+    runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
+    outputs:
+      verdict: ${{ steps.eval.outputs.verdict }}
+      sha: ${{ steps.eval.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.event_name == 'push' && github.sha || 'dev' }}
+      - name: Evaluate quality gates
+        id: eval
+        run: |
+          # The evaluator owns its outputs; the child cannot publish a pass directly.
+          rm -f gate-report.txt
+          raw_output="$(mktemp)"
+          printf 'Gate evaluation started; checkout=%s\n' "$(git rev-parse HEAD)" > gate-report.txt
+          set +e
+          GITHUB_OUTPUT="$raw_output" bash "$GITHUB_WORKSPACE/.github/scripts/greg-gates.sh"
+          rc=$?
+          set -e
+          sha="$(git rev-parse HEAD)"
+          verdict=fail
+          if [ "$rc" -eq 0 ] && [ "$(grep -c '^verdict=pass$' "$raw_output")" = 1 ] &&
+             [ "$(grep -c '^verdict=' "$raw_output")" = 1 ] &&
+             [ "$(grep -c '^sha=' "$raw_output")" = 1 ] &&
+             grep -qx "sha=$sha" "$raw_output" &&
+             grep -qx 'OVERALL: PASS' gate-report.txt &&
+             ! grep -qE 'GATE .*: FAIL|OVERALL: FAIL' gate-report.txt; then
+            verdict=pass
+          else
+            printf 'GATE execution: FAIL - exit=%s; missing/invalid verdict, SHA or report also blocks promotion. See job logs.\nOVERALL: FAIL\n' "$rc" >> gate-report.txt
+          fi
+          rm -f "$raw_output"
+          printf 'verdict=%s\nsha=%s\n' "$verdict" "$sha" >> "$GITHUB_OUTPUT"
+          [ "$verdict" = pass ]
+      - name: Ensure diagnostic report
+        if: always()
+        env:
+          EVAL_OUTCOME: ${{ steps.eval.outcome }}
+        run: |
+          if [ "$EVAL_OUTCOME" != success ] && [ "$EVAL_OUTCOME" != failure ] || [ ! -s gate-report.txt ]; then
+            printf 'GATE execution: FAIL - evaluator outcome=%s; checkout or evaluator did not produce a report. See job logs.\nOVERALL: FAIL\n' "$EVAL_OUTCOME" > gate-report.txt
+          fi
+          cat gate-report.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: gate-report.txt
+          if-no-files-found: error
+
+  promote:
+    needs: gates
+    if: needs.gates.result == 'success' && needs.gates.outputs.verdict == 'pass' && github.actor == 'mleem97' && (github.event_name == 'push' || inputs.dry_run == false)
+    runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.gates.outputs.sha }}
+      - name: Fast-forward staging to gated sha
+        env:
+          GATED_SHA: ${{ needs.gates.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$GATED_SHA"
+          git fetch origin staging
+          git merge-base --is-ancestor origin/staging "$GATED_SHA"
+          git push origin "$GATED_SHA:refs/heads/staging"
+
+  sync-issue:
+    needs: [gates, promote]
+    if: always() && github.event_name == 'push'
+    runs-on: ["self-hosted", "Linux", "X64", "shitcloud", "gregmodmanager"]
+    steps:
+      - name: Prepare isolated report directory
+        run: |
+          mkdir -p "$RUNNER_TEMP/gate-issue-${{ github.run_id }}-${{ github.run_attempt }}"
+          rm -f "$RUNNER_TEMP/gate-issue-${{ github.run_id }}-${{ github.run_attempt }}/gate-report.txt"
+      - name: Download gate report
+        id: report
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: gate-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate-issue-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Sync staging-gate tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERDICT: ${{ needs.gates.outputs.verdict }}
+          GATES_RESULT: ${{ needs.gates.result }}
+          PROMOTE_RESULT: ${{ needs.promote.result }}
+          REPORT_OUTCOME: ${{ steps.report.outcome }}
+          REPORT_PATH: ${{ runner.temp }}/gate-issue-${{ github.run_id }}-${{ github.run_attempt }}/gate-report.txt
+        run: |
+          TITLE="[staging-gate] dev -> staging blocked"
+          BODY_FILE="$(mktemp)"
+          {
+            printf 'Promotion status for dev @ %s. Run: %s\n\n' '${{ github.sha }}' '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            printf 'Gates: %s; verdict: %s; promotion: %s; report download: %s\n\n' "$GATES_RESULT" "${VERDICT:-missing}" "$PROMOTE_RESULT" "$REPORT_OUTCOME"
+            echo '```text'
+            if [ "$REPORT_OUTCOME" = success ] && [ -s "$REPORT_PATH" ]; then
+              head -c 45000 "$REPORT_PATH"
+            else
+              echo 'GATE reporting: FAIL - artifact unavailable or empty; inspect checkout/evaluator/upload steps in the linked run.'
+            fi
+            printf '\n```\n'
+          } > "$BODY_FILE"
+          OPEN="$(gh issue list --label staging-gate --state open --json number --jq '.[0].number // empty')"
+          if [ "$GATES_RESULT" = success ] && [ "$VERDICT" = pass ] && [ "$PROMOTE_RESULT" = success ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --comment "Gates passed and staging was updated. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            fi
+          elif [ -z "$OPEN" ]; then
+            gh issue create --title "$TITLE" --label staging-gate --body-file "$BODY_FILE"
+          else
+            gh issue edit "$OPEN" --body-file "$BODY_FILE"
+          fi
+          rm -f "$BODY_FILE"
