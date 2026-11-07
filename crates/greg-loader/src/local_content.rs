@@ -82,6 +82,134 @@ pub fn folders(game_root: &Path, kind: LocalContentKind) -> Vec<PathBuf> {
     out
 }
 
+/// Managed folders below the explicit `GameModding` root. No game-root fallbacks.
+pub fn folders_managed(root: &Path, kind: LocalContentKind) -> Vec<PathBuf> {
+    vec![root.join(match kind {
+        LocalContentKind::Mods => "Mods",
+        LocalContentKind::Plugins => "Melons",
+        LocalContentKind::Libs => "UserLibs",
+    })]
+}
+
+/// Recursively scans managed Workshop packages without following symlinks.
+pub fn scan_managed(root: &Path, kind: LocalContentKind) -> Vec<LocalContentEntry> {
+    let mut entries = Vec::new();
+    for folder in folders_managed(root, kind) {
+        if crate::sync::validate_managed_path(&folder).is_err() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&folder)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|entry| {
+                entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with('.')
+            })
+            .filter_map(|entry| entry.ok())
+        {
+            if kind == LocalContentKind::Mods
+                && entry.file_type().is_dir()
+                && entry.path().join("config.json").is_file()
+            {
+                let path = entry.path().to_path_buf();
+                let folder_name = entry.file_name().to_string_lossy();
+                let name = folder_name
+                    .strip_suffix(".disabled")
+                    .unwrap_or(&folder_name)
+                    .to_owned();
+                entries.push(LocalContentEntry {
+                    name,
+                    detail: format!(
+                        "config.json · {}",
+                        path.strip_prefix(root).unwrap_or(&path).display()
+                    ),
+                    enabled: !folder_name.ends_with(".disabled"),
+                    path,
+                });
+                continue;
+            }
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let path = entry.path().to_path_buf();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') {
+                continue;
+            }
+            let (name, enabled) = match name.strip_suffix(".disabled") {
+                Some(original) => (original.to_owned(), false),
+                None => (name, true),
+            };
+            if kind != LocalContentKind::Libs && !name.to_ascii_lowercase().ends_with(".dll") {
+                continue;
+            }
+            if kind == LocalContentKind::Mods
+                && path
+                    .parent()
+                    .into_iter()
+                    .flat_map(Path::ancestors)
+                    .take_while(|parent| *parent != root)
+                    .any(|parent| parent.join("config.json").is_file())
+            {
+                continue;
+            }
+            let size = entry
+                .metadata()
+                .map(|m| greg_core::util::format_bytes(m.len() as i64))
+                .unwrap_or_default();
+            let location = path
+                .parent()
+                .and_then(|parent| parent.strip_prefix(root).ok())
+                .unwrap_or(&folder);
+            entries.push(LocalContentEntry {
+                name,
+                detail: format!("{size} · {}", location.display()),
+                enabled,
+                path,
+            });
+        }
+    }
+    entries.sort_by_key(|entry| entry.name.to_lowercase());
+    entries
+}
+
+/// Metadata signature of managed packages, including nested files and nanosecond mtimes.
+pub fn signature_managed(root: &Path, kind: LocalContentKind) -> String {
+    let mut parts = Vec::new();
+    for folder in folders_managed(root, kind) {
+        if crate::sync::validate_managed_path(&folder).is_err() {
+            continue;
+        }
+        for entry in walkdir::WalkDir::new(&folder)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|entry| {
+                entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with('.')
+            })
+            .filter_map(|entry| entry.ok())
+        {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let Ok(meta) = entry.metadata() else {
+                continue;
+            };
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|time| time.as_nanos())
+                .unwrap_or_default();
+            parts.push(format!(
+                "{}|{}|{modified}",
+                entry.path().display(),
+                meta.len()
+            ));
+        }
+    }
+    parts.sort();
+    parts.join("\n")
+}
+
 /// Primary directory where `UserLibs` assemblies live (`{game_root}/UserLibs`).
 pub fn user_libs_dir(game_root: &Path) -> PathBuf {
     let preferred = game_root.join("UserLibs");
@@ -370,6 +498,39 @@ pub async fn install_plugin_from_release(
     spec: &PluginCatalogSpec,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(String, PathBuf)> {
+    install_plugin_from_release_inner(game_root, spec, cancel, false).await
+}
+
+/// Installs an approved plugin release into `GameModding/Melons`.
+pub async fn install_managed_plugin_from_release(
+    root: &Path,
+    spec: &PluginCatalogSpec,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<(String, PathBuf)> {
+    install_plugin_from_release_inner(root, spec, cancel, true).await
+}
+
+/// Managed variant of the primary IL2CPP Assembly Fixer installer.
+pub async fn install_managed_latest_il2cpp_fixer(
+    root: &Path,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<(String, PathBuf)> {
+    install_managed_plugin_from_release(root, &FRAMEWORK_PLUGINS[0], cancel).await
+}
+
+/// True when a plugin is installed in the managed Melons tree.
+pub fn is_managed_plugin_installed(root: &Path, file_name: &str) -> bool {
+    scan_managed(root, LocalContentKind::Plugins)
+        .iter()
+        .any(|entry| entry.name == file_name)
+}
+
+async fn install_plugin_from_release_inner(
+    game_root: &Path,
+    spec: &PluginCatalogSpec,
+    cancel: &std::sync::atomic::AtomicBool,
+    managed: bool,
+) -> Result<(String, PathBuf)> {
     use std::sync::atomic::Ordering;
     if cancel.load(Ordering::Relaxed) {
         return Err(LoaderError::Cancelled);
@@ -456,7 +617,11 @@ pub async fn install_plugin_from_release(
         return Err(LoaderError::Cancelled);
     }
 
-    let dest_path = install_plugin_payload(game_root, spec, &asset_name, &bytes)?;
+    let dest_path = if managed {
+        install_managed_plugin_payload(game_root, spec, &asset_name, &bytes)?
+    } else {
+        install_plugin_payload(game_root, spec, &asset_name, &bytes)?
+    };
     Ok((version, dest_path))
 }
 
@@ -552,7 +717,32 @@ pub fn install_plugin_payload(
     asset_name: &str,
     bytes: &[u8],
 ) -> Result<PathBuf> {
-    let plugins_dir = game_root.join("Plugins");
+    install_plugin_payload_inner(game_root, spec, asset_name, bytes, false)
+}
+
+/// Installs plugin payloads under `GameModding/Melons`, never the game directory.
+pub fn install_managed_plugin_payload(
+    root: &Path,
+    spec: &PluginCatalogSpec,
+    asset_name: &str,
+    bytes: &[u8],
+) -> Result<PathBuf> {
+    crate::sync::validate_managed_path(root)?;
+    install_plugin_payload_inner(root, spec, asset_name, bytes, true)
+}
+
+fn install_plugin_payload_inner(
+    game_root: &Path,
+    spec: &PluginCatalogSpec,
+    asset_name: &str,
+    bytes: &[u8],
+    managed: bool,
+) -> Result<PathBuf> {
+    let plugins_dir = game_root.join(if managed { "Melons" } else { "Plugins" });
+    if managed {
+        crate::sync::validate_managed_path(&plugins_dir.join(spec.file_name))?;
+        crate::sync::validate_managed_path(&game_root.join("UserLibs"))?;
+    }
     std::fs::create_dir_all(&plugins_dir).map_err(io_err)?;
     let dest_file = plugins_dir.join(spec.file_name);
 
@@ -620,7 +810,12 @@ pub fn install_plugin_payload(
 
     // Remove any `.disabled` sibling in known plugin folders so the plugin is active.
     let disabled_name = format!("{}.disabled", spec.file_name);
-    for folder in folders(game_root, LocalContentKind::Plugins) {
+    let plugin_folders = if managed {
+        folders_managed(game_root, LocalContentKind::Plugins)
+    } else {
+        folders(game_root, LocalContentKind::Plugins)
+    };
+    for folder in plugin_folders {
         let disabled_path = folder.join(&disabled_name);
         if disabled_path.is_file() {
             let _ = std::fs::remove_file(&disabled_path);
@@ -744,6 +939,44 @@ pub fn set_enabled(entry: &LocalContentEntry, enabled: bool) -> Result<PathBuf> 
     if entry.enabled == enabled {
         return Ok(entry.path.clone());
     }
+    if entry.path.is_dir() {
+        let target = if enabled {
+            let name = entry
+                .path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.strip_suffix(".disabled"))
+                .ok_or_else(|| {
+                    LoaderError::InvalidArtefact("not a disabled native package".into())
+                })?;
+            entry.path.with_file_name(name)
+        } else {
+            entry.path.with_file_name(format!(
+                "{}.disabled",
+                entry.path.file_name().unwrap_or_default().to_string_lossy()
+            ))
+        };
+        crate::sync::validate_managed_path(&entry.path)?;
+        crate::sync::validate_managed_path(&target)?;
+        if !entry.path.join("config.json").is_file() {
+            return Err(LoaderError::InvalidArtefact(
+                "not a native mod package".into(),
+            ));
+        }
+        if entry.enabled == enabled {
+            return Ok(entry.path.clone());
+        }
+        if target.exists() {
+            return Err(LoaderError::InvalidArtefact(
+                "native package target already exists".into(),
+            ));
+        }
+        std::fs::rename(&entry.path, &target).map_err(io_err)?;
+        return Ok(target);
+    }
+    if entry.enabled == enabled {
+        return Ok(entry.path.clone());
+    }
     let target = if enabled {
         entry
             .path
@@ -763,6 +996,11 @@ pub fn set_enabled(entry: &LocalContentEntry, enabled: bool) -> Result<PathBuf> 
 
 /// Removes an installed file. Callers confirm first (UI dialog).
 pub fn remove(entry: &LocalContentEntry) -> Result<()> {
+    if entry.path.is_dir() && entry.path.join("config.json").is_file() {
+        crate::sync::validate_managed_path(&entry.path)?;
+        std::fs::remove_dir_all(&entry.path).map_err(io_err)?;
+        return Ok(());
+    }
     if !entry.path.is_file() {
         return Err(LoaderError::Other("file is already gone".into()));
     }
@@ -792,7 +1030,51 @@ mod tests {
             b"123",
         )
         .unwrap();
-        base
+        base.canonicalize().unwrap()
+    }
+
+    #[test]
+    fn managed_plugin_install_and_scan_use_melons_and_nested_packages() {
+        let root = game_root("managed");
+        let spec = &FRAMEWORK_PLUGINS[0];
+        let path =
+            install_managed_plugin_payload(&root, spec, spec.file_name, b"plugin bytes").unwrap();
+        assert_eq!(path, root.join("Melons").join(spec.file_name));
+        assert!(is_managed_plugin_installed(&root, spec.file_name));
+        std::fs::create_dir_all(root.join("Melons/42/nested")).unwrap();
+        std::fs::write(root.join("Melons/42/nested/workshop.dll"), b"dll").unwrap();
+        std::fs::create_dir_all(root.join("Melons/.42.backup")).unwrap();
+        std::fs::write(root.join("Melons/.42.backup/stale.dll"), b"dll").unwrap();
+        let scanned = scan_managed(&root, LocalContentKind::Plugins);
+        assert_eq!(scanned.len(), 2);
+        assert!(scanned.iter().any(|entry| entry.name == "workshop.dll"));
+        assert!(!signature_managed(&root, LocalContentKind::Plugins).contains("stale.dll"));
+        let before = signature_managed(&root, LocalContentKind::Plugins);
+        std::fs::write(root.join("Melons/42/nested/workshop.dll"), b"changed dll").unwrap();
+        assert_ne!(signature_managed(&root, LocalContentKind::Plugins), before);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn native_managed_packages_can_toggle_without_touching_game() {
+        let root = game_root("native-managed");
+        let native = root.join("Mods/42");
+        std::fs::create_dir_all(&native).unwrap();
+        std::fs::write(native.join("config.json"), b"{\"modName\":\"test\"}").unwrap();
+        let entries = scan_managed(&root, LocalContentKind::Mods);
+        let entry = entries
+            .into_iter()
+            .find(|entry| entry.path == native)
+            .unwrap();
+        let disabled = set_enabled(&entry, false).unwrap();
+        assert!(disabled.ends_with("42.disabled"));
+        let disabled_entry = scan_managed(&root, LocalContentKind::Mods)
+            .into_iter()
+            .find(|entry| entry.path == disabled)
+            .unwrap();
+        assert!(!disabled_entry.enabled);
+        assert_eq!(set_enabled(&disabled_entry, true).unwrap(), native);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

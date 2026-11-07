@@ -611,17 +611,74 @@ pub fn redact(text: &str) -> String {
         "accessToken=",
         "refresh_token=",
         "refreshToken=",
+        "access_token:",
+        "accessToken:",
+        "refresh_token:",
+        "refreshToken:",
         "password=",
         "passwd=",
         "secret=",
         "token=",
+        "authorization:",
+        "authorization=",
+        "cookie:",
+        "set-cookie:",
+        "api_key:",
+        "apikey:",
+        "api-key:",
+        "client_secret:",
+        "clientSecret:",
+        "steamid=",
+        "steam_id=",
+        "steamId=",
+        "account=",
+        "account_name=",
+        "accountName=",
+        "username=",
+        "user_name=",
+        "userName=",
+        "display_name=",
+        "displayName=",
+        "email=",
+        "email:",
+        "path=",
+        "filepath=",
+        "file_path=",
+        "workspace=",
+        "gameroot=",
+        "steamid:",
+        "steam_id:",
+        "projectid=",
+        "project_id=",
+        "modid=",
+        "mod_id=",
+        "releaseid=",
+        "release_id=",
+        "workshopid=",
+        "workshop_id=",
+        "itemid=",
+        "item_id=",
+        "title=",
+        "name=",
         "Bearer ",
     ];
     let mut i = 0usize;
     while i < bytes.len() {
+        if let Some((token_start, token_end, token_kind)) = sensitive_token(text, i) {
+            if token_start == i {
+                out.push_str(token_kind);
+                i = token_end;
+                continue;
+            }
+        }
+        if let Some(end) = absolute_path_end(text, i) {
+            out.push_str("[PATH REDACTED]");
+            i = end;
+            continue;
+        }
         let matched = markers
             .iter()
-            .find(|m| text[i..].starts_with(*m) && i + m.len() <= bytes.len())
+            .find(|m| i + m.len() <= bytes.len() && text[i..i + m.len()].eq_ignore_ascii_case(m))
             .copied();
         match matched {
             Some(marker) => {
@@ -630,7 +687,36 @@ pub fn redact(text: &str) -> String {
                 // Skip the contiguous credential-like run after the marker
                 // (e.g. the token body following `ghp_`, `sk_live_`, …) so the
                 // secret material itself never reaches the output.
-                while i < bytes.len() && is_secret_char(bytes[i]) {
+                let free_text_value = matches!(
+                    marker.to_ascii_lowercase().as_str(),
+                    "authorization:"
+                        | "authorization="
+                        | "cookie:"
+                        | "set-cookie:"
+                        | "account="
+                        | "account_name="
+                        | "accountname="
+                        | "username="
+                        | "user_name="
+                        | "username:"
+                        | "user_name:"
+                        | "display_name="
+                        | "displayname="
+                        | "title="
+                        | "name="
+                        | "path="
+                        | "filepath="
+                        | "file_path="
+                        | "workspace="
+                        | "gameroot="
+                );
+                while i < bytes.len()
+                    && if free_text_value {
+                        bytes[i] != b'\n' && bytes[i] != b'\r' && bytes[i] != b','
+                    } else {
+                        is_secret_char(bytes[i])
+                    }
+                {
                     i += 1;
                 }
             }
@@ -644,6 +730,91 @@ pub fn redact(text: &str) -> String {
         }
     }
     out
+}
+
+/// Finds PII-like unstructured tokens and stable identifiers without assuming
+/// that an arbitrary display name can be identified from surrounding text.
+fn sensitive_token(text: &str, start: usize) -> Option<(usize, usize, &'static str)> {
+    let bytes = text.as_bytes();
+    if start > 0
+        && !bytes[start - 1].is_ascii_whitespace()
+        && !b"([{\"'=:,;".contains(&bytes[start - 1])
+    {
+        return None;
+    }
+    let mut end = start;
+    while end < bytes.len()
+        && !bytes[end].is_ascii_whitespace()
+        && !b"()[]{}<>\"'".contains(&bytes[end])
+    {
+        end += 1;
+    }
+    if end == start {
+        return None;
+    }
+    let token = &text[start..end];
+    if let Some(at) = token.find('@') {
+        if at > 0 && token[at + 1..].contains('.') {
+            return Some((start, end, "[EMAIL REDACTED]"));
+        }
+    }
+    let digits = token.as_bytes();
+    let mut i = 0;
+    while i < digits.len() {
+        if digits[i].is_ascii_digit() {
+            let begin = i;
+            while i < digits.len() && digits[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i - begin >= 7 {
+                return Some((start, end, "[ID REDACTED]"));
+            }
+        } else {
+            i += 1;
+        }
+    }
+    let compact: String = token.chars().filter(|c| *c != '-').collect();
+    if token.len() == 36
+        && token.matches('-').count() == 4
+        && compact.len() == 32
+        && compact.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Some((start, end, "[ID REDACTED]"));
+    }
+    None
+}
+
+/// Masks Unix, home-relative, and Windows absolute path tokens. Exact paths
+/// containing spaces are additionally registered by the platform log sink.
+fn absolute_path_end(text: &str, start: usize) -> Option<usize> {
+    let bytes = text.as_bytes();
+    if start >= bytes.len() {
+        return None;
+    }
+    let is_unix_path = bytes[start] == b'/'
+        && start + 1 < bytes.len()
+        && (bytes[start + 1].is_ascii_alphanumeric()
+            || bytes[start + 1] == b'~'
+            || bytes[start + 1] == b'.')
+        && !text[..start].ends_with(":/");
+    let is_home_path = bytes[start] == b'~' && start + 1 < bytes.len() && bytes[start + 1] == b'/';
+    let is_windows_path = start + 2 < bytes.len()
+        && bytes[start].is_ascii_alphabetic()
+        && bytes[start + 1] == b':'
+        && (bytes[start + 2] == b'\\' || bytes[start + 2] == b'/');
+    if !(is_unix_path || is_home_path || is_windows_path) {
+        return None;
+    }
+    let mut end = start;
+    while end < bytes.len()
+        && !bytes[end].is_ascii_whitespace()
+        && !b"\"'<>),;]".contains(&bytes[end])
+    {
+        end += 1;
+    }
+    let token = &text[start..end];
+    let has_separator = token[1..].contains('/') || token[1..].contains('\\');
+    has_separator.then_some(end)
 }
 
 /// True for bytes that can belong to credential-like runs (`A-Z`, `a-z`, `0-9`,
@@ -710,7 +881,7 @@ pub fn generate_markdown(data: &ReportData) -> String {
     if !data.attachments.is_empty() {
         md.push_str("## Attachments\n\n");
         for attachment in &data.attachments {
-            let name = attachment.trim();
+            let name = sanitize(attachment.trim());
             if name.is_empty() {
                 continue;
             }
@@ -822,6 +993,22 @@ mod tests {
     }
 
     #[test]
+    fn redact_removes_account_paths_emails_and_library_identifiers() {
+        let input = "user_name=MLeeM email=marvin@example.test steamId=76561198000000000 /home/marvin/Game title=My Private Mod workshop_id=3741628037";
+        let output = redact(input);
+        for sensitive in [
+            "MLeeM",
+            "marvin@example.test",
+            "76561198000000000",
+            "/home/marvin/Game",
+            "My Private Mod",
+            "3741628037",
+        ] {
+            assert!(!output.contains(sensitive), "leaked {sensitive}: {output}");
+        }
+    }
+
+    #[test]
     fn sanitize_truncates_oversized_logs() {
         let long = "x".repeat(MAX_REPORT_TEXT_CHARS + 100);
         let sanitized = sanitize(&long);
@@ -917,7 +1104,7 @@ mod tests {
         r.additional_context = "token=ghp_abcdefghijklmnopqrstuvwxyz1234567890".to_string();
         export_markdown(&r, &path).unwrap();
         let written = std::fs::read_to_string(&path).unwrap();
-        assert!(written.contains("[REDACTED]"));
+        assert!(written.contains("[REDACTED]") || written.contains("[ID REDACTED]"));
         assert!(!written.contains("ghp_"));
         assert!(written.ends_with('\n'));
         let _ = std::fs::remove_dir_all(&dir);

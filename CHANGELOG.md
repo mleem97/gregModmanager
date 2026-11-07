@@ -7,7 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<<<<<<< HEAD
+### Release distribution
+
+- Prepare Windows installers and Linux packages with upgrade-safe installation,
+  GitHub release publishing, and an in-app update check.
+
+### Changed
+
+- Migrated checked-in CI configuration to the native Jenkins quality/build
+  matrix and removed former Actions workflows; automated release publication,
+  coverage uploading and notifications still require replacement jobs.
+
+- Unified the manager base under `$HOME/GregModmanager` (custom bases retained),
+  with Configs, Logs, Workshop, GameModding and ModConfigs; added cached SQLite
+  settings with legacy import and a reviewed base-switch dialog.
+- Added controlled Workshop installation into managed Mods/Melons/UserLibs,
+  typed Modstore installs and a shared publishing configuration for both services.
+- Added an editor build-test dialog with real SDK diagnostics and dependency paths.
+- Moved local content scanning off the UI thread and cached search results;
+  replaced synthetic preview pixels with bounded real image decoding and caches.
+- Added verified managed-runtime launch gating and a reviewable external
+  gregCore/Companion/loader integration patch; live runtime verification remains
+  a deployment prerequisite.
+
+- Replaced Steam, gregAPI and MelonLoader status dots with uniformly sized,
+  monochrome service logos, including the upstream MelonWiki logo. Icons show
+  red for unavailable, gray for unknown/checking and green for available.
+- Updated the application logo and window icon (`G.svg`).
+- Expanded `.env.example` with runtime/CI settings, separate proposed Discord
+  destinations, Grafana/Loki credentials and GitHub/Bugsink/MantisNext/Plane
+  integration configuration; documented active consumers and full-sync gaps.
+
 ### Added
 
 - "Browse Plugins" modal and "Install Plugins" button in the "My Plugins" view: "Browse Plugins" lets users select and install official MelonLoader plugins (`Il2CppAssemblyFixerPlugin.dll`, `gregPlugin.Companion.dll`, `gregPlugin.ExplorerBridge.dll`, `gregPlugin.SteamModfix.dll`), while "Install Plugins" automatically downloads and installs the latest release of the IL2CPP Assembly Fixer directly from Datacentermods (`git.datacentermods.com`) with automatic fallback to GitHub releases.
@@ -23,7 +53,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `cli-main` crate import alias for steam integration and removed stray doc comments causing clippy errors.
 - CI: Codacy code coverage — workspace-weites LCOV-Report via `cargo tarpaulin`, hochgeladen mit dem Codacy
   Coverage Reporter bei jedem Push/PR (Job `coverage` in `rust.yml`); benötigt das Geheimnis `CODACY_PROJECT_TOKEN`.
-=======
 ### Fixed
 
 - FULL-RUST configuration alignment: devcontainer moved from the .NET/Avalonia
@@ -178,7 +207,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Expired/invalid tokens now force a fresh browser login instead of a
   stale session.
 
->>>>>>> 4994627e2ee675af0363c19e5ab81256bacfeb0a
 ## [1.7.0] - 2026-09-28
 
 ### Added

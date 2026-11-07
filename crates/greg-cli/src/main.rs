@@ -10,7 +10,6 @@ use std::sync::Arc;
 use clap::{Parser, Subcommand};
 use greg_core::docs::project_docs;
 use greg_core::models::{ProjectSyncState, RalphTaskStatus};
-use greg_core::prefs::Preferences;
 
 const APP_ID: u32 = greg_core::models::settings::DATA_CENTER_APP_ID;
 
@@ -223,14 +222,15 @@ fn translate_legacy(raw: Vec<String>) -> Vec<String> {
 }
 
 fn workspace_for_listing() -> greg_platform::workspace::Workspace {
-    let prefs = greg_platform::prefs::JsonFilePreferences::open();
-    let custom = prefs.get_string(greg_platform::workspace::CUSTOM_WORKSPACE_PATH_KEY, "");
-    let custom = if custom.trim().is_empty() {
-        std::env::var("GREG_WORKSPACE").ok()
-    } else {
-        Some(custom)
-    };
-    greg_platform::workspace::Workspace::resolve(custom.as_deref(), None)
+    let prefs = greg_platform::prefs::SqlitePreferences::open();
+    // Derive the base from the opened database, matching the desktop app.
+    // A copied legacy CustomWorkspacePath must not override GREG_WORKSPACE.
+    let path = prefs.path();
+    let base = path
+        .parent()
+        .and_then(Path::parent)
+        .expect("settings database has base directory");
+    greg_platform::workspace::Workspace::resolve(base.to_str(), None)
 }
 
 fn effective_description(project_root: &Path, lang: &str) -> String {
@@ -460,27 +460,15 @@ fn run_publish_modstore(
         .clone()
         .filter(|s| !s.trim().is_empty())
         .or_else(|| (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()));
-    let category = cli.category.clone().or_else(|| {
-        let profile = meta.native_config_profile.trim();
-        (!profile.is_empty()).then(|| profile.to_string())
-    });
-    let plan = match PublishPlan::from_project(
-        &payload,
-        &PublishMetadata {
-            mod_id,
-            title: meta.title.clone(),
-            version: meta.version.clone(),
-            description,
-            changelog,
-            category,
-            license: cli.license.clone(),
-            tags: meta.tags.clone(),
-            installation: None,
-            support_url: None,
-            min_game_version: None,
-            recommended_game_version: None,
-        },
-    ) {
+    let mut publish_metadata = PublishMetadata::from_workshop(&meta, description, changelog);
+    publish_metadata.mod_id = mod_id;
+    if let Some(category) = cli.category.clone() {
+        publish_metadata.category = Some(category);
+    }
+    if let Some(license) = cli.license.clone() {
+        publish_metadata.license = Some(license);
+    }
+    let plan = match PublishPlan::from_project(&payload, &publish_metadata) {
         Ok(plan) => plan,
         Err(e) => {
             eprintln!("Packaging failed: {e}");

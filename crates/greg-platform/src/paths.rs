@@ -7,26 +7,42 @@ pub fn app_data_dir() -> Option<PathBuf> {
     dirs::data_local_dir().map(|d| d.join("gregModmanager"))
 }
 
-/// Directory holding `app-YYYYMMDD.log`.
-///
-/// Prefers `<exe-dir>/logs` when writable (matches the C# behavior),
-/// then the app-data dir, then the temp dir.
-pub fn log_dir() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join("logs");
-            if std::fs::create_dir_all(&candidate).is_ok() && is_writable(&candidate) {
-                return candidate;
+/// Default manager base: `$HOME/GregModmanager` on every desktop platform.
+pub fn default_manager_base_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join("GregModmanager"))
+}
+
+/// Resolve the manager base without opening the settings database.
+/// The OS app-data locator is intentionally tiny: settings live in the base.
+pub fn manager_base_dir() -> PathBuf {
+    if let Ok(value) = std::env::var("GREG_WORKSPACE") {
+        if !value.trim().is_empty() {
+            return PathBuf::from(value.trim());
+        }
+    }
+    if let Some(data) = app_data_dir() {
+        if let Ok(value) = std::fs::read_to_string(data.join("workspace.path")) {
+            if !value.trim().is_empty() {
+                return PathBuf::from(value.trim());
+            }
+        }
+        // Read the previous JSON store only as a bootstrap/import source.
+        if let Ok(text) = std::fs::read_to_string(data.join("preferences.json")) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                if let Some(value) = json.get("CustomWorkspacePath").and_then(|v| v.as_str()) {
+                    if !value.trim().is_empty() {
+                        return PathBuf::from(value.trim());
+                    }
+                }
             }
         }
     }
-    if let Some(dir) = app_data_dir() {
-        let logs = dir.join("logs");
-        if std::fs::create_dir_all(&logs).is_ok() {
-            return logs;
-        }
-    }
-    std::env::temp_dir().join("gregModmanager-logs")
+    default_manager_base_dir().unwrap_or_else(|| std::env::temp_dir().join("GregModmanager"))
+}
+
+/// Directory holding daily logs inside the resolved manager base.
+pub fn log_dir() -> PathBuf {
+    manager_base_dir().join("Logs")
 }
 
 /// True when a probe file can be created and removed.

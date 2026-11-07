@@ -1,48 +1,27 @@
-# Jenkins CI/CD (Rust check / build matrix)
+# Jenkins CI and releases
 
-The repository ships a Jenkins declarative pipeline ([`Jenkinsfile`](../../Jenkinsfile))
-that runs the Rust quality gates and a workspace build across
-Linux, Windows and macOS agents.
+Jenkins runs formatting, Clippy, tests and a workspace build on native Linux,
+Windows and macOS agents. The `PUBLISH_RELEASE` parameter additionally builds
+the Windows and Linux packages on `main`. Publication requires the
+`RELEASE_VALIDATED` parameter after installation, upgrade and runtime checks
+have been completed on all supported platforms and package formats.
 
-## Pipeline stages
+The release job must be a multibranch job with `BRANCH_NAME=main`. The Linux
+agent needs the Slint development libraries, `nfpm`, `sha256sum`,
+`git` and `gh`. The Windows agent needs Rust, Inno Setup 6 and WiX CLI 5 on
+PATH. The release stage uses the Jenkins secret text credential
+`github-release-token` with permission to create releases in
+`mleem97/gregModmanager`. The source commit must already be mirrored to GitHub.
+The pipeline refuses to reuse an existing version tag or continue when the tag
+check fails. It publishes the archives, installers, packages and SHA-256 files
+to GitHub Releases; it does not push directly to `main`.
 
-1. **Checkout** – `checkout scm`.
-2. **Rust-Toolchain** – bootstrap/install Rust toolchain with `rustfmt` and
-   `clippy` components; on Linux additionally installs the Slint system
-   dependencies (`libxcb-render0-dev`, `libxcb-shape0-dev`, `libxcb-xfixes0-dev`,
-   `libxkbcommon-dev`, `libfontconfig1-dev`) via apt.
-3. **Format** – `cargo fmt --all -- --check`.
-4. **Clippy** – `cargo clippy --workspace --all-targets -- -D warnings`.
-5. **Test** – `cargo test --workspace`.
-6. **Build** – `cargo build --workspace`.
+Keep `VERSION` and the Cargo workspace version identical. Before enabling
+publication, verify all artifacts on their target systems, including Steam and
+the game, and verify update and uninstall preserve user data. In particular,
+the APK uses a glibc-built binary and depends on Alpine's `gcompat`; its actual
+compatibility and package trust must be verified on Alpine. Windows installers
+are not publicly trusted unless signed with a trusted code-signing certificate.
 
-The matrix covers the operating systems `linux`, `windows` and `macos`
-(agent labels of the same names).
-
-## Agent requirements
-
-- Linux agent: Rust via rustup plus `sudo apt-get` access for the Slint
-  system dependencies (or a preinstalled Rust toolchain).
-- Windows agent: Rust via rustup (`rustup component add rustfmt clippy`).
-- macOS agent: Rust via rustup (`rustup component add rustfmt clippy`).
-
-## Relationship to the existing CI
-
-- The Forgejo Actions workflows (`.forgejo/workflows/rust.yml`,
-  `.forgejo/workflows/build-and-release.yml`, …) remain the source of truth for
-  release automation (cross-builds, packages, releases, promote/train, coverage).
-- Jenkins adds the multi-OS check/build matrix and does not replace the
-  release path.
-
-## Local parity
-
-- `scripts/check.sh` mirrors the local gate: fmt -> clippy (-D warnings) -> test.
-- `cargo build --workspace` mirrors the Jenkins `Build` stage.
-
-## Notes
-
-- Release builds (`cargo xtask dist`) stay with the existing Forgejo/Gitea
-  release workflows.
-- The pipeline itself requires no repository secrets; any future release-time
-  Jenkins jobs (e.g. signing) must use the Jenkins credentials store and must
-  not keep secrets in the repository.
+Run `scripts/check.sh` locally for the Rust gates. Native installation and
+upgrade tests remain necessary; building an archive alone does not validate it.

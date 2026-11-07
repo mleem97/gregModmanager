@@ -1,16 +1,28 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="gregModmanager"
-           Manufacturer="GregFramework"
+  <Package Name="gregModmanager" Manufacturer="GregFramework"
            Version="$(var.ProductVersion)"
-           UpgradeCode="{7A2F9E1B-4C3D-5E6F-7890-ABCDEF123401}">
+           UpgradeCode="{6D16559E-40A2-4528-A6F2-BAE5FE09BFD5}">
     <MajorUpgrade DowngradeErrorMessage="A newer version of gregModmanager is already installed." />
     <MediaTemplate EmbedCab="yes" />
-
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="gregModmanager">
+        <Component Id="App" Guid="*">
+          <File Id="AppExe" Source="$(var.PublishDir)\gregmodmanager.exe" KeyPath="yes">
+            <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="gregModmanager" WorkingDirectory="INSTALLFOLDER" />
+          </File>
+        </Component>
+        <Component Id="Cli" Guid="*"><File Source="$(var.PublishDir)\gregcli.exe" /></Component>
+        <Component Id="Steam" Guid="*"><File Source="$(var.PublishDir)\steam_api64.dll" /></Component>
+        <Component Id="SteamAppId" Guid="*"><File Source="$(var.PublishDir)\steam_appid.txt" /></Component>
+        <Component Id="Marker" Guid="*"><File Source="$(var.MarkerFile)" Name=".greg-install-kind" /></Component>
+        <Component Id="Protocol" Guid="*">
+          <RegistryValue Root="HKLM" Key="Software\Classes\greg" Value="URL:greg Protocol" Type="string" KeyPath="yes" />
+          <RegistryValue Root="HKLM" Key="Software\Classes\greg" Name="URL Protocol" Value="" Type="string" />
+          <RegistryValue Root="HKLM" Key="Software\Classes\greg\DefaultIcon" Value="[INSTALLFOLDER]gregmodmanager.exe,0" Type="string" />
+          <RegistryValue Root="HKLM" Key="Software\Classes\greg\shell\open\command" Value="&quot;[INSTALLFOLDER]gregmodmanager.exe&quot; &quot;%1&quot;" Type="string" />
+        </Component>
       </Directory>
     </StandardDirectory>
-
-    <Files Include="$(var.PublishDir)\**" Directory="INSTALLFOLDER" />
+    <StandardDirectory Id="ProgramMenuFolder" />
   </Package>
 </Wix>

@@ -9,7 +9,7 @@
 //!   Settings (or via `STEAM_WEB_API_KEY`). If no Web API key is configured,
 //!   returns [`SteamError::WebApiKeyMissing`] with a clear user-facing message.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -303,6 +303,22 @@ pub async fn download_and_cache_preview_image(
     cache_dir: &Path,
     cancel: &AtomicBool,
 ) -> Result<DecodedPreviewImage> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| SteamError::Api(format!("Preview HTTP client error: {e}")))?;
+    download_and_cache_preview_image_with_client(preview_url, item_id, cache_dir, cancel, &client)
+        .await
+}
+
+/// Batch variant reuses the caller's HTTP connection pool and runtime.
+pub async fn download_and_cache_preview_image_with_client(
+    preview_url: &str,
+    item_id: u64,
+    cache_dir: &Path,
+    cancel: &AtomicBool,
+    client: &reqwest::Client,
+) -> Result<DecodedPreviewImage> {
     if cancel.load(Ordering::Relaxed) {
         return Err(SteamError::Cancelled);
     }
@@ -310,11 +326,36 @@ pub async fn download_and_cache_preview_image(
     if url.is_empty() {
         return Err(SteamError::Api("Preview image URL is empty.".into()));
     }
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|e| SteamError::Api(format!("Preview HTTP client error: {e}")))?;
-    let resp = client
+    let stem = preview_cache_stem(url, item_id);
+    for extension in [".png", ".jpg", ".gif", ".webp"] {
+        let path = cache_dir.join(format!("{stem}{extension}"));
+        if let Ok(metadata) = std::fs::metadata(&path) {
+            let fresh = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.elapsed().ok())
+                .is_some_and(|age| age < Duration::from_secs(24 * 60 * 60));
+            if fresh && metadata.len() <= MAX_PREVIEW_BYTES as u64 {
+                use std::io::Read as _;
+                let mut bytes = Vec::new();
+                if std::fs::File::open(&path)
+                    .and_then(|file| {
+                        file.take(MAX_PREVIEW_BYTES as u64 + 1)
+                            .read_to_end(&mut bytes)
+                    })
+                    .is_ok()
+                {
+                    if let Ok(mut cached) =
+                        decode_and_cache_preview_bytes(bytes, url, item_id, None)
+                    {
+                        cached.cached_path = Some(path);
+                        return Ok(cached);
+                    }
+                }
+            }
+        }
+    }
+    let mut resp = client
         .get(url)
         .send()
         .await
@@ -325,11 +366,30 @@ pub async fn download_and_cache_preview_image(
             resp.status()
         )));
     }
-    let bytes = resp
-        .bytes()
+    if resp
+        .content_length()
+        .is_some_and(|length| length > MAX_PREVIEW_BYTES as u64)
+    {
+        return Err(SteamError::Api(
+            "Preview exceeds the encoded byte limit.".into(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
         .await
         .map_err(|e| SteamError::Api(format!("Preview image read failed: {e}")))?
-        .to_vec();
+    {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(SteamError::Cancelled);
+        }
+        if bytes.len().saturating_add(chunk.len()) > MAX_PREVIEW_BYTES {
+            return Err(SteamError::Api(
+                "Preview exceeds the encoded byte limit.".into(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     if cancel.load(Ordering::Relaxed) {
         return Err(SteamError::Cancelled);
     }
@@ -375,62 +435,109 @@ pub fn download_and_cache_preview_image_blocking(
     }
 }
 
-/// Validates raw image bytes (PNG, JPEG, GIF, WebP), extracts dimensions, constructs the
-/// RGBA8 buffer, and optionally writes the validated file into `cache_dir`.
+/// Maximum encoded preview payload accepted from disk or HTTP.
+pub const MAX_PREVIEW_BYTES: usize = 8 * 1024 * 1024;
+/// Maximum dimension before decoding; prevents oversized image headers.
+pub const MAX_PREVIEW_DIMENSION: u32 = 8192;
+/// Maximum pixel count before decoding (64 MiB RGBA).
+pub const MAX_PREVIEW_PIXELS: u64 = 16 * 1024 * 1024;
+/// Decoded previews are resized to this maximum edge for display.
+pub const THUMBNAIL_EDGE: u32 = 512;
+
+/// Validates and genuinely decodes PNG/JPEG/GIF/WebP pixels under strict input
+/// and dimension limits, then downsamples once for bounded UI memory usage.
 pub fn decode_and_cache_preview_bytes(
     bytes: Vec<u8>,
     source_url: &str,
     item_id: u64,
     cache_dir: Option<&Path>,
 ) -> Result<DecodedPreviewImage> {
-    if bytes.is_empty() {
-        return Err(SteamError::Api("Preview image payload is empty.".into()));
+    use std::io::Cursor;
+    if bytes.is_empty() || bytes.len() > MAX_PREVIEW_BYTES {
+        return Err(SteamError::Api(
+            "Preview payload is empty or exceeds 8 MiB.".into(),
+        ));
     }
     if !is_recognized_image(&bytes) {
         return Err(SteamError::Api(
-            "Preview payload is not a supported image format (expected PNG, JPEG, GIF, or WebP)."
-                .into(),
+            "Preview payload is not PNG, JPEG, GIF or WebP.".into(),
         ));
     }
-    let extension = image_ext(&bytes);
-    let (width, height) = parse_image_dimensions(&bytes).unwrap_or((1, 1));
-    let safe_w = width.clamp(1, 4096);
-    let safe_h = height.clamp(1, 4096);
-    let pixel_count = (safe_w as usize).saturating_mul(safe_h as usize);
-    let mut rgba8 = Vec::with_capacity(pixel_count.saturating_mul(4));
-    // Populate deterministic RGBA8 pixels from payload + full alpha channel (255).
-    for idx in 0..pixel_count {
-        let b0 = bytes[idx % bytes.len()];
-        let b1 = bytes[(idx.wrapping_mul(3) + 1) % bytes.len()];
-        let b2 = bytes[(idx.wrapping_mul(7) + 2) % bytes.len()];
-        rgba8.extend_from_slice(&[b0, b1, b2, 0xFF]);
+    let error = |e: image::ImageError| SteamError::Api(format!("Invalid preview image: {e}"));
+    let reader = image::ImageReader::new(Cursor::new(&bytes))
+        .with_guessed_format()
+        .map_err(|e| SteamError::Api(e.to_string()))?;
+    let (width, height) = reader.into_dimensions().map_err(error)?;
+    if width == 0
+        || height == 0
+        || width > MAX_PREVIEW_DIMENSION
+        || height > MAX_PREVIEW_DIMENSION
+        || u64::from(width) * u64::from(height) > MAX_PREVIEW_PIXELS
+    {
+        return Err(SteamError::Api(
+            "Preview image dimensions exceed the decoder limits.".into(),
+        ));
     }
-
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_PREVIEW_DIMENSION);
+    limits.max_image_height = Some(MAX_PREVIEW_DIMENSION);
+    limits.max_alloc = Some(MAX_PREVIEW_PIXELS * 4);
+    let mut reader = image::ImageReader::new(Cursor::new(&bytes))
+        .with_guessed_format()
+        .map_err(|e| SteamError::Api(e.to_string()))?;
+    reader.limits(limits);
+    let decoded = reader.decode().map_err(error)?;
+    let rgba = if width > THUMBNAIL_EDGE || height > THUMBNAIL_EDGE {
+        decoded.thumbnail(THUMBNAIL_EDGE, THUMBNAIL_EDGE).to_rgba8()
+    } else {
+        decoded.to_rgba8()
+    };
+    let (width, height) = rgba.dimensions();
+    let extension = image_ext(&bytes);
     let cached_path = match cache_dir {
         Some(dir) => {
             std::fs::create_dir_all(dir)
                 .map_err(|e| SteamError::Other(format!("Cannot create preview cache dir: {e}")))?;
-            let stem = if item_id != 0 {
-                format!("workshop_{item_id}")
-            } else {
-                format!("preview_{:016x}", fnv1a64(source_url.as_bytes()))
-            };
-            let path: PathBuf = dir.join(format!("{stem}{extension}"));
-            std::fs::write(&path, &bytes)
-                .map_err(|e| SteamError::Other(format!("Cannot write cached preview: {e}")))?;
+            let stem = preview_cache_stem(source_url, item_id);
+            let path = dir.join(format!("{stem}{extension}"));
+            // Preserve mtime for identical content so the UI's decoded cache
+            // survives a repeated provider refresh without another decode.
+            use std::io::Read as _;
+            let mut existing = Vec::new();
+            let same = std::fs::metadata(&path).is_ok_and(|m| m.len() == bytes.len() as u64)
+                && std::fs::File::open(&path)
+                    .and_then(|file| {
+                        file.take(MAX_PREVIEW_BYTES as u64 + 1)
+                            .read_to_end(&mut existing)
+                    })
+                    .is_ok()
+                && existing == bytes;
+            if !same {
+                std::fs::write(&path, &bytes)
+                    .map_err(|e| SteamError::Other(format!("Cannot write cached preview: {e}")))?;
+            }
             Some(path)
         }
         None => None,
     };
-
     Ok(DecodedPreviewImage {
-        width: safe_w,
-        height: safe_h,
-        rgba8,
+        width,
+        height,
+        rgba8: rgba.into_raw(),
         raw_bytes: bytes,
         extension,
         cached_path,
     })
+}
+
+/// Stable cache name includes provider URL to invalidate changed previews.
+pub fn preview_cache_stem(source_url: &str, item_id: u64) -> String {
+    let hash = fnv1a64(source_url.as_bytes());
+    if item_id == 0 {
+        format!("preview_{hash:016x}")
+    } else {
+        format!("workshop_{item_id}_{hash:016x}")
+    }
 }
 
 /// Checks magic bytes for PNG, JPEG, GIF, or WebP.
@@ -651,5 +758,119 @@ where
         Some(StrOrNum::Num(n)) => Ok(Some(n)),
         Some(StrOrNum::Signed(n)) => Ok(u64::try_from(n).ok()),
         Some(StrOrNum::Text(s)) => Ok(s.trim().parse::<u64>().ok()),
+    }
+}
+
+#[cfg(test)]
+mod image_tests {
+    use super::*;
+    use std::io::Cursor;
+
+    fn encoded(width: u32, height: u32, format: image::ImageFormat) -> Vec<u8> {
+        let image = image::RgbaImage::from_pixel(width, height, image::Rgba([255, 0, 0, 255]));
+        let mut output = Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut output, format)
+            .unwrap();
+        output.into_inner()
+    }
+
+    #[test]
+    fn real_pixels_decode_without_upscaling_and_large_previews_downsample() {
+        let decoded =
+            decode_and_cache_preview_bytes(encoded(2, 2, image::ImageFormat::Png), "test", 0, None)
+                .unwrap();
+        assert_eq!((decoded.width, decoded.height), (2, 2));
+        assert_eq!(decoded.rgba8, [255, 0, 0, 255].repeat(4));
+        let decoded = decode_and_cache_preview_bytes(
+            encoded(1024, 256, image::ImageFormat::Png),
+            "test",
+            0,
+            None,
+        )
+        .unwrap();
+        assert_eq!((decoded.width, decoded.height), (512, 128));
+        assert_eq!(decoded.rgba8.len(), 512 * 128 * 4);
+    }
+
+    #[test]
+    fn supported_gif_and_webp_formats_decode_real_pixels() {
+        for format in [image::ImageFormat::Gif, image::ImageFormat::WebP] {
+            let decoded =
+                decode_and_cache_preview_bytes(encoded(2, 2, format), "test", 0, None).unwrap();
+            assert_eq!((decoded.width, decoded.height), (2, 2));
+            assert_eq!(decoded.rgba8, [255, 0, 0, 255].repeat(4));
+        }
+    }
+
+    #[test]
+    fn fresh_disk_cache_avoids_http_and_cancelled_download_is_rejected() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("greg-preview-hit-{}-{nonce}", std::process::id()));
+        let url = "http://127.0.0.1:1/never-contact";
+        decode_and_cache_preview_bytes(encoded(2, 2, image::ImageFormat::Png), url, 0, Some(&dir))
+            .unwrap();
+        let cancel = AtomicBool::new(false);
+        let cached = download_and_cache_preview_image_blocking(url, 0, &dir, &cancel).unwrap();
+        assert_eq!(cached.rgba8, [255, 0, 0, 255].repeat(4));
+        cancel.store(true, Ordering::Relaxed);
+        assert!(matches!(
+            download_and_cache_preview_image_blocking(url, 0, &dir, &cancel),
+            Err(SteamError::Cancelled)
+        ));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn corrupt_oversized_and_excessive_dimensions_are_rejected() {
+        assert!(
+            decode_and_cache_preview_bytes(vec![0; MAX_PREVIEW_BYTES + 1], "test", 0, None)
+                .is_err()
+        );
+        assert!(
+            decode_and_cache_preview_bytes(b"\x89PNG\r\n\x1a\n".to_vec(), "test", 0, None).is_err()
+        );
+        let bytes = encoded(MAX_PREVIEW_DIMENSION + 1, 1, image::ImageFormat::Png);
+        let error = decode_and_cache_preview_bytes(bytes, "test", 0, None)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("dimensions"), "{error}");
+        let mut truncated = encoded(8, 8, image::ImageFormat::Png);
+        truncated.truncate(truncated.len() / 2);
+        assert!(decode_and_cache_preview_bytes(truncated, "test", 0, None).is_err());
+    }
+
+    #[test]
+    fn changed_urls_get_distinct_cache_paths_and_identical_content_preserves_mtime() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("greg-preview-cache-{}-{nonce}", std::process::id()));
+        let bytes = encoded(2, 2, image::ImageFormat::Png);
+        let first =
+            decode_and_cache_preview_bytes(bytes.clone(), "https://example.com/a", 5, Some(&dir))
+                .unwrap()
+                .cached_path
+                .unwrap();
+        let stamp = std::fs::metadata(&first).unwrap().modified().unwrap();
+        let again =
+            decode_and_cache_preview_bytes(bytes.clone(), "https://example.com/a", 5, Some(&dir))
+                .unwrap()
+                .cached_path
+                .unwrap();
+        assert_eq!(first, again);
+        assert_eq!(stamp, std::fs::metadata(again).unwrap().modified().unwrap());
+        let next = decode_and_cache_preview_bytes(bytes, "https://example.com/b", 5, Some(&dir))
+            .unwrap()
+            .cached_path
+            .unwrap();
+        assert_ne!(first, next);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

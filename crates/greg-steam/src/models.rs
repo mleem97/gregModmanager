@@ -113,9 +113,9 @@ pub type WorkshopItemMetadata = ItemDetail;
 /// and parsed dimensions + RGBA8 pixel buffer (for `slint::SharedPixelBuffer`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedPreviewImage {
-    /// Image width in pixels (parsed from header, or `1` fallback).
+    /// Decoded thumbnail width in pixels (at most 512).
     pub width: u32,
-    /// Image height in pixels (parsed from header, or `1` fallback).
+    /// Decoded thumbnail height in pixels (at most 512).
     pub height: u32,
     /// RGBA8 pixel buffer (`width * height * 4` bytes).
     pub rgba8: Vec<u8>,

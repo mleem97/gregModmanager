@@ -2,7 +2,7 @@ import { LineEdit, ComboBox } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, FieldRow, GregButton, ListCard } from "theme.slint";
 import { AppIcon } from "icons.slint";
-import { HealthRow } from "models.slint";
+import { HealthRow, DiagnosticRow } from "models.slint";
 import { Tr } from "i18n.slint";
 
 export component SettingsPage inherits VerticalLayout {
@@ -14,6 +14,7 @@ export component SettingsPage inherits VerticalLayout {
     in-out property <string> steam-web-api-key;
     in-out property <string> telemetry-text;
     in-out property <[HealthRow]> health;
+    in-out property <[DiagnosticRow]> diagnostics;
     in-out property <[string]> log;
 
     callback apply-lang();
@@ -23,6 +24,7 @@ export component SettingsPage inherits VerticalLayout {
     callback browse-gameroot();
     callback apply-modstore-url();
     callback apply-steam-web-api-key();
+    callback check-updates();
     callback run-checks();
     callback open-logs();
     callback make-bundle();
@@ -139,7 +141,29 @@ export component SettingsPage inherits VerticalLayout {
                 color: Palette.on-variant;
             }
 
+            GregButton {
+                text: Tr.settings-check-updates;
+                clicked => { root.check-updates(); }
+            }
+
             SectionTitle { text: Tr.settings-section-diagnostics; }
+            SectionTitle { text: Tr.settings-app-details; }
+            Text {
+                text: Tr.settings-diagnostics-privacy;
+                font-size: 11px;
+                color: Palette.on-variant;
+                wrap: word-wrap;
+            }
+            for item in root.diagnostics: FieldRow {
+                label: item.label;
+                Text {
+                    text: item.value;
+                    font-size: 12px;
+                    color: Palette.on-surface;
+                    horizontal-stretch: 1;
+                    wrap: word-wrap;
+                }
+            }
             GregButton {
                 text: Tr.settings-run-checks;
                 has-icon: true;

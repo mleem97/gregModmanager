@@ -1,4 +1,4 @@
-import { LineEdit, ProgressIndicator } from "std-widgets.slint";
+import { LineEdit, ComboBox, ProgressIndicator } from "std-widgets.slint";
 import { ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
@@ -8,6 +8,9 @@ import { Tr } from "i18n.slint";
 // Modstore needs no side navigation — Catalog / Updates tabs suffice.
 export component StorePage inherits VerticalLayout {
     in-out property <string> search;
+    in-out property <int> kind;
+    in-out property <[string]> kinds;
+    callback filter-changed();
     in-out property <[StoreRow]> items;
     in-out property <[UpdateRow]> updates;
     in-out property <float> progress;
@@ -48,6 +51,7 @@ export component StorePage inherits VerticalLayout {
             }
             LineEdit {
                 text <=> root.search;
+                edited => { root.filter-changed(); }
                 placeholder-text: Tr.store-search-placeholder;
                 horizontal-stretch: 1;
             }
@@ -66,6 +70,12 @@ export component StorePage inherits VerticalLayout {
         text: root.status;
         font-size: 11px;
         color: Palette.on-variant;
+    }
+
+    ComboBox {
+        model: root.kinds;
+        current-index <=> root.kind;
+        selected(_) => { root.filter-changed(); }
     }
 
     // Custom tabs: TabWidget sizes content to preferred (Flickable

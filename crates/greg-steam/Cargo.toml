@@ -10,6 +10,7 @@ default = ["steam"]
 steam = ["dep:steamworks", "dep:steamworks-sys"]
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 greg-core.workspace = true
 greg-platform.workspace = true
 serde.workspace = true

@@ -39,6 +39,7 @@ export component BrowsePage inherits VerticalLayout {
     callback next-page();
     callback subscribe-toggle();
     callback import-item();
+    callback install-item();
     callback view-on-steam();
 
     spacing: 8px;
@@ -257,17 +258,23 @@ export component BrowsePage inherits VerticalLayout {
                         wrap: word-wrap;
                     }
                     if root.has-detail: Rectangle {
-                        height: 36px;
-                        HorizontalLayout {
+                        height: 144px;
+                        VerticalLayout {
                             width: parent.width;
                             height: parent.height;
-                            spacing: 8px;
-                            alignment: center;
+                            spacing: 4px;
                             GregButton {
                                 text: root.d-subscribed ? Tr.browse-unsubscribe : Tr.browse-subscribe;
                                 has-icon: true;
                                 icon: root.d-subscribed ? IconSet.BellOff : IconSet.Bell;
                                 clicked => { root.subscribe-toggle(); }
+                            }
+                            GregButton {
+                                text: Tr.managed-install-button;
+                                has-icon: true;
+                                icon: IconSet.Package;
+                                enabled: !root.busy;
+                                clicked => { root.install-item(); }
                             }
                             GregButton {
                                 text: Tr.browse-import;

@@ -42,6 +42,14 @@ pub enum UiEvent {
     AuthSessionEstablished(ActiveSession),
     /// OAuth browser flow failed (message for the log).
     AuthSessionFailed(String),
+    /// Local content scan completed without blocking the UI thread.
+    LocalScanDone {
+        generation: u64,
+        root: std::path::PathBuf,
+        kind: greg_loader::local_content::LocalContentKind,
+        signature: String,
+        entries: Option<Vec<greg_loader::local_content::LocalContentEntry>>,
+    },
     /// Report submission finished (background GitHub delivery task).
     ReportSubmissionDone {
         /// Whether the issue was created.
@@ -60,7 +68,7 @@ pub struct AppState {
     /// UI language code.
     pub lang: String,
     /// Preferences store.
-    pub prefs: greg_platform::prefs::JsonFilePreferences,
+    pub prefs: greg_platform::prefs::SqlitePreferences,
     /// Workspace handle.
     pub workspace: greg_platform::workspace::Workspace,
     /// Workshop service (swapped when the backend connects).
@@ -83,6 +91,8 @@ pub struct AppState {
     pub sync_job: Option<JobHandle>,
     /// Thumbnail cache: row key (workshop id / store slug) -> local file.
     pub thumb_done: HashMap<String, PathBuf>,
+    /// Preview URL associated with each downloaded/in-flight cache key.
+    pub thumb_urls: HashMap<String, String>,
     /// Thumbnail download queue: (key, url), drained by the thumb job.
     pub thumb_pending: Vec<(String, String)>,
     /// Background thumbnail downloads.
@@ -94,6 +104,8 @@ pub struct AppState {
     pub editor_changelog: String,
     pub editor_dep_ids: Vec<u64>,
     pub publish_job: Option<JobHandle>,
+    pub build_job: Option<JobHandle>,
+    pub build_plan: Option<greg_loader::build_test::BuildPlan>,
 
     /// Browse caches.
     pub browse_items: Vec<(u64, String)>,
@@ -110,6 +122,11 @@ pub struct AppState {
     pub pending_remove: Option<std::path::PathBuf>,
     /// Last scan signature of the visible local page (change detection).
     pub local_sig: String,
+    pub local_cache_root: std::path::PathBuf,
+    pub local_cache_kind: Option<greg_loader::local_content::LocalContentKind>,
+    pub local_scan_generation: u64,
+    pub local_scan_running: bool,
+    pub local_scan_pending: bool,
     /// Selection flags for the "Install Libraries" modal (`FRAMEWORK_LIBRARIES` order).
     pub lib_selected: Vec<bool>,
     /// Background job for installing selected framework libraries.
@@ -159,10 +176,13 @@ impl AppState {
         self.weak.upgrade().expect("window gone")
     }
 
-    /// Creates state + UI defaults (Steam connects in the background).
-    pub fn new(weak: slint::Weak<MainWindow>) -> Arc<Mutex<Self>> {
+    /// Compose the presentation with explicitly provided storage services.
+    pub fn with_services(
+        weak: slint::Weak<MainWindow>,
+        prefs: greg_platform::prefs::SqlitePreferences,
+        workspace: greg_platform::workspace::Workspace,
+    ) -> Arc<Mutex<Self>> {
         let ui = weak.upgrade().expect("window gone");
-        let prefs = greg_platform::prefs::JsonFilePreferences::open();
         let lang = {
             let saved = prefs.get_string("AppLanguage", "");
             if saved.is_empty() {
@@ -171,17 +191,15 @@ impl AppState {
                 saved
             }
         };
-        let custom = prefs.get_string(greg_platform::workspace::CUSTOM_WORKSPACE_PATH_KEY, "");
-        let workspace = greg_platform::workspace::Workspace::resolve(
-            if custom.trim().is_empty() {
-                None
-            } else {
-                Some(custom.as_str())
-            },
-            None,
-        );
         let _ = workspace.ensure_structure();
-        let _ = workspace.migrate_legacy_projects();
+        greg_platform::filelog::register_sensitive_path(workspace.root());
+        let configured_game_root = prefs.get_string("GameRootPath", "");
+        if !configured_game_root.trim().is_empty() {
+            greg_platform::filelog::register_sensitive_path(std::path::Path::new(
+                configured_game_root.trim(),
+            ));
+        }
+        let pack_service = crate::actions::load_packs(&workspace);
 
         let web_api_key = prefs.get_string("SteamWebApiKey", "");
         let backend: Arc<dyn SteamBackend> =
@@ -194,7 +212,11 @@ impl AppState {
             .enable_all()
             .build()
             .expect("tokio runtime");
+        #[cfg(not(test))]
         let file_log = FileLog::shared().clone();
+        #[cfg(test)]
+        let file_log = FileLog::open(Some(workspace.logs_dir().join("test.log")));
+        file_log.scrub_history(&workspace.logs_dir());
         let (events_tx, events_rx) = mpsc::channel();
         let probe_wake = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -215,6 +237,7 @@ impl AppState {
             project_sync: HashMap::new(),
             sync_job: None,
             thumb_done: HashMap::new(),
+            thumb_urls: HashMap::new(),
             thumb_pending: Vec::new(),
             thumb_job: None,
             editor_root: None,
@@ -222,6 +245,8 @@ impl AppState {
             editor_changelog: String::new(),
             editor_dep_ids: Vec::new(),
             publish_job: None,
+            build_job: None,
+            build_plan: None,
             browse_items: Vec::new(),
             browse_detail_id: None,
             browse_job: None,
@@ -231,6 +256,11 @@ impl AppState {
             local_entries: Vec::new(),
             pending_remove: None,
             local_sig: String::new(),
+            local_cache_root: std::path::PathBuf::new(),
+            local_cache_kind: None,
+            local_scan_generation: 0,
+            local_scan_running: false,
+            local_scan_pending: false,
             lib_selected: vec![false; greg_loader::local_content::FRAMEWORK_LIBRARIES.len()],
             lib_job: None,
             plugin_selected: vec![false; greg_loader::local_content::FRAMEWORK_PLUGINS.len()],
@@ -240,7 +270,7 @@ impl AppState {
             steam_released: false,
             pending_request_id: None,
             problem_actions: Vec::new(),
-            pack_service: crate::actions::load_packs(),
+            pack_service,
             selected_pack: None,
             pack_order: Vec::new(),
             settings_lang_index: -1,
@@ -396,6 +426,7 @@ impl AppState {
         gregapi_ok: bool,
     ) {
         let tr = ui.global::<crate::Tr>();
+        ui.set_steam_known(true);
         if steam_ok {
             ui.set_steam_ok(true);
             let base = tr.get_status_steam_connected();
@@ -448,9 +479,14 @@ impl AppState {
                 let _ = tx.send(UiEvent::BackendReady(Arc::from(backend)));
             }
             loop {
-                let _ = tx.send(UiEvent::Probe {
-                    gregapi_ok: probe_gregapi(),
-                });
+                if tx
+                    .send(UiEvent::Probe {
+                        gregapi_ok: probe_gregapi(),
+                    })
+                    .is_err()
+                {
+                    break;
+                }
                 // Sleep in 1 s slices so an on-demand probe wakes us early.
                 for _ in 0..30 {
                     if wake.swap(false, Ordering::SeqCst) {
@@ -490,17 +526,19 @@ impl AppState {
     /// already holds the `AppState` guard: `append_log(state, ..)` re-locks the
     /// non-reentrant mutex and would deadlock the UI thread.
     pub fn log_line(&self, line: &str) {
+        let line = FileLog::redact_diagnostic_text(line);
         if let Ok(mut lines) = self.log_lines.lock() {
-            lines.push(line.to_string());
+            lines.push(line.clone());
             if lines.len() > 500 {
                 lines.remove(0);
             }
         }
-        self.file_log.info(line);
+        self.file_log.info(&line);
     }
 
     /// Logs to buffer + file.
     pub fn append_log(state: &Arc<Mutex<Self>>, line: &str) {
+        let line = FileLog::redact_diagnostic_text(line);
         let (lines, file_log) = match LOG_SINK.get() {
             Some((lines, file_log)) => (Arc::clone(lines), file_log.clone()),
             None => {
@@ -510,17 +548,22 @@ impl AppState {
         };
         {
             let mut guard = lines.lock().expect("log lock");
-            guard.push(line.to_string());
+            guard.push(line.clone());
             if guard.len() > 500 {
                 guard.remove(0);
             }
         }
-        file_log.info(line);
+        file_log.info(&line);
     }
 
     /// Current log snapshot for the settings page.
     pub fn log_snapshot(&self) -> Vec<String> {
-        self.log_lines.lock().expect("log lock").clone()
+        self.log_lines
+            .lock()
+            .expect("log lock")
+            .iter()
+            .map(|line| FileLog::redact_diagnostic_text(line))
+            .collect()
     }
 
     /// Localized string with the current language.

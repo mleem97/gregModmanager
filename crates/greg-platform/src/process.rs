@@ -42,6 +42,17 @@ pub fn launch_app(exe: &Path, args: &[String]) -> Result<()> {
 /// launch while the injected IDs still let the game initialize Steamworks.
 #[cfg(target_os = "linux")]
 pub fn launch_proton_app(exe: &Path, game_root: &Path, app_id: u32) -> Result<()> {
+    spawn_proton_tracked_with_env(exe, game_root, app_id, &[]).map(|_| ())
+}
+
+/// Starts Proton with child-only environment overrides and tracks its runner.
+#[cfg(target_os = "linux")]
+pub fn spawn_proton_tracked_with_env(
+    exe: &Path,
+    game_root: &Path,
+    app_id: u32,
+    environment: &[(std::ffi::OsString, std::ffi::OsString)],
+) -> Result<TrackedChild> {
     let common_dir = game_root
         .parent()
         .ok_or_else(|| PlatformError::Other("game path has no steamapps/common parent".into()))?;
@@ -74,13 +85,55 @@ pub fn launch_proton_app(exe: &Path, game_root: &Path, app_id: u32) -> Result<()
         .env("STEAM_COMPAT_DATA_PATH", &compat_data)
         .env("STEAM_COMPAT_INSTALL_PATH", game_root)
         .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", library_root);
-    command.spawn().map(|_| ()).map_err(|e| {
+    for name in [
+        "GREGMODMANAGER_MANAGED",
+        "GREGMODMANAGER_ROOT",
+        "GREGMODMANAGER_SESSION",
+        "GREGMODMANAGER_READY",
+    ] {
+        command.env_remove(name);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    command.envs(environment.iter().cloned());
+    let child = command.spawn().map_err(|e| {
         PlatformError::Other(format!(
             "cannot launch {} through Proton ({}): {e}",
             exe.display(),
             proton.display()
         ))
+    })?;
+    let pid = child.id();
+    Ok(TrackedChild {
+        child,
+        pid,
+        started_at: std::time::SystemTime::now(),
     })
+}
+
+/// Maps an absolute Linux path into Proton's standard Z: host filesystem drive.
+/// Native children receive the unchanged platform path.
+pub fn path_for_child(path: &Path, windows_game: bool) -> Result<std::ffi::OsString> {
+    #[cfg(target_os = "linux")]
+    if windows_game {
+        if !path.is_absolute() {
+            return Err(PlatformError::Other("Proton paths must be absolute".into()));
+        }
+        let text = path
+            .to_str()
+            .ok_or_else(|| PlatformError::Other("Proton path must be Unicode".into()))?;
+        if text.contains(['\\', ':']) {
+            return Err(PlatformError::Other(
+                "Linux path cannot be represented safely in Proton".into(),
+            ));
+        }
+        return Ok(format!("Z:{}", text.replace('/', "\\")).into());
+    }
+    let _ = windows_game;
+    Ok(path.as_os_str().to_owned())
 }
 
 #[cfg(target_os = "linux")]
@@ -122,13 +175,37 @@ pub struct TrackedChild {
 
 /// Spawns `exe` with `args` in `workdir` (or its parent dir) and tracks it.
 pub fn spawn_tracked(exe: &Path, args: &[String], workdir: Option<&Path>) -> Result<TrackedChild> {
+    spawn_tracked_with_env(exe, args, workdir, &[])
+}
+
+/// Spawns a supervised child with environment overrides local to that child.
+pub fn spawn_tracked_with_env(
+    exe: &Path,
+    args: &[String],
+    workdir: Option<&Path>,
+    environment: &[(std::ffi::OsString, std::ffi::OsString)],
+) -> Result<TrackedChild> {
     let dir: &Path = match workdir {
         Some(d) => d,
         None => exe.parent().unwrap_or_else(|| Path::new(".")),
     };
-    let mut child = std::process::Command::new(exe)
-        .args(args)
-        .current_dir(dir)
+    let mut command = std::process::Command::new(exe);
+    command.args(args).current_dir(dir);
+    for name in [
+        "GREGMODMANAGER_MANAGED",
+        "GREGMODMANAGER_ROOT",
+        "GREGMODMANAGER_SESSION",
+        "GREGMODMANAGER_READY",
+    ] {
+        command.env_remove(name);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command
+        .envs(environment.iter().cloned())
         .spawn()
         .map_err(|e| PlatformError::Other(format!("cannot launch {}: {e}", exe.display())))?;
     // Reap the pid eagerly: `id()` is only valid before any wait.
@@ -173,6 +250,53 @@ impl TrackedChild {
             .map_err(|e| PlatformError::Other(format!("cannot kill pid {}: {e}", self.pid)))
     }
 
+    /// Requests termination of this launch's full process tree without waiting.
+    /// Unix children are spawned in their own process group; this prevents a
+    /// killed Proton runner from leaving a child that starts the game later.
+    pub fn request_tree_stop(&mut self) -> Result<()> {
+        #[cfg(unix)]
+        {
+            let status = std::process::Command::new("kill")
+                .args(["-KILL", "--", &format!("-{}", self.pid)])
+                .status()
+                .map_err(|error| PlatformError::Other(error.to_string()))?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(PlatformError::Other(format!(
+                    "cannot terminate launch process group {}",
+                    self.pid
+                )))
+            }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            kill_tree(self.pid)
+        }
+    }
+
+    /// True if this launch still has group members after a failed startup.
+    pub fn process_tree_alive(&mut self) -> bool {
+        if self.is_running() {
+            return true;
+        }
+        #[cfg(target_os = "linux")]
+        {
+            process_group_has_live_members(self.pid)
+        }
+        #[cfg(all(unix, not(target_os = "linux")))]
+        {
+            std::process::Command::new("kill")
+                .args(["-0", "--", &format!("-{}", self.pid)])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|status| status.success())
+        }
+        #[cfg(not(unix))]
+        false
+    }
+
     /// Waits for exit (up to `timeout`), killing the process when it
     /// outlives the wait. Returns the exit code when known.
     pub fn stop_blocking(&mut self, timeout: std::time::Duration) -> Option<i32> {
@@ -191,6 +315,28 @@ impl TrackedChild {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
+}
+
+/// Linux process groups can retain orphan zombies in containers; zombies cannot
+/// create a delayed game child and must not keep a failed session locked forever.
+#[cfg(target_os = "linux")]
+fn process_group_has_live_members(group: u32) -> bool {
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return true;
+    };
+    entries.flatten().any(|entry| {
+        let Ok(stat) = std::fs::read_to_string(entry.path().join("stat")) else {
+            return false;
+        };
+        let Some((_, rest)) = stat.rsplit_once(')') else {
+            return false;
+        };
+        let fields: Vec<_> = rest.split_whitespace().take(3).collect();
+        fields.len() == 3
+            && fields[0] != "Z"
+            && fields[0] != "X"
+            && fields[2].parse::<u32>().ok() == Some(group)
+    })
 }
 
 /// Kills `pid` including its child tree.
@@ -225,6 +371,40 @@ pub fn kill_tree(pid: u32) -> Result<()> {
                 "kill exited with {status} for pid {pid}"
             )))
         }
+    }
+}
+
+/// Give a SDK/build command an isolated process group on Unix.
+/// Windows termination uses the process-tree API instead.
+pub fn isolate_command(command: &mut std::process::Command) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    #[cfg(not(unix))]
+    let _ = command;
+}
+
+/// Stop a command started with `isolate_command`, including child build tasks.
+pub fn stop_isolated_command(pid: u32) -> Result<()> {
+    #[cfg(unix)]
+    {
+        let status = std::process::Command::new("kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .status()
+            .map_err(|error| PlatformError::Other(error.to_string()))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(PlatformError::Other(format!(
+                "cannot stop build process group {pid}"
+            )))
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        kill_tree(pid)
     }
 }
 
@@ -377,6 +557,42 @@ fn scan_pgrep(file_name: &str) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn proton_path_translation_uses_host_drive_and_preserves_spaces() {
+        assert_eq!(
+            path_for_child(Path::new("/home/player/Mod Workspace"), true).unwrap(),
+            std::ffi::OsString::from("Z:\\home\\player\\Mod Workspace")
+        );
+        assert!(path_for_child(Path::new("relative"), true).is_err());
+        assert!(path_for_child(Path::new("/home/player/ambiguous:path"), true).is_err());
+        assert_eq!(
+            path_for_child(Path::new("/home/player/Workspace"), false).unwrap(),
+            Path::new("/home/player/Workspace").as_os_str()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn environment_overrides_are_child_local() {
+        let before = std::env::var_os("GREGMODMANAGER_SESSION");
+        let environment = vec![(
+            std::ffi::OsString::from("GREGMODMANAGER_SESSION"),
+            std::ffi::OsString::from("child-local-check"),
+        )];
+        let args = vec![
+            "-c".into(),
+            "test \"$GREGMODMANAGER_SESSION\" = child-local-check".into(),
+        ];
+        let mut child =
+            spawn_tracked_with_env(Path::new("/bin/sh"), &args, None, &environment).unwrap();
+        assert_eq!(
+            child.stop_blocking(std::time::Duration::from_secs(2)),
+            Some(0)
+        );
+        assert_eq!(std::env::var_os("GREGMODMANAGER_SESSION"), before);
+    }
 
     #[test]
     fn tracked_child_lifecycle() {

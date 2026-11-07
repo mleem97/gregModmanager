@@ -196,13 +196,22 @@ impl WorkshopService {
             ));
         }
 
-        // Marker so subscribers know where to install this item.
+        let kind = meta.content_kind().ok_or_else(|| {
+            SteamError::PublishFailed(format!("Unknown project content type: {}", meta.mod_type))
+        })?;
+        // The same canonical type is used by Modstore tags and archive markers.
         let marker = ModTypeMarker {
-            mod_type: meta.mod_type.clone(),
+            mod_type: kind.name().to_string(),
         };
-        if let Ok(text) = serde_json::to_string(&marker) {
-            let _ = std::fs::write(content.join("greg-modmanager.meta.json"), text);
-        }
+        let marker_json = serde_json::to_string(&marker)
+            .map_err(|error| SteamError::PublishFailed(error.to_string()))?;
+        std::fs::write(content.join("greg-modmanager.meta.json"), marker_json).map_err(
+            |error| {
+                SteamError::PublishFailed(format!(
+                    "Cannot write project content type marker: {error}"
+                ))
+            },
+        )?;
 
         if let Err(retry_after) = self.limiter.try_acquire() {
             return Err(SteamError::PublishFailed(format!(
@@ -238,7 +247,7 @@ impl WorkshopService {
             content_dir: content,
             preview_file: preview,
             tags: meta
-                .tags
+                .publication_tags()
                 .iter()
                 .filter(|t| !t.trim().is_empty())
                 .map(|t| t.trim().to_string())
@@ -673,17 +682,26 @@ impl WorkshopService {
             Ok(d) => d,
             Err(e) => return ImportOutcome::fail(format!("Could not load workshop item: {e}")),
         };
+        let content_kind =
+            match greg_core::models::ProjectContentKind::from_publication_tags(&detail.tags) {
+                Ok(kind) => kind,
+                Err(error) => return ImportOutcome::fail(error),
+            };
         log(&format!("Downloading workshop file {published_file_id}..."));
         let src_dir = match self.backend.download(published_file_id, progress, cancel) {
             Ok(d) => d,
             Err(e) => return ImportOutcome::fail(format!("Download failed: {e}")),
+        };
+        let content_kind = match imported_content_kind(content_kind, &src_dir) {
+            Ok(kind) => kind,
+            Err(error) => return ImportOutcome::fail(error),
         };
         let base = folder_name
             .filter(|s| !s.trim().is_empty())
             .map(greg_core::util::sanitize_folder_name)
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| default_import_folder_name(&detail.title, published_file_id));
-        let dest_root = available_project_root(ws.root(), &base);
+        let dest_root = available_project_root(&ws.workshop_dir(), &base);
         if let Err(e) = std::fs::create_dir_all(dest_root.join("content")) {
             return ImportOutcome::fail(format!("Cannot create project: {e}"));
         }
@@ -693,6 +711,7 @@ impl WorkshopService {
         }
         let mut meta = WorkshopMetadata {
             published_file_id,
+            mod_type: content_kind.name().to_string(),
             title: if detail.title.trim().is_empty() {
                 base.clone()
             } else {
@@ -721,6 +740,7 @@ impl WorkshopService {
         target: &mut WorkshopMetadata,
         local: &WorkshopMetadata,
     ) {
+        *target = local.clone();
         target.published_file_id = steam.published_file_id;
         target.title = steam.title.clone();
         if !steam.description.trim().is_empty() {
@@ -782,6 +802,33 @@ fn default_import_folder_name(title: &str, published_file_id: u64) -> String {
     } else {
         format!("{short}_{published_file_id}")
     }
+}
+
+fn imported_content_kind(
+    tagged: Option<greg_core::models::ProjectContentKind>,
+    source: &std::path::Path,
+) -> std::result::Result<greg_core::models::ProjectContentKind, String> {
+    use greg_core::models::ProjectContentKind;
+    let path = source.join("greg-modmanager.meta.json");
+    let marked = if path.is_file() {
+        let raw = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
+        let value: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|error| error.to_string())?;
+        let kind = value
+            .get("modType")
+            .and_then(|v| v.as_str())
+            .and_then(ProjectContentKind::parse)
+            .ok_or_else(|| "Invalid Workshop content marker".to_string())?;
+        Some(kind)
+    } else {
+        None
+    };
+    if tagged.zip(marked).is_some_and(|(a, b)| a != b) {
+        return Err("Workshop tags and content marker disagree".into());
+    }
+    Ok(tagged
+        .or(marked)
+        .unwrap_or(ProjectContentKind::PlacableObject))
 }
 
 fn available_project_root(workspace_root: &Path, base: &str) -> PathBuf {
@@ -1079,14 +1126,12 @@ mod workshop_metadata_and_preview_tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
 
-    /// Valid 2x2 PNG header (8-byte magic + 13-byte IHDR chunk for 2x2 image).
+    /// Genuine 2x2 red RGBA PNG; validates decoded pixels, not just a header.
     const VALID_2X2_PNG: &[u8] = &[
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-        0x00, 0x00, 0x00, 0x0D, // IHDR length = 13
-        b'I', b'H', b'D', b'R', // "IHDR"
-        0x00, 0x00, 0x00, 0x02, // width = 2
-        0x00, 0x00, 0x00, 0x02, // height = 2
-        0x08, 0x06, 0x00, 0x00, 0x00, // bit depth 8, RGBA
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6,
+        0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240,
+        31, 132, 25, 96, 12, 0, 71, 202, 7, 249, 103, 89, 110, 183, 0, 0, 0, 0, 73, 69, 78, 68,
+        174, 66, 96, 130,
     ];
 
     struct Tier1AvailableBackend {
@@ -1405,7 +1450,7 @@ mod workshop_metadata_and_preview_tests {
         .expect("decode 2x2 PNG");
         assert_eq!(decoded.width, 2);
         assert_eq!(decoded.height, 2);
-        assert_eq!(decoded.rgba8.len(), 2 * 2 * 4);
+        assert_eq!(decoded.rgba8, [255, 0, 0, 255].repeat(4));
         assert_eq!(decoded.extension, ".png");
 
         let _ = std::fs::remove_dir_all(&cache_dir);

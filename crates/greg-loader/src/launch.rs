@@ -244,6 +244,8 @@ pub struct GameSession {
     exe_name: String,
     vanilla_active: bool,
     started_at: std::time::SystemTime,
+    managed: Option<crate::managed_runtime::ManagedLaunch>,
+    managed_error: Option<String>,
 }
 
 /// How [`GameSession::poll`] reports.
@@ -253,6 +255,8 @@ pub enum SessionEvent {
     Running,
     /// Exited; vanilla state (if any) was already restored.
     Exited { code: Option<i32> },
+    /// Managed runtime did not confirm its source/vanilla-copy protections.
+    ManagedFailed { reason: &'static str },
 }
 
 impl GameSession {
@@ -262,6 +266,28 @@ impl GameSession {
     /// - Refuses when a stale game process (`exe` file name) is alive so a
     ///   second instance can never disagree with Steam about the state.
     pub fn start(game_root: &Path, exe: &Path, mode: LaunchMode) -> Result<Self> {
+        if mode == LaunchMode::Mods {
+            return Err(LoaderError::InvalidArtefact(
+                "modded launches require a verified managed workspace runtime".into(),
+            ));
+        }
+        Self::start_inner(game_root, exe, mode, None)
+    }
+
+    /// Starts a verified managed game without blocking for process discovery or
+    /// runtime acknowledgement. Call `poll` on the normal UI tick.
+    pub fn start_managed(game_root: &Path, exe: &Path, manager_base: &Path) -> Result<Self> {
+        crate::managed_runtime::validate_managed_runtime(game_root, manager_base)?;
+        let managed = crate::managed_runtime::ManagedLaunch::prepare(manager_base)?;
+        Self::start_inner(game_root, exe, LaunchMode::Mods, Some(managed))
+    }
+
+    fn start_inner(
+        game_root: &Path,
+        exe: &Path,
+        mode: LaunchMode,
+        managed: Option<crate::managed_runtime::ManagedLaunch>,
+    ) -> Result<Self> {
         let exe_name = exe
             .file_name()
             .and_then(|n| n.to_str())
@@ -286,56 +312,55 @@ impl GameSession {
                 mods_state(game_root) == ModsState::DisabledByManager
             }
         };
-        let (child, proton_pid) = {
-            #[cfg(target_os = "linux")]
-            if exe
+        let windows_game = cfg!(target_os = "linux")
+            && exe
                 .extension()
-                .and_then(|extension| extension.to_str())
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
-            {
-                // A Windows Steam install cannot be executed directly by
-                // Linux. Run the installed Proton runner directly. Calling
-                // `steam -applaunch` would make Steam reject the request,
-                // because the manager already uses this AppID for Workshop.
-                greg_platform::process::launch_proton_app(
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"));
+        let environment = managed
+            .as_ref()
+            .map(|launch| launch.environment(windows_game))
+            .transpose()?
+            .unwrap_or_default();
+        let child = {
+            #[cfg(target_os = "linux")]
+            if windows_game {
+                greg_platform::process::spawn_proton_tracked_with_env(
                     exe,
                     game_root,
                     greg_core::models::settings::DATA_CENTER_APP_ID,
+                    &environment,
                 )
-                .map_err(|e| LoaderError::Other(e.to_string()))?;
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-                let pid = loop {
-                    if let Some(pid) = greg_platform::process::find_pids_by_exe(&exe_name).first() {
-                        break *pid;
-                    }
-                    if std::time::Instant::now() >= deadline {
-                        return Err(LoaderError::Other(
-                            "Steam accepted the launch request, but the Proton game process did not appear within 30 seconds".into(),
-                        ));
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                };
-                (None, Some(pid))
+                .map_err(|error| LoaderError::Other(error.to_string()))?
             } else {
-                let child = greg_platform::process::spawn_tracked(exe, &[], Some(game_root))
-                    .map_err(|e| LoaderError::Other(e.to_string()))?;
-                (Some(child), None)
+                greg_platform::process::spawn_tracked_with_env(
+                    exe,
+                    &[],
+                    Some(game_root),
+                    &environment,
+                )
+                .map_err(|error| LoaderError::Other(error.to_string()))?
             }
             #[cfg(not(target_os = "linux"))]
             {
-                let child = greg_platform::process::spawn_tracked(exe, &[], Some(game_root))
-                    .map_err(|e| LoaderError::Other(e.to_string()))?;
-                (Some(child), None)
+                greg_platform::process::spawn_tracked_with_env(
+                    exe,
+                    &[],
+                    Some(game_root),
+                    &environment,
+                )
+                .map_err(|error| LoaderError::Other(error.to_string()))?
             }
         };
         Ok(Self {
-            child,
-            proton_pid,
+            child: Some(child),
+            proton_pid: None,
             mode,
             game_root: game_root.to_path_buf(),
             exe_name,
             vanilla_active,
             started_at: std::time::SystemTime::now(),
+            managed,
+            managed_error: None,
         })
     }
 
@@ -361,7 +386,15 @@ impl GameSession {
     /// True while the child has not exited yet.
     pub fn is_running(&mut self) -> bool {
         if let Some(child) = self.child.as_mut() {
-            return child.is_running();
+            if self.managed_error.is_some() && child.process_tree_alive() {
+                return true;
+            }
+            if child.is_running() {
+                return true;
+            }
+            if !cfg!(target_os = "linux") || !self.exe_name.to_ascii_lowercase().ends_with(".exe") {
+                return false;
+            }
         }
         self.proton_pid = greg_platform::process::find_pids_by_exe(&self.exe_name)
             .first()
@@ -392,6 +425,12 @@ impl GameSession {
                 self.proton_pid = None;
             }
         }
+        if cfg!(target_os = "linux") && self.exe_name.to_ascii_lowercase().ends_with(".exe") {
+            for pid in greg_platform::process::find_pids_by_exe(&self.exe_name) {
+                greg_platform::process::kill_tree(pid)
+                    .map_err(|error| LoaderError::Other(error.to_string()))?;
+            }
+        }
         self.unwind_vanilla();
         Ok(self.child.as_mut().and_then(|child| child.exit_code()))
     }
@@ -399,12 +438,71 @@ impl GameSession {
     /// Polls once: while running returns [`SessionEvent::Running`],
     /// after exit unwinds the vanilla state and reports the code.
     pub fn poll(&mut self) -> SessionEvent {
+        if self.managed_error.is_some() {
+            self.request_managed_stop();
+            return SessionEvent::ManagedFailed {
+                reason: "managed runtime protections were not confirmed",
+            };
+        }
+        if let Some(managed) = self.managed.as_mut() {
+            if let Err(error) = managed.poll() {
+                self.managed_error = Some(error.to_string());
+                // No blocking wait on the UI tick. Terminate the runner and any
+                // discovered game process; the application reports the failure.
+                self.request_managed_stop();
+                return SessionEvent::ManagedFailed {
+                    reason: "managed runtime protections were not confirmed",
+                };
+            }
+        }
         if self.is_running() {
             return SessionEvent::Running;
+        }
+        if let Some(managed) = self.managed.as_mut() {
+            if !managed.poll().unwrap_or(false) {
+                self.managed_error =
+                    Some("game exited before managed runtime readiness was confirmed".into());
+                return SessionEvent::ManagedFailed {
+                    reason: "game exited before managed runtime readiness was confirmed",
+                };
+            }
         }
         let code = self.child.as_mut().and_then(|child| child.exit_code());
         self.unwind_vanilla();
         SessionEvent::Exited { code }
+    }
+
+    fn request_managed_stop(&mut self) {
+        if let Some(child) = self.child.as_mut() {
+            if child.process_tree_alive() {
+                if let Err(error) = child.request_tree_stop() {
+                    let detail = format!("managed launch termination failed; will retry: {error}");
+                    if let Some(reason) = self.managed_error.as_mut() {
+                        if !reason.contains(&detail) {
+                            reason.push_str("; ");
+                            reason.push_str(&detail);
+                        }
+                    }
+                }
+            }
+        }
+        for pid in greg_platform::process::find_pids_by_exe(&self.exe_name) {
+            if let Err(error) = greg_platform::process::kill_tree(pid) {
+                let detail =
+                    format!("managed game termination failed for {pid}; will retry: {error}");
+                if let Some(reason) = self.managed_error.as_mut() {
+                    if !reason.contains(&detail) {
+                        reason.push_str("; ");
+                        reason.push_str(&detail);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Detailed readiness failure, when `poll` reports `ManagedFailed`.
+    pub fn managed_error(&self) -> Option<&str> {
+        self.managed_error.as_deref()
     }
 
     /// Elapsed play time.
@@ -485,6 +583,46 @@ mod tests {
         set_mods_enabled(&root, false, false).unwrap();
         assert!(!ensure_mods_restored(&root, true));
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_readiness_latches_and_stops_the_launch_group() {
+        let root = tmp_root("managed-failure").canonicalize().unwrap();
+        let base = root.join("manager");
+        std::fs::create_dir_all(&base).unwrap();
+        let managed = crate::managed_runtime::ManagedLaunch::prepare(&base).unwrap();
+        std::fs::write(&managed.ready, b"{}").unwrap();
+        let child = greg_platform::process::spawn_tracked_with_env(
+            Path::new("/bin/sh"),
+            &["-c".into(), "sleep 30".into()],
+            None,
+            &[],
+        )
+        .unwrap();
+        let mut session = GameSession {
+            child: Some(child),
+            proton_pid: None,
+            mode: LaunchMode::Mods,
+            game_root: root.clone(),
+            exe_name: "greg-managed-test-game".into(),
+            vanilla_active: false,
+            started_at: std::time::SystemTime::now(),
+            managed: Some(managed),
+            managed_error: None,
+        };
+        assert!(matches!(session.poll(), SessionEvent::ManagedFailed { .. }));
+        let managed = session.managed.as_ref().unwrap();
+        let ready = serde_json::json!({ "schemaVersion": 1, "session": managed.session, "vanillaBlocked": true, "managedSources": true });
+        std::fs::write(&managed.ready, serde_json::to_vec(&ready).unwrap()).unwrap();
+        // A late acknowledgement cannot revive a previously failed session.
+        assert!(matches!(session.poll(), SessionEvent::ManagedFailed { .. }));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while session.is_running() && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(!session.is_running());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

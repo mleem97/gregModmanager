@@ -11,9 +11,21 @@ a release.
 | Rust `slint` / `slint-build` 1.18.1 + `lucide-slint` 1.49.1 | cross-platform desktop UI (retained mode, single binary) | [MIT OR Apache-2.0](https://github.com/slint-ui/slint) + [ISC](https://github.com/lucide-icons/lucide/blob/main/LICENSE) for the icon artwork |
 | Rust `steamworks` 0.13.1 + `steamworks-sys` 0.13.0 (`greg-steam`) | Workshop API; `-sys` used directly only for gallery `AddItemPreviewFile`/ManualDispatch polling (no safe wrappers) | [MIT](https://github.com/NoButDrHope/steamworks-rs) |
 | Rust `tokio`, `reqwest` (rustls), `serde`, `serde_json`, `thiserror`, `anyhow`, `semver`, `dirs`, `clap`, `rfd`, `notify`, `zip`, `tracing` | async runtime, Modstore REST + OAuth, models/errors, validation, paths, dialogs, packaging, logging | crate-specific licences |
+| Rust `rusqlite` 0.41.1 + bundled `libsqlite3-sys` 0.39.1 | embedded SQLite settings database, no database server | [MIT](https://github.com/rusqlite/rusqlite) / SQLite public domain |
+| Rust `image` 0.25.10 (PNG/JPEG/GIF/WebP) | bounded preview decoding and resizing | MIT OR Apache-2.0 |
 | Rust toolchain via rustup (stable) | build, test, release | [MIT OR Apache-2.0](https://github.com/rust-lang/rust) |
 
 ## Redistributables and platform assets
+
+The status bar bundles `crates/greg-app/ui/assets/steam-icon.svg`, supplied by
+the maintainer from `/mnt/sdb/Downloads/steam-icon.svg`. Its embedded provenance
+identifies SVG Repo; no licence text was included in that supplied file.
+`crates/greg-app/ui/assets/melonloader.svg` is adapted from the
+[MelonWiki logo](https://raw.githubusercontent.com/LavaGang/MelonWiki/9e52f65e18f321494cec8e91277722df2c97f33e/docs/_media/logo.svg)
+at pinned commit `9e52f65e18f321494cec8e91277722df2c97f33e`: tighter viewBox,
+colored/white fills removed to retain recognizable monochrome contours.
+The gregAPI status uses `ui/assets/greg-status.svg`, a tightly framed derivative
+of the existing root `G.svg`. All status logos are tinted by the UI.
 
 | Asset | Platforms | Distribution note |
 | --- | --- | --- |
@@ -30,24 +42,28 @@ macOS process detection. A supported release still requires validation on a
 real Mac with Steam, the game, and MelonLoader, plus Apple signing,
 notarization, Gatekeeper testing, and a native dependency review.
 
+## Optional mod build tooling
+
+Editor build tests invoke an installed .NET SDK 8+ or Rust SDK explicitly.
+NuGet/Cargo may restore a project's declared dependencies. Build tasks execute
+project code; source builds are never run merely by downloading Workshop content.
+The separate gregCore/Companion runtime remains .NET 6 and requires the maintained
+MelonLoader startup hook described in `docs/integration/managed-runtime.md`.
+
 ## Build and release tooling
 
 | Tool | Purpose |
 | --- | --- |
 | Rust toolchain via rustup (stable) | restore, build, test, release (`cargo`, `cargo xtask`) |
-| Inno Setup 6 (+ Wine) | Windows Setup EXE (best-effort; CI cross-builds the portable ZIP) |
+| Inno Setup 6 | Windows Setup EXE on the native Windows build agent |
 | WiX CLI 5 | Windows MSI |
-| nfpm and native package tools | DEB, RPM, APK, and Arch packages |
+| nfpm | DEB, RPM, APK, and Arch packages; Alpine additionally needs gcompat and runtime validation |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Jenkins (self-hosted, multi-agent) | CI check/build matrix (`Jenkinsfile`): fmt, clippy, test, build on Linux, Windows and macOS agents |
-<<<<<<< HEAD
-| cargo-tarpaulin | Rust code coverage (LCOV) generated per workspace, uploaded to Codacy |
-| Codacy Coverage Reporter | uploads LCOV coverage reports to Codacy (CI job `coverage`) |
-| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | CI on Linux-only runners; Windows artifacts are cross-built, releases go through the instance API, one Discord notification per run. GitHub is a read-only archive mirror with no workflows. |
-=======
-| Forgejo Actions (`.forgejo/workflows/`) + Gitea Actions (`.gitea/workflows/`, byte-identical) | Linux-only CI and release path (Rust: fmt, clippy, test, audit, cross-build, packages, releases). |
-| GitHub | read-only archive mirror — no CI, no release automation. |
->>>>>>> 4994627e2ee675af0363c19e5ab81256bacfeb0a
+| Jenkins (self-hosted, multi-agent) | CI check/build matrix and opt-in GitHub release publishing (`Jenkinsfile`) |
+| cargo-tarpaulin | optional local workspace LCOV coverage |
+| Codacy Coverage Reporter | local helper can upload LCOV; not currently part of the Jenkins matrix |
+| Former Forgejo/Gitea Actions workflows | removed during Jenkins migration; Discord and coverage jobs still require replacements |
+| GitHub Releases and GitHub CLI | release artifacts and update checks; Jenkins publishes with a scoped credential |
 
 ## Release formats
 

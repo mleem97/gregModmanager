@@ -20,6 +20,7 @@ import {
     StoreRow,
     UpdateRow,
     HealthRow,
+    DiagnosticRow,
     LocalRow,
     ProblemRow,
     PackRow,
@@ -59,10 +60,13 @@ export component MainWindow inherits Window {
     in-out property <string> nav-title: "MODMANAGER";
     in-out property <[NavItem]> nav-items;
     in-out property <bool> steam-ok: false;
+    in-out property <bool> steam-known: false;
     in-out property <string> steam-text: "Steam Disconnected";
     in-out property <bool> gregapi-ok: false;
+    in-out property <bool> gregapi-known: false;
     in-out property <string> gregapi-text: "gregAPI Disconnected";
     in-out property <bool> melonloader-ok: false;
+    in-out property <bool> melonloader-known: false;
     in-out property <string> melonloader-text: "MelonLoader: checking…";
     in-out property <bool> modstore-available: true;
     in-out property <bool> login-visible: false;
@@ -138,6 +142,9 @@ export component MainWindow inherits Window {
 
     // --- modstore page state ---
     in-out property <string> st-search;
+    in-out property <int> st-kind;
+    in-out property <[string]> st-kinds;
+    callback st-filter-changed();
     in-out property <[StoreRow]> st-items;
     in-out property <[UpdateRow]> st-updates;
     in-out property <float> st-progress;
@@ -202,6 +209,7 @@ export component MainWindow inherits Window {
     in-out property <string> se-steam-web-api-key;
     in-out property <string> se-telemetry-text;
     in-out property <[HealthRow]> se-health;
+    in-out property <[DiagnosticRow]> se-diagnostics;
     in-out property <[string]> se-log;
 
     // --- callbacks ---
@@ -217,6 +225,7 @@ export component MainWindow inherits Window {
     callback window-close();
 
     callback local-refresh();
+    callback local-filter-changed();
     callback local-toggle(int);
     callback local-remove(int);
     callback local-open-folder();
@@ -272,6 +281,14 @@ export component MainWindow inherits Window {
     callback ed-changed();
     callback ed-save();
     callback ed-publish();
+    callback ed-review-build();
+    callback ed-run-build();
+    callback ed-cancel-build();
+    in-out property <bool> show-build-modal: false;
+    in-out property <bool> build-busy: false;
+    in-out property <bool> build-can-run: false;
+    in-out property <string> build-summary;
+    in-out property <string> build-output;
     callback ed-publish-modstore();
     callback ed-cancel-publish();
     callback ed-pick-preview();
@@ -289,6 +306,10 @@ export component MainWindow inherits Window {
     callback br-next();
     callback br-subscribe-toggle();
     callback br-import();
+    callback br-review-install();
+    callback br-install();
+    in-out property <bool> show-managed-install-modal: false;
+    in-out property <string> managed-install-target;
     callback br-view-steam();
 
     callback st-refresh();
@@ -298,12 +319,17 @@ export component MainWindow inherits Window {
     callback st-install-update(int);
 
     callback se-apply-lang();
+    in-out property <bool> show-workspace-modal: false;
+    in-out property <string> workspace-target;
+    in-out property <string> workspace-error;
+    callback se-confirm-workspace();
     callback se-apply-workspace();
     callback se-browse-workspace();
     callback se-apply-gameroot();
     callback se-browse-gameroot();
     callback se-apply-modstore-url();
     callback se-apply-steam-web-api-key();
+    callback se-check-updates();
     callback se-run-checks();
     callback se-open-logs();
     callback se-make-bundle();
@@ -641,6 +667,7 @@ export component MainWindow inherits Window {
                                 inactive-rows <=> root.local-inactive-rows;
                                 status <=> root.local-status;
                                 refresh => { root.local-refresh(); }
+                                filter-changed => { root.local-filter-changed(); }
                                 toggle(idx) => { root.local-toggle(idx); }
                                 remove(idx) => { root.local-remove(idx); }
                                 open-folder => { root.local-open-folder(); }
@@ -719,6 +746,7 @@ export component MainWindow inherits Window {
                                 changed => { root.ed-changed(); }
                                 save => { root.ed-save(); }
                                 publish => { root.ed-publish(); }
+                                build-test => { root.ed-review-build(); }
                                 cancel-publish => { root.ed-cancel-publish(); }
                                 pick-preview => { root.ed-pick-preview(); }
                                 add-shot => { root.ed-add-shot(); }
@@ -760,11 +788,15 @@ export component MainWindow inherits Window {
                                 next-page => { root.br-next(); }
                                 subscribe-toggle => { root.br-subscribe-toggle(); }
                                 import-item => { root.br-import(); }
+                                install-item => { root.br-review-install(); }
                                 view-on-steam => { root.br-view-steam(); }
                             }
                             if root.current-page == "modstore": StorePage {
                                 vertical-stretch: 1;
                                 search <=> root.st-search;
+                                kind <=> root.st-kind;
+                                kinds <=> root.st-kinds;
+                                filter-changed => { root.st-filter-changed(); }
                                 items <=> root.st-items;
                                 updates <=> root.st-updates;
                                 progress <=> root.st-progress;
@@ -786,6 +818,7 @@ export component MainWindow inherits Window {
                                 steam-web-api-key <=> root.se-steam-web-api-key;
                                 telemetry-text <=> root.se-telemetry-text;
                                 health <=> root.se-health;
+                                diagnostics <=> root.se-diagnostics;
                                 log <=> root.se-log;
                                 apply-lang => { root.se-apply-lang(); }
                                 apply-workspace => { root.se-apply-workspace(); }
@@ -794,6 +827,7 @@ export component MainWindow inherits Window {
                                 browse-gameroot => { root.se-browse-gameroot(); }
                                 apply-modstore-url => { root.se-apply-modstore-url(); }
                                 apply-steam-web-api-key => { root.se-apply-steam-web-api-key(); }
+                                check-updates => { root.se-check-updates(); }
                                 run-checks => { root.se-run-checks(); }
                                 open-logs => { root.se-open-logs(); }
                                 make-bundle => { root.se-make-bundle(); }
@@ -843,16 +877,23 @@ export component MainWindow inherits Window {
                         StatusLed {
                             ok: root.steam-ok;
                             text: root.steam-text;
+                            icon: @image-url("assets/steam-icon.svg");
+                            known: root.steam-known;
+                            highlight-white: root.game-running;
                         }
 
                         StatusLed {
                             ok: root.gregapi-ok;
                             text: root.gregapi-text;
+                            icon: @image-url("assets/greg-status.svg");
+                            known: root.gregapi-known;
                         }
 
                         StatusLed {
                             ok: root.melonloader-ok;
                             text: root.melonloader-text;
+                            icon: @image-url("assets/melonloader.svg");
+                            known: root.melonloader-known;
                         }
 
                         Rectangle {
@@ -871,6 +912,112 @@ export component MainWindow inherits Window {
         }
 
         // --- Modals & Overlays ---
+
+        if root.show-build-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(760px, parent.width - 40px);
+                height: min(560px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.build-test-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: Tr.build-test-description; wrap: word-wrap; font-size: 12px; color: Palette.on-variant; }
+                    ScrollView {
+                        height: 100px;
+                        Text { text: root.build-summary; color: Palette.primary; font-size: 12px; wrap: word-wrap; }
+                    }
+                    ScrollView {
+                        vertical-stretch: 1;
+                        Text { text: root.build-output; color: Palette.on-surface; font-size: 11px; wrap: word-wrap; }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; visible: root.build-busy; clicked => { root.ed-cancel-build(); } }
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-build-modal = false; } }
+                        GregButton { text: Tr.build-test-run; enabled: root.build-can-run && !root.build-busy; variant: "primary"; clicked => { root.ed-run-build(); } }
+                    }
+                }
+            }
+        }
+
+
+        if root.show-managed-install-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(540px, parent.width - 40px);
+                height: 280px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.managed-install-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: root.br-d-title; font-size: 13px; color: Palette.on-surface; overflow: elide; }
+                    Text { text: root.managed-install-target; wrap: word-wrap; font-size: 12px; color: Palette.primary; }
+                    Text { text: Tr.managed-install-description; wrap: word-wrap; font-size: 12px; color: Palette.on-variant; }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-managed-install-modal = false; } }
+                        GregButton { text: Tr.managed-install-button; variant: "primary"; clicked => { root.br-install(); } }
+                    }
+                }
+            }
+        }
+
+
+        if root.show-workspace-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(560px, parent.width - 40px);
+                height: 380px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.workspace-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: root.workspace-target; wrap: word-wrap; color: Palette.primary; font-size: 12px; }
+                    Text {
+                        text: "Configs/ · Logs/ · Workshop/\nGameModding/Mods/ · GameModding/UserLibs/\nGameModding/Melons/ · ModConfigs/";
+                        color: Palette.on-surface; font-size: 12px;
+                    }
+                    Text { text: Tr.workspace-description; wrap: word-wrap; color: Palette.on-variant; font-size: 12px; }
+                    Text { text: root.workspace-error; wrap: word-wrap; color: Palette.error; font-size: 12px; }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-workspace-modal = false; } }
+                        GregButton { text: Tr.settings-apply; variant: "primary"; clicked => { root.se-confirm-workspace(); } }
+                    }
+                }
+            }
+        }
+
 
         if root.show-new-modal: Rectangle {
             width: parent.width;

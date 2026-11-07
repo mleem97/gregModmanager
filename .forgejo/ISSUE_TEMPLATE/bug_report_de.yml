@@ -1,0 +1,95 @@
+name: "🇩🇪 Fehlerbericht"
+description: "Melde einen reproduzierbaren Fehler im Modmanager"
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke, dass du diesen Fehler meldest.
+        Bitte gib so viele Details wie möglich an, damit wir ihn schnell beheben können.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Was ist passiert?
+      description: Eine klare und präzise Zusammenfassung des Problems.
+      placeholder: "Wenn ich auf ... klicke, macht die App ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Schritte zur Reproduktion
+      description: Genaue Schritte, um den Fehler auszulösen.
+      placeholder: |
+        1. Öffne ...
+        2. Klicke auf ...
+        3. Der Fehler ... tritt auf
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+      placeholder: "Ich habe erwartet, dass die Mod aktiviert wird und..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Betriebssystem
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: Modmanager-Version
+      placeholder: "z.B. 1.0.2"
+    validations:
+      required: true
+
+  - type: input
+    id: game_version
+    attributes:
+      label: Spielversion
+      description: Welche Version des Spiels moddest du?
+      placeholder: "z.B. v1.5.2"
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installationsart
+      options:
+        - Installer
+        - Portable / Lokale Installation
+        - Selbst kompiliert (Built from source)
+        - Unsicher
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevante Logs / Screenshots
+      description: Kopiere Logs aus Einstellungen -> Logs oder ziehe Screenshots hier hinein.
+      render: shell
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Vor dem Absenden
+      options:
+        - label: Ich habe in den bestehenden Issues gesucht, um sicherzugehen, dass dies noch nicht gemeldet wurde.
+          required: true
+        - label: Ich habe klare Schritte zur Reproduktion hinzugefügt.
+          required: true

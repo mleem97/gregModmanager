@@ -1,0 +1,85 @@
+name: "Crash report"
+description: "Report a crash / app closes unexpectedly"
+title: "[Crash]: "
+labels: ["bug", "crash"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when the app crashes or closes unexpectedly.
+
+  - type: dropdown
+    id: crash_phase
+    attributes:
+      label: When did it crash?
+      options:
+        - On startup
+        - While opening a project
+        - While editing metadata
+        - While publishing/uploading
+        - While browsing Mod Store
+        - During installation/update
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Start app
+        2. Open project ...
+        3. Click ...
+        4. App crashes
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: "e.g. 1.0.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Installation type
+      options:
+        - Installer (Program Files)
+        - Portable/local install
+        - Build from source
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: App logs
+      description: Paste logs from `%LOCALAPPDATA%\\gregModmanager\\logs`.
+      render: shell
+
+  - type: textarea
+    id: dumps
+    attributes:
+      label: Crash dumps (optional)
+      description: If LocalDumps are enabled, mention dump path or attach dump metadata.
+      placeholder: "%LOCALAPPDATA%\\gregModmanager\\dumps"
+
+  - type: textarea
+    id: event_viewer
+    attributes:
+      label: Event Viewer error (optional)
+      description: Paste faulting module and exception code from Windows Event Viewer.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reproduced this at least once.
+          required: true
+        - label: I included logs or Event Viewer details.
+          required: true

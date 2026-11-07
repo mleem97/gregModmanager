@@ -23,6 +23,7 @@ export component LocalPage inherits VerticalLayout {
     in property <bool> is-plugins: false;
 
     callback refresh();
+    callback filter-changed();
     callback toggle(int);
     callback remove(int);
     callback open-folder();
@@ -47,7 +48,7 @@ export component LocalPage inherits VerticalLayout {
                 text <=> root.search;
                 placeholder-text: Tr.local-filter-placeholder;
                 horizontal-stretch: 1;
-                edited(_) => { root.refresh(); }
+                edited(_) => { root.filter-changed(); }
             }
             if root.is-libs: GregButton {
                 text: Tr.local-install-libs;

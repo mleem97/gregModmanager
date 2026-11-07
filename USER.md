@@ -32,4 +32,5 @@
 - Version source of truth: `VERSION` file (the workspace `Cargo.toml` version is
   the fallback).
 - Changelog source of truth: `CHANGELOG.md`.
-- Release promotion normally runs through `.forgejo/workflows/promote-changelog.yml`.
+- GitHub Releases is the download and update source; Jenkins release
+  publication and validation requirements are documented in `docs/JENKINS.md`.

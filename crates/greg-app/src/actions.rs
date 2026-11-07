@@ -1,6 +1,6 @@
 //! Slint callback implementations (one section per shell area).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -14,8 +14,8 @@ use crate::state::{
 };
 use crate::worker::{JobHandle, JobMessage, JobOutcome};
 use crate::{
-    BrowseRow, CheckRow, HealthRow, LibInstallRow, LocalRow, PackEntryRow, PackRow, ProblemRow,
-    ProjectRow, StoreRow, UpdateRow,
+    BrowseRow, CheckRow, DiagnosticRow, HealthRow, LibInstallRow, LocalRow, PackEntryRow, PackRow,
+    ProblemRow, ProjectRow, StoreRow, UpdateRow,
 };
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,7 @@ pub fn tick(state: &mut AppState) {
             }
             UiEvent::Probe { gregapi_ok } => {
                 let ui = state.ui();
+                ui.set_gregapi_known(true);
                 // Re-read Steam status locally (cheap IPC), keep GregApi side fresh.
                 let (ok, user, hint) = match state.backend.status() {
                     greg_steam::backend::BackendStatus::Available { user_name } => {
@@ -61,9 +62,18 @@ pub fn tick(state: &mut AppState) {
                 apply_auth_session(state, session);
             }
             UiEvent::AuthSessionFailed(message) => {
-                state.push_log(&format!("Login failed: {message}"));
+                state.push_log("Login failed.");
                 let ui = state.ui();
                 ui.set_ed_status(format!("Login failed: {message}").into());
+            }
+            UiEvent::LocalScanDone {
+                generation,
+                root,
+                kind,
+                signature,
+                entries,
+            } => {
+                finish_local_scan(state, generation, root, kind, signature, entries);
             }
             UiEvent::ReportSubmissionDone {
                 success,
@@ -79,7 +89,7 @@ pub fn tick(state: &mut AppState) {
                         format!("Report submitted. {message}").into()
                     });
                 } else {
-                    state.push_log(&format!("Report submission failed: {message}"));
+                    state.push_log("Report submission failed.");
                     let ui = state.ui();
                     ui.set_rp_submission("failed".into());
                     ui.set_rp_status(format!("Report submission failed: {message}").into());
@@ -102,6 +112,7 @@ pub fn tick(state: &mut AppState) {
     if state.tick_count.is_multiple_of(7) {
         poll_game_state(state);
     }
+    drain_build(state);
     drain_publish(state);
     drain_sync(state);
     drain_thumb(state);
@@ -265,16 +276,14 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
     // Bind first: a temporary guard in the `if let` scrutinee would live
     // through the whole body and deadlock on the re-lock below.
     let tracked_pid = tracked_game_pid(&mut state.lock().expect("state"));
-    if let Some(pid) = tracked_pid {
-        let lang = state.lock().expect("state").lang.clone();
-        AppState::append_log(state, &l10n::format(&lang, "Game_AlreadyRunning", &[&pid]));
+    if tracked_pid.is_some() {
+        AppState::append_log(state, "Game launch skipped: game process already running.");
         return;
     }
     // Refuse while a stale game process lives (would disagree with Steam).
     let stale = greg_loader::launch::stale_game_pids();
-    if let Some(pid) = stale.first() {
-        let lang = state.lock().expect("state").lang.clone();
-        AppState::append_log(state, &l10n::format(&lang, "Game_StaleRunning", &[pid]));
+    if !stale.is_empty() {
+        AppState::append_log(state, "Game launch skipped: stale game process detected.");
         let mut guard = state.lock().expect("state");
         set_game_ui(&mut guard, false, None);
         return;
@@ -291,7 +300,13 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
         match registry.detect(Some(&root)) {
             Some((adapter, installation)) => {
                 let plan = adapter.plan_launch(&installation.root_path, vec![]);
-                (installation.root_path, plan.executable)
+                (
+                    installation
+                        .root_path
+                        .canonicalize()
+                        .unwrap_or(installation.root_path),
+                    plan.executable,
+                )
             }
             None => {
                 AppState::append_log(state, "Launch: game installation not found.");
@@ -313,21 +328,35 @@ pub fn start_game(state: &Arc<std::sync::Mutex<AppState>>, mode: &str) {
             return;
         }
     }
+    let base = state.lock().expect("state").workspace.root().to_path_buf();
+    if launch_mode == greg_loader::launch::LaunchMode::Mods {
+        if let Err(_error) =
+            greg_loader::managed_runtime::validate_managed_runtime(&game_root, &base)
+        {
+            let guard = state.lock().expect("state");
+            let message = l10n::get(&guard.lang, "Workspace_LoaderUnavailable");
+            guard.log_line("Game launch failed.");
+            guard.ui().set_game_text(message.into());
+            return;
+        }
+    }
     // Free the Steam session first so the play session owns the app state.
     release_steam_for_game(&mut state.lock().expect("state"));
-    match greg_loader::launch::GameSession::start(&game_root, &exe, launch_mode) {
+    let result = if launch_mode == greg_loader::launch::LaunchMode::Mods {
+        greg_loader::launch::GameSession::start_managed(&game_root, &exe, &base)
+    } else {
+        greg_loader::launch::GameSession::start(&game_root, &exe, launch_mode)
+    };
+    match result {
         Ok(session) => {
             let pid = session.pid();
             let mut guard = state.lock().expect("state");
-            AppState::append_log(
-                state,
-                &l10n::format(&guard.lang, "Game_Started", &[&launch_mode.label(), &pid]),
-            );
+            AppState::append_log(state, "Game process started.");
             guard.game_session = Some(session);
             set_game_ui(&mut guard, true, Some(pid));
         }
-        Err(e) => {
-            AppState::append_log(state, &format!("Launch failed: {e}"));
+        Err(_e) => {
+            AppState::append_log(state, "Game launch failed.");
             let mut guard = state.lock().expect("state");
             reconnect_steam(&mut guard);
         }
@@ -344,6 +373,7 @@ pub fn check_melon_loader_on_start(state: &Arc<std::sync::Mutex<AppState>>) {
     let mut guard = state.lock().expect("state");
     let root = game_root_of(&guard);
     if !root.is_dir() {
+        guard.ui().set_melonloader_known(false);
         guard.ui().set_melonloader_ok(false);
         guard
             .ui()
@@ -352,6 +382,7 @@ pub fn check_melon_loader_on_start(state: &Arc<std::sync::Mutex<AppState>>) {
         return;
     }
     let install = greg_loader::installers::detect_melon_loader(&root);
+    guard.ui().set_melonloader_known(true);
     if install.installed {
         guard.ui().set_melonloader_ok(true);
         guard
@@ -364,7 +395,7 @@ pub fn check_melon_loader_on_start(state: &Arc<std::sync::Mutex<AppState>>) {
             .ui()
             .set_melonloader_text(l10n::get(&guard.lang, "MelonLoader_StatusMissing").into());
         let message = l10n::get(&guard.lang, "Game_MelonLoaderMissing");
-        guard.push_log(&format!("Startup check: {message}"));
+        guard.push_log("Startup check: MelonLoader is not installed.");
         guard.ui().set_game_text(message.into());
     }
 }
@@ -396,8 +427,8 @@ fn stop_tracked_session(state: &Arc<std::sync::Mutex<AppState>>) -> bool {
                         AppState::append_log(state, &l10n::get(&guard.lang, "Game_Stopped"));
                         true
                     }
-                    Err(e) => {
-                        AppState::append_log(state, &format!("Stop failed: {e}"));
+                    Err(_) => {
+                        AppState::append_log(state, "Game stop failed.");
                         false
                     }
                 },
@@ -425,10 +456,8 @@ fn stop_stale_processes(state: &Arc<std::sync::Mutex<AppState>>) {
     }
     for pid in &stale {
         match greg_platform::process::kill_tree(*pid) {
-            Ok(()) => {
-                AppState::append_log(state, &format!("Stop: killed stale game process {pid}."))
-            }
-            Err(e) => AppState::append_log(state, &format!("Stop failed for pid {pid}: {e}")),
+            Ok(()) => AppState::append_log(state, "Stopped stale game process."),
+            Err(_) => AppState::append_log(state, "Could not stop stale game process."),
         }
     }
     // A stale kill may have left vanilla-disabled files: restore when idle.
@@ -448,6 +477,30 @@ pub fn poll_game_state(state: &mut AppState) {
         None => return,
     };
     match event {
+        greg_loader::launch::SessionEvent::ManagedFailed { reason } => {
+            let _detail = state
+                .game_session
+                .as_ref()
+                .and_then(|s| s.managed_error())
+                .unwrap_or(reason)
+                .to_string();
+            let still_running = state
+                .game_session
+                .as_mut()
+                .is_some_and(|session| session.is_running());
+            if still_running {
+                let pid = state.game_session.as_ref().map(|s| s.pid());
+                set_game_ui(state, true, pid);
+            } else {
+                state.log_line("Managed game launch stopped.");
+                state.game_session = None;
+                reconnect_steam(state);
+                set_game_ui(state, false, None);
+            }
+            state
+                .ui()
+                .set_game_text(l10n::get(&state.lang, "Workspace_LoaderUnavailable").into());
+        }
         greg_loader::launch::SessionEvent::Running => {
             let pid = state.game_session.as_ref().map(|s| s.pid()).unwrap_or(0);
             let mode = state
@@ -459,16 +512,11 @@ pub fn poll_game_state(state: &mut AppState) {
             state.ui().set_game_text(text.into());
         }
         greg_loader::launch::SessionEvent::Exited { code } => {
-            let elapsed = match state.game_session.as_ref() {
-                Some(s) => format_duration(s.elapsed()),
-                None => String::new(),
-            };
-            let lang = state.lang.clone();
             state.game_session = None;
             reconnect_steam(state);
             set_game_ui(state, false, None);
-            let code_text = code.map(|c| c.to_string()).unwrap_or_else(|| "?".into());
-            state.push_log(&l10n::format(&lang, "Game_Exited", &[&code_text, &elapsed]));
+            let _ = code;
+            state.push_log("Game process exited.");
             local_refresh(state);
         }
     }
@@ -632,12 +680,6 @@ fn tracked_game_pid(state: &mut AppState) -> Option<u32> {
     }
 }
 
-/// Formats a play duration as `H:MM:SS`.
-fn format_duration(d: std::time::Duration) -> String {
-    let s = d.as_secs();
-    format!("{}:{:02}:{:02}", s / 3600, (s % 3600) / 60, s % 60)
-}
-
 /// Applies the game status UI (header Stop button + status text).
 fn set_game_ui(state: &mut AppState, running: bool, pid: Option<u32>) {
     let ui = state.ui();
@@ -720,7 +762,7 @@ pub fn login(state: &Arc<std::sync::Mutex<AppState>>) {
     match candidate {
         Some(url) => {
             state.lock().expect("state").pending_request_id = Some(request_id);
-            AppState::append_log(state, &format!("Opening login: {url}"));
+            AppState::append_log(state, "Opening Steam login flow.");
             let _ = greg_platform::process::open_url(&url);
         }
         None => AppState::append_log(state, "Login: no auth endpoint configured."),
@@ -772,7 +814,7 @@ enum ProtocolUrl {
         signature: String,
     },
     /// Anything else (install intents, mod links): logged, not handled.
-    Other(String),
+    Other,
 }
 
 /// Parses a `greg://` URL. Accepts both `greg://auth/callback` and the
@@ -803,7 +845,8 @@ fn parse_protocol_url(url: &str) -> Option<ProtocolUrl> {
             signature: get("sig").or_else(|| get("signature")).unwrap_or_default(),
         });
     }
-    Some(ProtocolUrl::Other(url.to_string()))
+    let _ = url;
+    Some(ProtocolUrl::Other)
 }
 
 fn percent_decode(value: &str) -> String {
@@ -840,8 +883,8 @@ pub fn handle_protocol_url(state: &Arc<std::sync::Mutex<AppState>>, url: &str) {
         None => return,
     };
     match parsed {
-        ProtocolUrl::Other(other) => {
-            AppState::append_log(state, &format!("Protocol URL ignored: {other}"));
+        ProtocolUrl::Other => {
+            AppState::append_log(state, "Ignored unsupported protocol URL.");
         }
         ProtocolUrl::AuthCallback {
             request_id,
@@ -922,7 +965,7 @@ pub fn apply_auth_session(state: &mut AppState, session: greg_core::models::Acti
     });
     // Login is only offered when no session exists.
     ui.set_login_visible(false);
-    state.push_log(&format!("Logged in as {}.", session.identity.display_name));
+    state.push_log("Login completed; account identity omitted from diagnostics.");
 }
 
 /// Restores a persisted session on boot (verify, then rebuild identity).
@@ -1048,7 +1091,7 @@ pub fn drain_handoff(state: &Arc<std::sync::Mutex<AppState>>) {
         .map(str::trim)
         .filter(|line| !line.is_empty())
     {
-        AppState::append_log(state, &format!("Protocol handoff: {url}"));
+        AppState::append_log(state, "Protocol handoff received.");
         handle_protocol_url(state, url);
     }
 }
@@ -1316,7 +1359,8 @@ fn push_editor(state: &mut AppState) {
         "MelonloaderPlugin" => 1,
         "Userlib" => 2,
         "DataCenterMod" => 3,
-        _ => 0,
+        "PlacableObject" => 0,
+        _ => -1,
     });
     ui.set_ed_needsgreg(meta.needsgreg);
     ui.set_ed_needsml(meta.needs_melon_loader);
@@ -1383,7 +1427,8 @@ fn pull_editor(state: &mut AppState) {
         1 => "MelonloaderPlugin".into(),
         2 => "Userlib".into(),
         3 => "DataCenterMod".into(),
-        _ => "PlacableObject".into(),
+        0 => "PlacableObject".into(),
+        _ => meta.mod_type.clone(),
     };
     meta.needsgreg = ui.get_ed_needsgreg();
     meta.needs_melon_loader = ui.get_ed_needsml();
@@ -1515,8 +1560,8 @@ pub fn editor_save(state: &Arc<std::sync::Mutex<AppState>>) {
     // a self-deadlock on the UI thread.
     if let Some(root) = root {
         match greg_platform::workspace::save_metadata(&root, &meta) {
-            Ok(()) => AppState::append_log(state, &format!("Saved {}", root.display())),
-            Err(e) => AppState::append_log(state, &format!("Save failed: {e}")),
+            Ok(()) => AppState::append_log(state, "Project saved."),
+            Err(_) => AppState::append_log(state, "Project save failed."),
         }
     }
     // NOTE: run_editor_checks() and refresh_projects() are intentionally NOT
@@ -1524,6 +1569,120 @@ pub fn editor_save(state: &Arc<std::sync::Mutex<AppState>>) {
     // mods (hashing every content byte, converting every README to BBCode).
     // The editor tick re-runs checks reactively on field changes; after a
     // publish, drain_publish() refreshes projects asynchronously.
+}
+
+/// Show the resolved SDK build and dependency paths before executing project code.
+pub fn editor_review_build(state: &Arc<std::sync::Mutex<AppState>>) {
+    editor_save(state);
+    let mut guard = state.lock().expect("state");
+    if guard.build_job.is_some() {
+        guard.ui().set_show_build_modal(true);
+        return;
+    }
+    let Some(root) = guard.editor_root.clone() else {
+        return;
+    };
+    let plan = greg_loader::build_test::plan(
+        &root,
+        &guard.editor_meta,
+        guard.workspace.root(),
+        &game_root_of(&guard),
+    );
+    guard.ui().set_build_output("".into());
+    match plan {
+        Ok(plan) => {
+            let text = format!(
+                "{} {}\n\n{}",
+                plan.tool,
+                plan.project.display(),
+                plan.dependency_dirs
+                    .iter()
+                    .map(|p| p.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            guard.ui().set_build_summary(text.into());
+            guard.build_plan = Some(plan);
+            guard.ui().set_build_can_run(true);
+        }
+        Err(error) => {
+            guard.ui().set_build_summary(error.to_string().into());
+            guard.build_plan = None;
+            guard.ui().set_build_can_run(false);
+        }
+    }
+    guard.ui().set_show_build_modal(true);
+}
+
+pub fn editor_run_build(state: &Arc<std::sync::Mutex<AppState>>) {
+    let mut guard = state.lock().expect("state");
+    if guard.build_job.is_some() {
+        return;
+    }
+    let Some(plan) = guard.build_plan.clone() else {
+        return;
+    };
+    guard.ui().set_build_busy(true);
+    guard.ui().set_build_can_run(false);
+    guard
+        .ui()
+        .set_build_output(l10n::get(&guard.lang, "Working").into());
+    guard.build_job = Some(JobHandle::spawn(
+        move |sink| match greg_loader::build_test::run(
+            &plan,
+            sink.cancelled(),
+            std::time::Duration::from_secs(300),
+        ) {
+            Ok(result) => JobOutcome {
+                success: result.success,
+                message: serde_json::to_string(&result).unwrap_or_default(),
+            },
+            Err(error) => JobOutcome {
+                success: false,
+                message: error.to_string(),
+            },
+        },
+    ));
+}
+
+pub fn editor_cancel_build(state: &Arc<std::sync::Mutex<AppState>>) {
+    if let Some(job) = state.lock().expect("state").build_job.as_ref() {
+        job.cancel();
+    }
+}
+
+fn drain_build(state: &mut AppState) {
+    let Some(job) = state.build_job.as_mut() else {
+        return;
+    };
+    let done = job.drain().into_iter().find_map(|message| match message {
+        JobMessage::Done(outcome) => Some(outcome),
+        _ => None,
+    });
+    let Some(done) = done else {
+        return;
+    };
+    state.build_job = None;
+    state.ui().set_build_busy(false);
+    state.ui().set_build_can_run(state.build_plan.is_some());
+    let output = match serde_json::from_str::<greg_loader::build_test::BuildResult>(&done.message) {
+        Ok(result) => format!(
+            "{} · {} ms · {}\n{}",
+            l10n::get(
+                &state.lang,
+                if result.success {
+                    "Build_Passed"
+                } else {
+                    "Build_Failed"
+                }
+            ),
+            result.elapsed_ms,
+            result.log_path.display(),
+            result.output_tail
+        ),
+        Err(_) => done.message,
+    };
+    state.ui().set_build_output(output.into());
 }
 
 /// Starts the background publish.
@@ -1569,7 +1728,7 @@ pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
         (root, steam, manual, meta)
     };
     // Safe: no state lock held here — append_log locks state itself.
-    AppState::append_log(state, &format!("Upload started: {}", root.display()));
+    AppState::append_log(state, "Upload started.");
     let mut guard = state.lock().expect("state");
     guard.ui().set_ed_publishing(true);
     guard.ui().set_ed_progress(0.0);
@@ -1582,29 +1741,21 @@ pub fn editor_publish(state: &Arc<std::sync::Mutex<AppState>>) {
             &|p| sink.progress(p),
             &|s| {
                 sink.status(s.to_string());
-                sink.log(s.to_string());
+                sink.log("Upload progress updated.".to_string());
             },
             sink.cancelled(),
         );
         // File-log the lifecycle (the UI log alone is lost on a hang/kill).
         if outcome.success {
             let _ = greg_platform::workspace::save_metadata(&root, &meta);
-            greg_platform::filelog::FileLog::shared().info(&format!(
-                "Upload finished: {} -> file id {}",
-                root.display(),
-                outcome.published_file_id
-            ));
+            greg_platform::filelog::FileLog::shared().info("Upload finished.");
         } else {
-            greg_platform::filelog::FileLog::shared().info(&format!(
-                "Upload failed: {}: {}",
-                root.display(),
-                outcome.message
-            ));
+            greg_platform::filelog::FileLog::shared().info("Upload failed.");
         }
         crate::worker::JobOutcome {
             success: outcome.success,
             message: if outcome.success {
-                format!("Published file id {}", outcome.published_file_id)
+                "Upload finished.".to_string()
             } else {
                 outcome.message
             },
@@ -1671,10 +1822,7 @@ pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
     guard
         .ui()
         .set_ed_status("Packaging for the Modstore…".into());
-    AppState::append_log(
-        state,
-        &format!("Modstore upload started: {}", root.display()),
-    );
+    AppState::append_log(state, "Modstore upload started.");
     let job = JobHandle::spawn(move |sink| {
         let content = root.join("content");
         let folder = root.file_name().and_then(|n| n.to_str()).unwrap_or("mod");
@@ -1693,23 +1841,7 @@ pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
             .text;
         let plan = match PublishPlan::from_project(
             &payload,
-            &PublishMetadata {
-                mod_id: (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()),
-                title: meta.title.clone(),
-                version: meta.version.clone(),
-                description,
-                changelog,
-                category: {
-                    let profile = meta.native_config_profile.trim();
-                    (!profile.is_empty()).then(|| profile.to_string())
-                },
-                license: None,
-                tags: meta.tags.clone(),
-                installation: None,
-                support_url: None,
-                min_game_version: None,
-                recommended_game_version: None,
-            },
+            &PublishMetadata::from_workshop(&meta, description, changelog),
         ) {
             Ok(plan) => plan,
             Err(e) => {
@@ -1740,12 +1872,7 @@ pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
                     saved.modstore_id = response.mod_id.clone();
                     let _ = greg_platform::workspace::save_metadata(&root, &saved);
                 }
-                greg_platform::filelog::FileLog::shared().info(&format!(
-                    "Modstore upload finished: {} -> mod {} release {}",
-                    root.display(),
-                    response.mod_id,
-                    response.release_id
-                ));
+                greg_platform::filelog::FileLog::shared().info("Modstore upload finished.");
                 crate::worker::JobOutcome {
                     success: true,
                     message: format!(
@@ -1755,8 +1882,7 @@ pub fn editor_publish_modstore(state: &Arc<std::sync::Mutex<AppState>>) {
                 }
             }
             Err(e) => {
-                greg_platform::filelog::FileLog::shared()
-                    .info(&format!("Modstore upload failed: {}: {e}", root.display()));
+                greg_platform::filelog::FileLog::shared().info("Modstore upload failed.");
                 crate::worker::JobOutcome {
                     success: false,
                     message: format!("Modstore upload failed: {e}"),
@@ -1843,7 +1969,7 @@ pub fn create_project(state: &Arc<std::sync::Mutex<AppState>>) {
         _ => greg_loader::content::WorkshopTemplateKind::VanillaObjectDecoration,
     };
     let guard = state.lock().expect("state");
-    let root = guard.workspace.root().to_path_buf();
+    let root = guard.workspace.workshop_dir();
     match greg_loader::templates::scaffold(&root, folder.trim(), kind, folder.trim()) {
         Ok((project_root, meta)) => {
             if greg_platform::workspace::save_metadata(&project_root, &meta).is_ok() {
@@ -2011,12 +2137,81 @@ pub fn browse_subscribe_toggle(state: &Arc<std::sync::Mutex<AppState>>) {
     };
     match result {
         Ok(()) => {
-            guard.log_line(&format!("toggled subscription {id}"));
+            guard.log_line("Workshop subscription changed.");
             drop(guard);
             browse_go(state, Some(id));
         }
-        Err(e) => guard.log_line(&format!("subscription failed: {e}")),
+        Err(_) => guard.log_line("Workshop subscription change failed."),
     }
+}
+
+/// Review a managed install independently of the authoring-project import.
+pub fn browse_review_install(state: &Arc<std::sync::Mutex<AppState>>) {
+    let guard = state.lock().expect("state");
+    if guard.browse_job.is_some() || guard.browse_detail_id.is_none() {
+        return;
+    }
+    guard.ui().set_managed_install_target(
+        guard
+            .workspace
+            .game_modding_dir()
+            .to_string_lossy()
+            .into_owned()
+            .into(),
+    );
+    guard.ui().set_show_managed_install_modal(true);
+}
+
+/// Download to Steam's cache and atomically import into the manager base.
+pub fn browse_install(state: &Arc<std::sync::Mutex<AppState>>) {
+    if guard_game_running(state) {
+        return;
+    }
+    let mut guard = state.lock().expect("state");
+    if guard.browse_job.is_some() {
+        return;
+    }
+    let Some(id) = guard.browse_detail_id else {
+        return;
+    };
+    let backend = Arc::clone(&guard.backend);
+    let base = guard.workspace.root().to_path_buf();
+    guard.ui().set_show_managed_install_modal(false);
+    guard.ui().set_br_busy(true);
+    guard
+        .ui()
+        .set_br_status(l10n::get(&guard.lang, "Working").into());
+    guard.browse_job = Some(JobHandle::spawn(move |sink| {
+        let cancel = sink.cancelled().clone();
+        let source = match backend.download(id, &|p| sink.progress(p), &cancel) {
+            Ok(source) => source,
+            Err(error) => {
+                return JobOutcome {
+                    success: false,
+                    message: error.to_string(),
+                }
+            }
+        };
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            return JobOutcome {
+                success: false,
+                message: "Cancelled".into(),
+            };
+        }
+        let outcome = greg_loader::sync::sync_managed_item(id, &source, &base);
+        match outcome.path.filter(|_| outcome.success) {
+            Some(path) => JobOutcome {
+                success: true,
+                message: format!("MANAGED:{}", path.display()),
+            },
+            None => JobOutcome {
+                success: false,
+                message: outcome
+                    .error
+                    .unwrap_or_else(|| "Managed import failed".into()),
+            },
+        }
+    }));
 }
 
 /// Imports the open detail into the workspace.
@@ -2083,6 +2278,13 @@ fn drain_browse(state: &mut AppState) {
         state.ui().set_br_status(outcome.message.into());
         return;
     }
+    if let Some(path) = outcome.message.strip_prefix("MANAGED:") {
+        state
+            .ui()
+            .set_br_status(l10n::format(&state.lang, "Workspace_InstallDone", &[&path]).into());
+        local_refresh(state);
+        return;
+    }
     if let Some(payload) = outcome.message.strip_prefix("FULL:") {
         match serde_json::from_str::<greg_steam::models::ItemDetail>(payload) {
             Ok(detail) => {
@@ -2124,7 +2326,7 @@ fn drain_browse(state: &mut AppState) {
                 state.ui().set_br_d_subscribed(detail.is_subscribed);
                 let cached_preview = state
                     .thumb_done
-                    .get(&id_str)
+                    .get(&format!("workshop:{id_str}"))
                     .filter(|p| p.is_file())
                     .cloned();
                 state
@@ -2133,7 +2335,10 @@ fn drain_browse(state: &mut AppState) {
                 if !detail.preview_image_url.trim().is_empty() {
                     queue_thumbs(
                         state,
-                        vec![(id_str.clone(), detail.preview_image_url.clone())],
+                        vec![(
+                            format!("workshop:{id_str}"),
+                            detail.preview_image_url.clone(),
+                        )],
                     );
                 }
                 if !state
@@ -2178,7 +2383,12 @@ fn drain_browse(state: &mut AppState) {
                     state,
                     items
                         .iter()
-                        .map(|i| (i.published_file_id.to_string(), i.preview_image_url.clone()))
+                        .map(|i| {
+                            (
+                                format!("workshop:{}", i.published_file_id),
+                                i.preview_image_url.clone(),
+                            )
+                        })
                         .collect(),
                 );
                 let rows: Vec<BrowseRow> = items
@@ -2187,7 +2397,12 @@ fn drain_browse(state: &mut AppState) {
                         id: i.published_file_id.to_string().into(),
                         title: i.title.into(),
                         score: format!("{:.1} / 5", i.score).into(),
-                        thumb: slint::Image::default(),
+                        thumb: thumb_of(
+                            state
+                                .thumb_done
+                                .get(&format!("workshop:{}", i.published_file_id))
+                                .map(PathBuf::as_path),
+                        ),
                     })
                     .collect();
                 state
@@ -2263,7 +2478,7 @@ pub fn store_check_updates(state: &Arc<std::sync::Mutex<AppState>>) {
     let urls = store_base_urls(&guard);
     let token = guard.session.as_ref().map(|s| s.access_token.clone());
     let rt = guard.runtime.handle().clone();
-    let game_root = game_root_of(&guard);
+    let game_root = guard.workspace.game_modding_dir();
     guard.ui().set_st_busy(true);
     guard.ui().set_st_status("Checking for updates…".into());
     let job = JobHandle::spawn(move |sink| {
@@ -2324,7 +2539,7 @@ pub fn store_install(state: &Arc<std::sync::Mutex<AppState>>, index: i32, is_upd
     }
     let urls = store_base_urls(&guard);
     let rt = guard.runtime.handle().clone();
-    let game_root = game_root_of(&guard);
+    let game_root = guard.workspace.game_modding_dir();
     let target = if is_update {
         guard
             .store_updates
@@ -2332,9 +2547,17 @@ pub fn store_install(state: &Arc<std::sync::Mutex<AppState>>, index: i32, is_upd
             .map(|u| StoreTarget::Update(u.clone()))
     } else {
         guard
-            .store_items
-            .get(index as usize)
-            .map(|i| StoreTarget::Item(i.clone()))
+            .ui()
+            .get_st_items()
+            .row_data(index as usize)
+            .and_then(|row| {
+                guard
+                    .store_items
+                    .iter()
+                    .find(|item| item.slug == row.slug.as_str())
+                    .cloned()
+            })
+            .map(StoreTarget::Item)
     };
     let Some(target) = target else { return };
     guard.ui().set_st_busy(true);
@@ -2442,28 +2665,15 @@ fn drain_store(state: &mut AppState) {
                 state,
                 items
                     .iter()
-                    .map(|i| (i.slug.clone(), i.image_url.clone().unwrap_or_default()))
+                    .map(|i| {
+                        (
+                            format!("store:{}", i.slug),
+                            i.image_url.clone().unwrap_or_default(),
+                        )
+                    })
                     .collect(),
             );
-            let rows: Vec<StoreRow> = items
-                .into_iter()
-                .map(|i| StoreRow {
-                    title: i.title.into(),
-                    meta: format!("by {} · v{} · {}", i.author, i.release.version, i.category)
-                        .into(),
-                    slug: i.slug.into(),
-                    thumb: slint::Image::default(),
-                })
-                .collect();
-            // Search filter applies live in tick via the stored query.
-            let q = state.ui().get_st_search().to_string().to_lowercase();
-            let rows: Vec<StoreRow> = rows
-                .into_iter()
-                .filter(|r| q.is_empty() || r.title.to_string().to_lowercase().contains(&q))
-                .collect();
-            state
-                .ui()
-                .set_st_items(ModelRc::from(Rc::new(VecModel::from(rows))));
+            store_filter(state);
             state
                 .ui()
                 .set_st_status(format!("Catalog: {} mods", state.store_items.len()).into());
@@ -2503,6 +2713,19 @@ fn drain_store(state: &mut AppState) {
 // Local content (My Mods / My Plugins / My Libs).
 // ---------------------------------------------------------------------------
 
+// Slint Image is deliberately not Send. Keep presentation values on the UI
+// thread, while AppState and its domain/worker data remain Send behind Mutex.
+#[derive(Default)]
+struct LocalRows {
+    root: PathBuf,
+    kind: Option<greg_loader::local_content::LocalContentKind>,
+    rows: Vec<LocalRow>,
+}
+
+thread_local! {
+    static LOCAL_ROWS: std::cell::RefCell<LocalRows> = std::cell::RefCell::new(LocalRows::default());
+}
+
 fn local_kind_of(state: &AppState) -> greg_loader::local_content::LocalContentKind {
     use greg_loader::local_content::LocalContentKind as K;
     match state.ui().get_current_page().as_str() {
@@ -2512,66 +2735,135 @@ fn local_kind_of(state: &AppState) -> greg_loader::local_content::LocalContentKi
     }
 }
 
-/// Refreshes the local list for the active page + records its signature.
+/// Requests a background scan; cached rows remain available immediately.
+/// Repeated requests coalesce into one follow-up scan rather than spawning
+/// unbounded filesystem workers while a user switches pages.
 pub fn local_refresh(state: &mut AppState) {
+    request_local_scan(state, true);
+}
+
+fn request_local_scan(state: &mut AppState, force: bool) {
     let kind = local_kind_of(state);
-    let root = game_root_of(state);
-    state.local_sig = if root.is_dir() {
-        greg_loader::local_content::signature(&root, kind)
-    } else {
-        String::new()
+    let root = state.workspace.game_modding_dir();
+    let title_key = match kind {
+        greg_loader::local_content::LocalContentKind::Mods => "Ui_Nav_MyMods",
+        greg_loader::local_content::LocalContentKind::Plugins => "Ui_Nav_MyPlugins",
+        greg_loader::local_content::LocalContentKind::Libs => "Ui_Nav_MyLibs",
     };
-    let title = match kind {
-        greg_loader::local_content::LocalContentKind::Mods => {
-            l10n::get(&state.lang, "Ui_Nav_MyMods").to_uppercase()
-        }
-        greg_loader::local_content::LocalContentKind::Plugins => {
-            l10n::get(&state.lang, "Ui_Nav_MyPlugins").to_uppercase()
-        }
-        greg_loader::local_content::LocalContentKind::Libs => {
-            l10n::get(&state.lang, "Ui_Nav_MyLibs").to_uppercase()
-        }
-    };
-    state.ui().set_local_title(title.into());
-    if !root.is_dir() {
+    state
+        .ui()
+        .set_local_title(l10n::get(&state.lang, title_key).to_uppercase().into());
+    let same_cache = state.local_cache_kind == Some(kind) && state.local_cache_root == root;
+    if !same_cache {
         state.local_entries.clear();
-        state
-            .ui()
-            .set_local_active_rows(model_of_rows(Vec::<LocalRow>::new()));
-        state
-            .ui()
-            .set_local_inactive_rows(model_of_rows(Vec::<LocalRow>::new()));
-        let msg = l10n::get(&state.lang, "Ui_Local_GameNotFound");
-        state.ui().set_local_status(msg.into());
+        LOCAL_ROWS.with(|cache| *cache.borrow_mut() = LocalRows::default());
+        state.local_sig.clear();
+        state.local_cache_root = root.clone();
+        state.local_cache_kind = Some(kind);
+        local_filter_changed(state);
+    }
+    if state.local_scan_running {
+        if force {
+            state.local_scan_generation = state.local_scan_generation.wrapping_add(1);
+            state.local_scan_pending = true;
+        }
         return;
     }
-    let entries = greg_loader::local_content::scan(&root, kind);
-    let q = state.ui().get_local_search().to_string().to_lowercase();
-    let mut active: Vec<LocalRow> = Vec::new();
-    let mut inactive: Vec<LocalRow> = Vec::new();
-    for (i, e) in entries.iter().enumerate() {
-        if !q.is_empty() && !e.name.to_lowercase().contains(&q) {
-            continue;
-        }
-        let row = LocalRow {
-            name: e.name.clone().into(),
-            detail: e.detail.clone().into(),
-            enabled: e.enabled,
-            index: i as i32,
-            thumb: thumb_of(greg_loader::local_content::sibling_preview(&e.path).as_deref()),
-        };
-        if e.enabled {
-            active.push(row);
+    state.local_scan_generation = state.local_scan_generation.wrapping_add(1);
+    let generation = state.local_scan_generation;
+    let previous_signature = state.local_sig.clone();
+    let tx = state.events_tx.clone();
+    state.local_scan_running = true;
+    state.runtime.spawn_blocking(move || {
+        let signature = greg_loader::local_content::signature_managed(&root, kind);
+        let entries = if force || !same_cache || signature != previous_signature {
+            Some(greg_loader::local_content::scan_managed(&root, kind))
         } else {
-            inactive.push(row);
+            None
+        };
+        let _ = tx.send(UiEvent::LocalScanDone {
+            generation,
+            root,
+            kind,
+            signature,
+            entries,
+        });
+    });
+}
+
+fn finish_local_scan(
+    state: &mut AppState,
+    generation: u64,
+    root: PathBuf,
+    kind: greg_loader::local_content::LocalContentKind,
+    signature: String,
+    entries: Option<Vec<greg_loader::local_content::LocalContentEntry>>,
+) {
+    state.local_scan_running = false;
+    if generation == state.local_scan_generation
+        && root == state.workspace.game_modding_dir()
+        && kind == local_kind_of(state)
+    {
+        state.local_sig = signature;
+        if let Some(entries) = entries {
+            let rows = entries
+                .iter()
+                .enumerate()
+                .map(|(i, entry)| LocalRow {
+                    name: entry.name.clone().into(),
+                    detail: entry.detail.clone().into(),
+                    enabled: entry.enabled,
+                    index: i as i32,
+                    thumb: thumb_of(
+                        greg_loader::local_content::sibling_preview(&entry.path).as_deref(),
+                    ),
+                })
+                .collect();
+            LOCAL_ROWS.with(|cache| {
+                *cache.borrow_mut() = LocalRows {
+                    root: root.clone(),
+                    kind: Some(kind),
+                    rows,
+                }
+            });
+            state.local_entries = entries;
+            state.local_cache_root = root;
+            state.local_cache_kind = Some(kind);
+            local_filter_changed(state);
         }
     }
+    if std::mem::take(&mut state.local_scan_pending) {
+        request_local_scan(state, true);
+    }
+}
+
+/// Repaints a search query from cached rows only: no directory scans, metadata
+/// lookups or thumbnail reads occur on a keystroke. Stable row indices continue
+/// to address the full local entry cache for toggle/remove actions.
+pub fn local_filter_changed(state: &mut AppState) {
+    let query = state.ui().get_local_search().to_string().to_lowercase();
+    let mut active = Vec::new();
+    let mut inactive = Vec::new();
+    LOCAL_ROWS.with(|cache| {
+        let cache = cache.borrow();
+        if cache.root != state.local_cache_root || cache.kind != state.local_cache_kind {
+            return;
+        }
+        for row in &cache.rows {
+            if !query.is_empty() && !row.name.to_lowercase().contains(&query) {
+                continue;
+            }
+            if row.enabled {
+                active.push(row.clone());
+            } else {
+                inactive.push(row.clone());
+            }
+        }
+    });
     let (n_active, n_inactive) = (active.len(), inactive.len());
-    // NOTE: row indices address the full cache; toggle/remove resolve
-    // through `local_filtered`, so both stay consistent.
-    state.local_entries = entries;
     state.ui().set_local_active_rows(model_of_rows(active));
     state.ui().set_local_inactive_rows(model_of_rows(inactive));
+    let root = state.workspace.game_modding_dir();
     let summary = l10n::format(
         &state.lang,
         "Ui_Local_StatusSummary",
@@ -2588,20 +2880,11 @@ fn is_local_page(state: &AppState) -> bool {
     )
 }
 
-/// Rescans the visible local page when the folder changed underneath us
-/// (manual drops, external installers, toggles outside the app).
+/// Periodic metadata checks run on the worker too, avoiding disk stalls while
+/// the UI mutex is held. Existing scans coalesce automatic checks.
 fn auto_refresh_local(state: &mut AppState) {
-    if !is_local_page(state) {
-        return;
-    }
-    let kind = local_kind_of(state);
-    let root = game_root_of(state);
-    if !root.is_dir() {
-        return;
-    }
-    let signature = greg_loader::local_content::signature(&root, kind);
-    if signature != state.local_sig {
-        local_refresh(state);
+    if is_local_page(state) && !state.local_scan_running {
+        request_local_scan(state, false);
     }
 }
 
@@ -2661,33 +2944,18 @@ pub fn local_remove(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
 /// Opens the scanned folder of the active kind.
 pub fn local_open_folder(state: &Arc<std::sync::Mutex<AppState>>) {
     let guard = state.lock().expect("state");
-    let root = game_root_of(&guard);
-    let kind = local_kind_of(&guard);
-    let dir = match kind {
-        greg_loader::local_content::LocalContentKind::Mods => root.join("Mods"),
-        greg_loader::local_content::LocalContentKind::Plugins => root.join("Plugins"),
-        greg_loader::local_content::LocalContentKind::Libs => {
-            let user_libs = greg_loader::local_content::user_libs_dir(&root);
-            if user_libs.is_dir() {
-                user_libs
-            } else {
-                let deps = root.join("Plugins").join("Dependencies");
-                if deps.is_dir() {
-                    deps
-                } else {
-                    user_libs
-                }
-            }
-        }
+    let dir = match local_kind_of(&guard) {
+        greg_loader::local_content::LocalContentKind::Mods => guard.workspace.mods_dir(),
+        greg_loader::local_content::LocalContentKind::Plugins => guard.workspace.melons_dir(),
+        greg_loader::local_content::LocalContentKind::Libs => guard.workspace.userlibs_dir(),
     };
-    let target = if dir.is_dir() { dir } else { root };
-    let _ = greg_platform::process::open_folder(&target);
+    let _ = greg_platform::process::open_folder(&dir);
 }
 
 /// Rebuilds the `lib-catalog` model for the "Install Libraries" modal.
 pub fn lib_refresh_catalog(state: &mut AppState) {
     use greg_loader::local_content::{is_framework_lib_installed, FRAMEWORK_LIBRARIES};
-    let root = game_root_of(state);
+    let root = state.workspace.game_modding_dir();
     let has_root = root.is_dir();
     if state.lib_selected.len() != FRAMEWORK_LIBRARIES.len() {
         state.lib_selected = vec![false; FRAMEWORK_LIBRARIES.len()];
@@ -2716,7 +2984,7 @@ pub fn lib_refresh_catalog(state: &mut AppState) {
     if !state.ui().get_lib_busy() {
         let total = FRAMEWORK_LIBRARIES.len();
         let status = if !has_root {
-            "Game folder not found — configure the game root in Settings first.".to_string()
+            "Managed content folder is unavailable — check the workspace in Settings.".to_string()
         } else {
             format!(
                 "{selected_count} selected · {installed_count}/{total} installed in {}",
@@ -2731,7 +2999,7 @@ pub fn lib_refresh_catalog(state: &mut AppState) {
 pub fn lib_open_modal(state: &Arc<std::sync::Mutex<AppState>>) {
     use greg_loader::local_content::{is_framework_lib_installed, FRAMEWORK_LIBRARIES};
     let mut guard = state.lock().expect("state");
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     let has_root = root.is_dir();
     guard.lib_selected = FRAMEWORK_LIBRARIES
         .iter()
@@ -2754,7 +3022,7 @@ pub fn lib_toggle_select(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
 pub fn lib_select_missing(state: &Arc<std::sync::Mutex<AppState>>) {
     use greg_loader::local_content::{is_framework_lib_installed, FRAMEWORK_LIBRARIES};
     let mut guard = state.lock().expect("state");
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     let has_root = root.is_dir();
     guard.lib_selected = FRAMEWORK_LIBRARIES
         .iter()
@@ -2794,10 +3062,10 @@ pub fn lib_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
     if guard.lib_job.is_some() {
         return;
     }
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     if !root.is_dir() {
         guard.ui().set_lib_status(
-            "Game folder not found — configure the game root in Settings first.".into(),
+            "Managed content folder is unavailable — check the workspace in Settings.".into(),
         );
         return;
     }
@@ -2916,8 +3184,8 @@ fn drain_lib_install(state: &mut AppState) {
 
 /// Rebuilds the `plugin-catalog` model for the "Browse Plugins" modal.
 pub fn plugin_refresh_catalog(state: &mut AppState) {
-    use greg_loader::local_content::{is_plugin_installed, FRAMEWORK_PLUGINS};
-    let root = game_root_of(state);
+    use greg_loader::local_content::{is_managed_plugin_installed, FRAMEWORK_PLUGINS};
+    let root = state.workspace.game_modding_dir();
     let has_root = root.is_dir();
     if state.plugin_selected.len() != FRAMEWORK_PLUGINS.len() {
         state.plugin_selected = vec![false; FRAMEWORK_PLUGINS.len()];
@@ -2926,7 +3194,7 @@ pub fn plugin_refresh_catalog(state: &mut AppState) {
     let mut installed_count = 0usize;
     let mut selected_count = 0usize;
     for (i, spec) in FRAMEWORK_PLUGINS.iter().enumerate() {
-        let installed = has_root && is_plugin_installed(&root, spec.file_name);
+        let installed = has_root && is_managed_plugin_installed(&root, spec.file_name);
         if installed {
             installed_count += 1;
         }
@@ -2950,7 +3218,7 @@ pub fn plugin_refresh_catalog(state: &mut AppState) {
         } else {
             format!(
                 "{selected_count} selected · {installed_count}/{total} installed in {}",
-                root.join("Plugins").display()
+                root.join("Melons").display()
             )
         };
         state.ui().set_plugin_status(status.into());
@@ -2959,13 +3227,13 @@ pub fn plugin_refresh_catalog(state: &mut AppState) {
 
 /// Opens the "Browse Plugins" modal and pre-selects missing plugins.
 pub fn plugin_open_modal(state: &Arc<std::sync::Mutex<AppState>>) {
-    use greg_loader::local_content::{is_plugin_installed, FRAMEWORK_PLUGINS};
+    use greg_loader::local_content::{is_managed_plugin_installed, FRAMEWORK_PLUGINS};
     let mut guard = state.lock().expect("state");
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     let has_root = root.is_dir();
     guard.plugin_selected = FRAMEWORK_PLUGINS
         .iter()
-        .map(|spec| !has_root || !is_plugin_installed(&root, spec.file_name))
+        .map(|spec| !has_root || !is_managed_plugin_installed(&root, spec.file_name))
         .collect();
     plugin_refresh_catalog(&mut guard);
     guard.ui().set_show_plugin_modal(true);
@@ -2982,13 +3250,13 @@ pub fn plugin_toggle_select(state: &Arc<std::sync::Mutex<AppState>>, index: i32)
 
 /// Selects all currently missing plugins (deselects already-installed ones).
 pub fn plugin_select_missing(state: &Arc<std::sync::Mutex<AppState>>) {
-    use greg_loader::local_content::{is_plugin_installed, FRAMEWORK_PLUGINS};
+    use greg_loader::local_content::{is_managed_plugin_installed, FRAMEWORK_PLUGINS};
     let mut guard = state.lock().expect("state");
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     let has_root = root.is_dir();
     guard.plugin_selected = FRAMEWORK_PLUGINS
         .iter()
-        .map(|spec| !has_root || !is_plugin_installed(&root, spec.file_name))
+        .map(|spec| !has_root || !is_managed_plugin_installed(&root, spec.file_name))
         .collect();
     plugin_refresh_catalog(&mut guard);
 }
@@ -3012,7 +3280,7 @@ pub fn plugin_close_modal(state: &Arc<std::sync::Mutex<AppState>>) {
 /// Starts a background job to install all selected plugins into `Plugins/`.
 pub fn plugin_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
     use greg_loader::local_content::{
-        install_plugin_from_release, PluginCatalogSpec, FRAMEWORK_PLUGINS,
+        install_managed_plugin_from_release, PluginCatalogSpec, FRAMEWORK_PLUGINS,
     };
     if guard_game_running(state) {
         let guard = state.lock().expect("state");
@@ -3024,7 +3292,7 @@ pub fn plugin_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
     if guard.plugin_job.is_some() {
         return;
     }
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     if !root.is_dir() {
         let msg = l10n::get(&guard.lang, "Ui_Local_GameNotFound");
         guard.ui().set_plugin_status(msg.into());
@@ -3057,7 +3325,7 @@ pub fn plugin_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
                 total
             ));
             let cancel = sink.cancelled().clone();
-            match handle.block_on(install_plugin_from_release(&root, spec, &cancel)) {
+            match handle.block_on(install_managed_plugin_from_release(&root, spec, &cancel)) {
                 Ok((tag, path)) => {
                     installed += 1;
                     sink.log(format!(
@@ -3077,7 +3345,7 @@ pub fn plugin_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
         JobOutcome {
             success: true,
             message: format!(
-                "Installed {installed} {} into Plugins.",
+                "Installed {installed} {} into GameModding/Melons.",
                 if installed == 1 { "plugin" } else { "plugins" }
             ),
         }
@@ -3088,7 +3356,7 @@ pub fn plugin_install_selected(state: &Arc<std::sync::Mutex<AppState>>) {
 /// the latest version of the IL2CPP Assembly Fixer directly from Datacentermods (preferred)
 /// with automatic fallback to GitHub releases.
 pub fn plugin_install_default(state: &Arc<std::sync::Mutex<AppState>>) {
-    use greg_loader::local_content::install_latest_il2cpp_fixer;
+    use greg_loader::local_content::install_managed_latest_il2cpp_fixer;
     if guard_game_running(state) {
         return;
     }
@@ -3096,7 +3364,7 @@ pub fn plugin_install_default(state: &Arc<std::sync::Mutex<AppState>>) {
     if guard.plugin_job.is_some() {
         return;
     }
-    let root = game_root_of(&guard);
+    let root = guard.workspace.game_modding_dir();
     if !root.is_dir() {
         let msg = l10n::get(&guard.lang, "Ui_Local_GameNotFound");
         guard.ui().set_local_status(msg.clone().into());
@@ -3114,7 +3382,7 @@ pub fn plugin_install_default(state: &Arc<std::sync::Mutex<AppState>>) {
             "Downloading latest IL2CPP Assembly Fixer (Datacentermods / GitHub)…".to_string(),
         );
         let cancel = sink.cancelled().clone();
-        match handle.block_on(install_latest_il2cpp_fixer(&root, &cancel)) {
+        match handle.block_on(install_managed_latest_il2cpp_fixer(&root, &cancel)) {
             Ok((tag, path)) => {
                 sink.log(format!(
                     "Installed IL2CPP Assembly Fixer ({tag}) -> {}",
@@ -3207,8 +3475,8 @@ pub fn confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
             path,
         };
         match greg_loader::local_content::remove(&entry) {
-            Ok(()) => AppState::append_log(state, &format!("Removed {}", entry.name)),
-            Err(e) => AppState::append_log(state, &format!("Remove failed: {e}")),
+            Ok(()) => AppState::append_log(state, "Local content removed."),
+            Err(_) => AppState::append_log(state, "Could not remove local content."),
         }
         local_refresh(&mut state.lock().expect("state"));
     }
@@ -3457,7 +3725,7 @@ pub fn report_export(state: &Arc<std::sync::Mutex<AppState>>) {
     let guard = state.lock().expect("state");
     let ui = &guard.ui();
     ui.set_rp_status(format!("Report exported to {}", path.display()).into());
-    guard.log_line(&format!("Report exported to {}", path.display()));
+    guard.log_line("Report exported.");
 }
 
 /// Opens the submission confirmation step for the current draft.
@@ -3520,12 +3788,14 @@ async fn github_create_issue(
     token: String,
     repo: String,
     api_base: String,
-    draft: greg_core::report::ReportData,
+    _draft: greg_core::report::ReportData,
     markdown: String,
 ) -> (bool, String, Option<String>) {
     let url = format!("{api_base}/repos/{repo}/issues");
     let client = reqwest::Client::new();
-    let body = serde_json::json!({ "title": draft.title, "body": markdown });
+    // User-authored titles may contain account names, library titles or IDs.
+    // Keep them local and use a fixed generic title for remote issue creation.
+    let body = serde_json::json!({ "title": "gregModmanager report", "body": markdown });
     match client
         .post(&url)
         .bearer_auth(&token)
@@ -3651,7 +3921,7 @@ pub fn report_confirm_yes(state: &Arc<std::sync::Mutex<AppState>>) {
     ui.set_rp_submit_confirm(false);
     ui.set_rp_submission("submitted".into());
     ui.set_rp_status(format!("Report saved locally: {}", path.display()).into());
-    guard.log_line(&format!("Report exported to {}", path.display()));
+    guard.log_line("Report exported.");
 }
 
 /// Adds a user-selected attachment file name to the draft.
@@ -3935,18 +4205,24 @@ pub fn problems_act(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
 // Modpacks + shareable collections.
 // ---------------------------------------------------------------------------
 
-/// Catalog file: app-data `collections.json` (C# used `{root}/collections.json`).
-pub fn packs_path() -> std::path::PathBuf {
-    greg_platform::paths::app_data_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("collections.json")
+/// Catalog belongs to the configured manager base.
+pub fn packs_path(workspace: &greg_platform::workspace::Workspace) -> PathBuf {
+    workspace.configs_dir().join("collections.json")
 }
 
-/// Loads the catalog (empty when missing/corrupt).
-pub fn load_packs() -> greg_core::models::ModCollectionService {
-    let path = packs_path();
-    if !path.is_file() {
-        return greg_core::models::ModCollectionService::new();
+/// Import the former catalog without removing its source.
+pub fn load_packs(
+    workspace: &greg_platform::workspace::Workspace,
+) -> greg_core::models::ModCollectionService {
+    let path = packs_path(workspace);
+    if !path.exists() {
+        if let Some(legacy) =
+            greg_platform::paths::app_data_dir().map(|p| p.join("collections.json"))
+        {
+            if legacy.is_file() {
+                let _ = std::fs::copy(legacy, &path);
+            }
+        }
     }
     std::fs::read_to_string(&path)
         .ok()
@@ -3954,14 +4230,13 @@ pub fn load_packs() -> greg_core::models::ModCollectionService {
         .unwrap_or_default()
 }
 
-/// Persists the catalog (best-effort).
-pub fn save_packs(svc: &greg_core::models::ModCollectionService) {
+/// Persists the catalog alongside the settings database.
+pub fn save_packs(
+    workspace: &greg_platform::workspace::Workspace,
+    svc: &greg_core::models::ModCollectionService,
+) {
     if let Ok(json) = svc.to_json() {
-        let path = packs_path();
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let _ = std::fs::write(path, json);
+        let _ = std::fs::write(packs_path(workspace), json);
     }
 }
 
@@ -4092,7 +4367,7 @@ pub fn packs_create(state: &Arc<std::sync::Mutex<AppState>>) {
     let id = guard.pack_service.create(kind, name.trim(), "");
     guard.selected_pack = Some(id);
     guard.ui().set_pack_new_name("".into());
-    save_packs(&guard.pack_service);
+    save_packs(&guard.workspace, &guard.pack_service);
     drop(guard);
     packs_refresh(state);
 }
@@ -4111,7 +4386,7 @@ pub fn packs_toggle(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
     let mut guard = state.lock().expect("state");
     if let Some(id) = guard.pack_order.get(index as usize).cloned() {
         guard.pack_service.toggle(&id);
-        save_packs(&guard.pack_service);
+        save_packs(&guard.workspace, &guard.pack_service);
     }
     drop(guard);
     packs_refresh(state);
@@ -4125,7 +4400,7 @@ pub fn packs_delete(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
         if guard.selected_pack.as_deref() == Some(&id) {
             guard.selected_pack = None;
         }
-        save_packs(&guard.pack_service);
+        save_packs(&guard.workspace, &guard.pack_service);
     }
     drop(guard);
     packs_refresh(state);
@@ -4136,7 +4411,7 @@ pub fn packs_toggle_entry(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
     let mut guard = state.lock().expect("state");
     if let Some(id) = guard.selected_pack.clone() {
         guard.pack_service.toggle_entry(&id, index as usize);
-        save_packs(&guard.pack_service);
+        save_packs(&guard.workspace, &guard.pack_service);
         refresh_pack_entries(&mut guard);
     }
 }
@@ -4146,7 +4421,7 @@ pub fn packs_remove_entry(state: &Arc<std::sync::Mutex<AppState>>, index: i32) {
     let mut guard = state.lock().expect("state");
     if let Some(id) = guard.selected_pack.clone() {
         guard.pack_service.remove_entry_at(&id, index as usize);
-        save_packs(&guard.pack_service);
+        save_packs(&guard.workspace, &guard.pack_service);
         refresh_pack_entries(&mut guard);
         drop(guard);
         packs_refresh(state);
@@ -4187,7 +4462,7 @@ pub fn packs_add_file(state: &Arc<std::sync::Mutex<AppState>>) {
             ..Default::default()
         },
     );
-    save_packs(&guard.pack_service);
+    save_packs(&guard.workspace, &guard.pack_service);
     refresh_pack_entries(&mut guard);
 }
 
@@ -4226,7 +4501,7 @@ pub fn packs_export(state: &Arc<std::sync::Mutex<AppState>>) {
                 guard
                     .ui()
                     .set_pack_status(format!("Exported to {}", dest.display()).into());
-                guard.log_line(&format!("Exported pack to {}", dest.display()));
+                guard.log_line("Pack exported.");
             }
             Err(e) => guard
                 .ui()
@@ -4251,7 +4526,7 @@ pub fn packs_import(state: &Arc<std::sync::Mutex<AppState>>) {
         Ok(json) => match guard.pack_service.import_pack(&json) {
             Ok(id) => {
                 guard.selected_pack = Some(id);
-                save_packs(&guard.pack_service);
+                save_packs(&guard.workspace, &guard.pack_service);
                 drop(guard);
                 packs_refresh(state);
             }
@@ -4282,7 +4557,11 @@ pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
         let Some(pack) = guard.pack_service.get(&id).cloned() else {
             return;
         };
-        (pack, game_root_of(&guard), Arc::clone(&guard.steam))
+        (
+            pack,
+            guard.workspace.game_modding_dir(),
+            Arc::clone(&guard.steam),
+        )
     };
     let steam_available = matches!(
         steam.status(),
@@ -4302,14 +4581,14 @@ pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
     let report = greg_loader::packs::apply_pack(&pack, &game_root, sub, unsub);
     let summary = match report {
         Ok(report) => {
-            for error in &report.errors {
-                AppState::append_log(state, &format!("Pack apply: {error}"));
+            for _error in &report.errors {
+                AppState::append_log(state, "Pack apply failed.");
             }
-            AppState::append_log(state, &format!("Pack apply: {}", report.summary()));
+            AppState::append_log(state, "Pack apply completed.");
             report.summary()
         }
         Err(e) => {
-            AppState::append_log(state, &format!("Pack apply failed: {e}"));
+            AppState::append_log(state, "Pack apply failed.");
             format!("Apply failed: {e}")
         }
     };
@@ -4330,15 +4609,18 @@ pub fn packs_apply(state: &Arc<std::sync::Mutex<AppState>>, _index: i32) {
 
 /// Loads preferences into the settings page.
 pub fn refresh_settings(state: &mut AppState) {
-    state.ui().set_se_workspace(
-        state
-            .prefs
-            .get_string(greg_platform::workspace::CUSTOM_WORKSPACE_PATH_KEY, "")
-            .into(),
-    );
+    state
+        .ui()
+        .set_se_workspace(state.workspace.root().to_string_lossy().into_owned().into());
     state
         .ui()
         .set_se_gameroot(state.prefs.get_string("GameRootPath", "").into());
+    state.ui().set_st_kinds(model_of_strings(&[
+        l10n::get(&state.lang, "StoreKind_All"),
+        l10n::get(&state.lang, "StoreKind_Mods"),
+        l10n::get(&state.lang, "StoreKind_Libraries"),
+        l10n::get(&state.lang, "StoreKind_Plugins"),
+    ]));
     let code = state.prefs.get_string("AppLanguage", "");
     let codes = ["", "en", "de", "fr", "es", "it", "ja", "pl", "ru", "zh"];
     let lang_idx = codes.iter().position(|c| *c == code).unwrap_or(1) as i32;
@@ -4361,6 +4643,81 @@ pub fn refresh_settings(state: &mut AppState) {
         )
         .into(),
     );
+    let labels = [
+        "AppVersion",
+        "Platform",
+        "Workspace",
+        "GameRoot",
+        "Steam",
+        "SteamAccount",
+        "SteamApiKey",
+        "Discord",
+        "RichPresence",
+        "GregApi",
+        "MelonLoader",
+    ];
+    let app_version = env!("CARGO_PKG_VERSION");
+    let (steam_connected, steam_account) = match state.backend.status() {
+        greg_steam::backend::BackendStatus::Available { user_name } => (true, user_name),
+        greg_steam::backend::BackendStatus::Unavailable { .. } => (false, String::new()),
+    };
+    let gregapi = if state.ui().get_gregapi_known() {
+        if state.ui().get_gregapi_ok() {
+            "Online"
+        } else {
+            "Offline"
+        }
+    } else {
+        "Unknown"
+    };
+    let melonloader = if state.ui().get_melonloader_known() {
+        if state.ui().get_melonloader_ok() {
+            "Installed"
+        } else {
+            "Missing"
+        }
+    } else {
+        "Unknown"
+    };
+    let values = [
+        app_version.to_string(),
+        format!("{} / {}", std::env::consts::OS, std::env::consts::ARCH),
+        l10n::get(&state.lang, "Ui_Settings_Meta_Configured"),
+        if state.prefs.get_string("GameRootPath", "").trim().is_empty() {
+            l10n::get(&state.lang, "Ui_Settings_Meta_NotConfigured")
+        } else {
+            l10n::get(&state.lang, "Ui_Settings_Meta_Configured")
+        },
+        if steam_connected {
+            l10n::get(&state.lang, "Ui_Settings_Meta_ConnectedHidden")
+        } else {
+            l10n::get(&state.lang, "Ui_Settings_Meta_Disconnected")
+        },
+        if steam_connected && !steam_account.trim().is_empty() {
+            steam_account
+        } else {
+            l10n::get(&state.lang, "Ui_Settings_Meta_Unavailable")
+        },
+        if state.prefs.get_string("SteamWebApiKey", "").is_empty() {
+            l10n::get(&state.lang, "Ui_Settings_Meta_NotConfigured")
+        } else {
+            l10n::get(&state.lang, "Ui_Settings_Meta_Configured")
+        },
+        l10n::get(&state.lang, "Ui_Settings_Meta_NotConfigured"),
+        l10n::get(&state.lang, "Ui_Settings_Meta_Unavailable"),
+        l10n::get(&state.lang, &format!("Ui_Settings_Meta_{gregapi}")),
+        l10n::get(&state.lang, &format!("Ui_Settings_Meta_{melonloader}")),
+    ];
+    state.ui().set_se_diagnostics(model_of_rows(
+        labels
+            .iter()
+            .zip(values.iter())
+            .map(|(key, value)| DiagnosticRow {
+                label: l10n::get(&state.lang, &format!("Ui_Settings_Meta_{key}")).into(),
+                value: value.as_str().into(),
+            })
+            .collect::<Vec<_>>(),
+    ));
     push_log(state);
 }
 
@@ -4369,24 +4726,89 @@ fn push_log(state: &mut AppState) {
     state.ui().set_se_log(model_of_strings(&lines));
 }
 
-/// Applies the workspace override.
+/// Preview a base-directory change before touching any persistent settings.
 pub fn settings_apply_workspace(state: &Arc<std::sync::Mutex<AppState>>) {
-    let mut guard = state.lock().expect("state");
+    let guard = state.lock().expect("state");
     let value = guard.ui().get_se_workspace().to_string();
-    guard.prefs.set_string(
-        greg_platform::workspace::CUSTOM_WORKSPACE_PATH_KEY,
-        value.trim(),
-    );
-    let game_root = greg_loader::health::ModDependencyService::new(None).game_root();
-    guard.workspace = greg_platform::workspace::Workspace::resolve(
+    let workspace = greg_platform::workspace::Workspace::resolve(
         if value.trim().is_empty() {
             None
         } else {
             Some(value.trim())
         },
-        game_root.as_deref(),
+        None,
     );
+    guard
+        .ui()
+        .set_workspace_target(workspace.root().to_string_lossy().into_owned().into());
+    guard.ui().set_workspace_error("".into());
+    guard.ui().set_show_workspace_modal(true);
+}
+
+/// Commit the reviewed base; existing content stays in the former base.
+pub fn settings_confirm_workspace(state: &Arc<std::sync::Mutex<AppState>>) {
+    if guard_game_running(state) {
+        return;
+    }
+    let mut guard = state.lock().expect("state");
+    if guard.publish_job.is_some()
+        || guard.browse_job.is_some()
+        || guard.store_job.is_some()
+        || guard.lib_job.is_some()
+        || guard.plugin_job.is_some()
+        || guard.sync_job.is_some()
+        || guard.build_job.is_some()
+    {
+        guard
+            .ui()
+            .set_workspace_error(l10n::get(&guard.lang, "Workspace_Busy").into());
+        return;
+    }
+    let target = PathBuf::from(guard.ui().get_workspace_target().as_str());
+    if !target.is_absolute() {
+        guard
+            .ui()
+            .set_workspace_error(l10n::get(&guard.lang, "Workspace_AbsolutePath").into());
+        return;
+    }
+    if let Ok(value) = std::env::var("GREG_WORKSPACE") {
+        if !value.trim().is_empty() && Path::new(value.trim()) != target {
+            guard
+                .ui()
+                .set_workspace_error(l10n::get(&guard.lang, "Workspace_EnvOverride").into());
+            return;
+        }
+    }
+    let workspace = greg_platform::workspace::Workspace::resolve(target.to_str(), None);
+    let outcome = workspace
+        .ensure_structure()
+        .and_then(|()| guard.prefs.relocate(&target));
+    if let Err(error) = outcome {
+        guard.ui().set_workspace_error(error.to_string().into());
+        return;
+    }
+    guard.prefs.set_string(
+        greg_platform::workspace::CUSTOM_WORKSPACE_PATH_KEY,
+        &target.to_string_lossy(),
+    );
+    if let Some(error) = guard.prefs.take_error() {
+        guard.ui().set_workspace_error(error.into());
+        return;
+    }
+    if guard.file_log.relocate(&target).is_err() {
+        guard.log_line("Log directory relocation failed.");
+    }
+    greg_platform::filelog::register_sensitive_path(&target);
+    guard.file_log.scrub_history(&target.join("Logs"));
+    guard.workspace = workspace;
+    guard.editor_root = None;
+    guard.project_sync.clear();
+    guard.local_sig.clear();
+    guard.pack_service = load_packs(&guard.workspace);
+    guard.ui().set_show_workspace_modal(false);
     refresh_projects(&mut guard);
+    refresh_settings(&mut guard);
+    local_refresh(&mut guard);
 }
 
 /// Applies the game-root override.
@@ -4395,6 +4817,11 @@ pub fn settings_apply_gameroot(state: &Arc<std::sync::Mutex<AppState>>) {
         let mut guard = state.lock().expect("state");
         let value = guard.ui().get_se_gameroot().to_string();
         guard.prefs.set_string("GameRootPath", value.trim());
+        if !value.trim().is_empty() {
+            greg_platform::filelog::register_sensitive_path(Path::new(value.trim()));
+            let logs_dir = guard.workspace.logs_dir();
+            guard.file_log.scrub_history(&logs_dir);
+        }
     }
     check_melon_loader_on_start(state);
 }
@@ -4596,8 +5023,18 @@ pub fn apply_ui_translations(state: &mut AppState) {
         // Settings Page
         tr.set_settings_section_general(t("Ui_Settings_SectionGeneral"));
         tr.set_settings_section_diagnostics(t("Ui_Settings_SectionDiagnostics"));
+        tr.set_settings_app_details(t("Ui_Settings_AppDetails"));
+        tr.set_settings_diagnostics_privacy(t("Ui_Settings_DiagnosticsPrivacy"));
         tr.set_settings_section_support(t("Ui_Settings_SectionSupport"));
         tr.set_settings_language(t("Ui_Settings_Language"));
+        tr.set_managed_install_title(t("Workspace_InstallTitle"));
+        tr.set_managed_install_description(t("Workspace_InstallDescription"));
+        tr.set_managed_install_button(t("Workspace_Install"));
+        tr.set_build_test_title(t("Build_Title"));
+        tr.set_build_test_description(t("Build_Description"));
+        tr.set_build_test_run(t("Build_Run"));
+        tr.set_workspace_title(t("Workspace_Title"));
+        tr.set_workspace_description(t("Workspace_Description"));
         tr.set_settings_workspace(t("Ui_Settings_Workspace"));
         tr.set_settings_gameroot(t("Ui_Settings_GameRoot"));
         tr.set_settings_modstore_api(t("Ui_Settings_ModstoreApi"));
@@ -4605,6 +5042,7 @@ pub fn apply_ui_translations(state: &mut AppState) {
         tr.set_settings_steam_web_api_key_placeholder(t("Ui_Settings_SteamWebApiKeyPlaceholder"));
         tr.set_settings_browse(t("Ui_Settings_Browse"));
         tr.set_settings_apply(t("Ui_Settings_Apply"));
+        tr.set_settings_check_updates(t("Ui_Settings_CheckUpdates"));
         tr.set_settings_run_checks(t("Ui_Settings_RunChecks"));
         tr.set_settings_open_log_folder(t("Ui_Settings_OpenLogFolder"));
         tr.set_settings_support_bundle(t("Ui_Settings_SupportBundle"));
@@ -4791,8 +5229,8 @@ pub fn settings_make_bundle(state: &Arc<std::sync::Mutex<AppState>>) {
         "os": std::env::consts::OS,
     });
     match greg_platform::repro::create_bundle(&log.path(), &log.reports_dir(), &manifest, None) {
-        Ok(path) => guard.log_line(&format!("Bundle: {}", path.display())),
-        Err(e) => guard.log_line(&format!("Bundle failed: {e}")),
+        Ok(_) => guard.log_line("Support bundle created."),
+        Err(_) => guard.log_line("Support bundle creation failed."),
     }
     drop(guard);
     if let Ok(mut guard) = state.lock() {
@@ -4944,82 +5382,163 @@ where
 /// the placeholder box). Local files only; remote previews go through the
 /// thumbnail cache first.
 fn thumb_of(path: Option<&std::path::Path>) -> slint::Image {
-    path.and_then(|p| slint::Image::load_from_path(p).ok())
-        .unwrap_or_default()
+    crate::image_cache::thumbnail(path)
 }
 
 /// Thumbnail cache dir for remote previews.
-fn thumb_cache_dir() -> PathBuf {
-    let dir = std::env::temp_dir().join("gregmodmanager-thumbs");
-    let _ = std::fs::create_dir_all(&dir);
-    dir
+fn thumb_cache_dir(state: &AppState) -> PathBuf {
+    state.workspace.root().join("Cache").join("Thumbnails")
 }
 
-/// Queues missing thumbnails (key -> url), skipping cached/queued ones.
+const MAX_THUMBNAILS: usize = 128;
+const THUMB_BATCH_SIZE: usize = 16;
+
+/// Queues bounded missing thumbnails; URL changes invalidate reused item keys.
 fn queue_thumbs(state: &mut AppState, items: Vec<(String, String)>) {
     for (key, url) in items {
-        if url.trim().is_empty()
-            || state.thumb_done.contains_key(&key)
-            || state.thumb_pending.iter().any(|(k, _)| k == &key)
+        if url.trim().is_empty() {
+            continue;
+        }
+        let same_url = state.thumb_urls.get(&key) == Some(&url);
+        let fresh = same_url
+            && state.thumb_done.get(&key).is_some_and(|path| {
+                std::fs::metadata(path)
+                    .ok()
+                    .and_then(|metadata| metadata.modified().ok())
+                    .and_then(|time| time.elapsed().ok())
+                    .is_some_and(|age| age < std::time::Duration::from_secs(24 * 60 * 60))
+            });
+        if fresh
+            || (same_url
+                && (state.thumb_pending.iter().any(|(queued, _)| queued == &key)
+                    || (state.thumb_job.is_some() && !state.thumb_done.contains_key(&key))))
         {
             continue;
         }
+        if !same_url {
+            state.thumb_done.remove(&key);
+            state.thumb_pending.retain(|(queued, _)| queued != &key);
+        }
+        if state.thumb_pending.len() >= MAX_THUMBNAILS {
+            break;
+        }
+        state.thumb_urls.insert(key.clone(), url.clone());
         state.thumb_pending.push((key, url));
     }
     pump_thumb_job(state);
 }
 
-/// Starts the download job when idle with pending items.
+/// Starts at most one bounded batch, leaving the remainder queued.
 fn pump_thumb_job(state: &mut AppState) {
     if state.thumb_job.is_some() || state.thumb_pending.is_empty() {
         return;
     }
-    let batch = std::mem::take(&mut state.thumb_pending);
-    let dir = thumb_cache_dir();
+    let batch: Vec<_> = state
+        .thumb_pending
+        .drain(..state.thumb_pending.len().min(THUMB_BATCH_SIZE))
+        .collect();
+    let dir = thumb_cache_dir(state);
     let job = JobHandle::spawn(move |sink| {
-        let mut out = Vec::new();
+        let mut out: Vec<(String, String, PathBuf)> = Vec::new();
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(_) => {
+                return JobOutcome {
+                    success: false,
+                    message: String::new(),
+                }
+            }
+        };
+        let client = match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+        {
+            Ok(client) => client,
+            Err(_) => {
+                return JobOutcome {
+                    success: false,
+                    message: String::new(),
+                }
+            }
+        };
         for (key, url) in &batch {
             if sink.cancelled().load(std::sync::atomic::Ordering::Relaxed) {
                 break;
             }
-            match download_thumb(&dir, key, url) {
-                Some(path) => out.push(format!("{key}\x1f{}", path.display())),
-                None => sink.log(format!("Thumbnail failed: {url}")),
+            match download_thumb(&runtime, &client, &dir, url, sink.cancelled()) {
+                Some(path) => out.push((key.clone(), url.clone(), path)),
+                None => sink.log("Thumbnail unavailable; showing placeholder."),
             }
         }
-        crate::worker::JobOutcome {
+        trim_thumbnail_disk_cache(&dir);
+        JobOutcome {
             success: true,
-            message: out.join("\x1e"),
+            message: serde_json::to_string(&out).unwrap_or_default(),
         }
     });
     state.thumb_job = Some(job);
 }
 
-/// Downloads one preview into the cache (blocking — background only).
-fn download_thumb(dir: &std::path::Path, key: &str, url: &str) -> Option<PathBuf> {
-    let bytes = reqwest::blocking::get(url)
-        .and_then(|r| r.bytes())
+/// Bounded HTTP and genuine image validation happen on the background worker.
+fn download_thumb(
+    runtime: &tokio::runtime::Runtime,
+    client: &reqwest::Client,
+    dir: &std::path::Path,
+    url: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Option<PathBuf> {
+    runtime
+        .block_on(
+            greg_steam::web_api::download_and_cache_preview_image_with_client(
+                url, 0, dir, cancel, client,
+            ),
+        )
         .ok()?
-        .to_vec();
-    if bytes.is_empty() {
-        return None;
-    }
-    let safe: String = key
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect();
-    if safe.is_empty() {
-        return None;
-    }
-    let path = dir.join(format!("{safe}{}", greg_steam::service::image_ext(&bytes)));
-    if path.is_file() {
-        return Some(path);
-    }
-    std::fs::write(&path, &bytes).ok()?;
-    Some(path)
+        .cached_path
 }
 
-/// Applies finished thumbnail downloads to the cache and repaints rows.
+/// Keep the persistent preview cache bounded too. Only files belonging to our
+/// URL-keyed preview cache are candidates; unrelated temporary files stay put.
+fn trim_thumbnail_disk_cache(dir: &std::path::Path) {
+    const MAX_DISK_BYTES: u64 = 64 * 1024 * 1024;
+    let Ok(read) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut files: Vec<_> = read
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !name.starts_with("preview_") && !name.starts_with("workshop_") {
+                return None;
+            }
+            let metadata = entry.metadata().ok()?;
+            if !metadata.is_file() {
+                return None;
+            }
+            Some((metadata.modified().ok(), metadata.len(), entry.path()))
+        })
+        .collect();
+    files.sort_by_key(|(modified, _, _)| *modified);
+    let mut size = files
+        .iter()
+        .fold(0u64, |sum, (_, len, _)| sum.saturating_add(*len));
+    let mut count = files.len();
+    for (_, len, path) in files {
+        if size <= MAX_DISK_BYTES && count <= MAX_THUMBNAILS {
+            break;
+        }
+        if std::fs::remove_file(path).is_ok() {
+            size = size.saturating_sub(len);
+            count -= 1;
+        }
+    }
+}
+
+/// Applies only current-URL results; stale in-flight downloads cannot replace
+/// a newer item preview. Cache bookkeeping and decoded pixels are both bounded.
 fn drain_thumb(state: &mut AppState) {
     let messages = match state.thumb_job.as_mut() {
         Some(job) => job.drain(),
@@ -5029,7 +5548,7 @@ fn drain_thumb(state: &mut AppState) {
         .thumb_job
         .as_ref()
         .is_some_and(|job| job.is_finished());
-    let mut done: Option<JobOutcome> = None;
+    let mut done = None;
     for msg in messages {
         if let JobMessage::Done(outcome) = msg {
             done = Some(outcome);
@@ -5044,17 +5563,24 @@ fn drain_thumb(state: &mut AppState) {
     };
     state.thumb_job = None;
     if outcome.success {
-        for record in outcome.message.split('\x1e') {
-            let mut parts = record.splitn(2, '\x1f');
-            let (Some(key), Some(path)) = (parts.next(), parts.next()) else {
-                continue;
-            };
-            let path = PathBuf::from(path);
-            if path.is_file() {
-                state.thumb_done.insert(key.to_string(), path);
+        let records: Vec<(String, String, PathBuf)> =
+            serde_json::from_str(&outcome.message).unwrap_or_default();
+        for (key, url, path) in records {
+            if state.thumb_urls.get(&key) == Some(&url) && path.is_file() {
+                state.thumb_done.insert(key, path);
             }
         }
     }
+    while state.thumb_done.len() > MAX_THUMBNAILS {
+        let Some(key) = state.thumb_done.keys().next().cloned() else {
+            break;
+        };
+        state.thumb_done.remove(&key);
+    }
+    state.thumb_urls.retain(|key, _| {
+        state.thumb_done.contains_key(key)
+            || state.thumb_pending.iter().any(|(queued, _)| queued == key)
+    });
     repaint_browse_thumbs(state);
     repaint_store_thumbs(state);
     pump_thumb_job(state);
@@ -5063,7 +5589,7 @@ fn drain_thumb(state: &mut AppState) {
 /// Repaints browse rows and the active detail preview with cached thumbnails.
 fn repaint_browse_thumbs(state: &mut AppState) {
     if let Some(detail_id) = state.browse_detail_id {
-        let key = detail_id.to_string();
+        let key = format!("workshop:{detail_id}");
         if let Some(path) = state.thumb_done.get(&key).filter(|p| p.is_file()).cloned() {
             state.ui().set_br_d_preview(thumb_of(Some(&path)));
         }
@@ -5078,7 +5604,7 @@ fn repaint_browse_thumbs(state: &mut AppState) {
         };
         if let Some(path) = state
             .thumb_done
-            .get(row.id.as_str())
+            .get(&format!("workshop:{}", row.id))
             .filter(|p| p.is_file())
             .cloned()
         {
@@ -5088,31 +5614,73 @@ fn repaint_browse_thumbs(state: &mut AppState) {
     }
 }
 
-/// Repaints modstore rows with cached thumbnails (in place).
+/// Filters the cached catalog by shared content type and search text.
+/// Row slugs remain provider identities regardless of the filtered row index.
+pub fn store_filter(state: &mut AppState) {
+    use greg_core::models::ProjectContentKind;
+    let ui = state.ui();
+    let query = ui.get_st_search().to_string().trim().to_lowercase();
+    let selected_kind = ui.get_st_kind();
+    let rows: Vec<StoreRow> = state
+        .store_items
+        .iter()
+        .filter_map(|item| {
+            let kind = item.content_kind().ok();
+            let matches_kind = match selected_kind {
+                1 => matches!(
+                    kind,
+                    Some(ProjectContentKind::PlacableObject | ProjectContentKind::DataCenterMod)
+                ),
+                2 => kind == Some(ProjectContentKind::Userlib),
+                3 => kind == Some(ProjectContentKind::MelonloaderPlugin),
+                _ => true,
+            };
+            if !matches_kind
+                || (!query.is_empty()
+                    && ![
+                        item.title.as_str(),
+                        item.slug.as_str(),
+                        item.author.as_str(),
+                        item.category.as_str(),
+                    ]
+                    .iter()
+                    .any(|text| text.to_lowercase().contains(&query)))
+            {
+                return None;
+            }
+            Some(StoreRow {
+                title: item.title.clone().into(),
+                meta: format!(
+                    "by {} · v{} · {} · {}",
+                    item.author,
+                    item.release.version,
+                    item.category,
+                    kind.map(ProjectContentKind::name).unwrap_or("?")
+                )
+                .into(),
+                slug: item.slug.clone().into(),
+                thumb: thumb_of(
+                    state
+                        .thumb_done
+                        .get(&format!("store:{}", item.slug))
+                        .map(PathBuf::as_path),
+                ),
+            })
+        })
+        .collect();
+    ui.set_st_items(model_of_rows(rows));
+}
+
+/// New image results use the same catalog filter, preserving current selection.
 fn repaint_store_thumbs(state: &mut AppState) {
-    let model = state.ui().get_st_items();
-    let Some(view) = model.as_any().downcast_ref::<VecModel<StoreRow>>() else {
-        return;
-    };
-    for i in 0..view.row_count() {
-        let Some(mut row) = view.row_data(i) else {
-            continue;
-        };
-        if let Some(path) = state
-            .thumb_done
-            .get(row.slug.as_str())
-            .filter(|p| p.is_file())
-            .cloned()
-        {
-            row.thumb = thumb_of(Some(&path));
-            view.set_row_data(i, row);
-        }
-    }
+    store_filter(state);
 }
 
 // AppState helper used by drain_store (avoids borrow issues).
 impl AppState {
     fn append_log_ref(state: &mut AppState, line: &str) {
+        let _ = line;
+        let line = "Background operation status updated.";
         if let Ok(lines) = state.log_lines.lock().as_deref_mut() {
             lines.push(line.to_string());
             if lines.len() > 500 {
@@ -5162,7 +5730,7 @@ mod protocol_tests {
         assert!(parse_protocol_url("https://example.com/?code=x").is_none());
         assert!(parse_protocol_url("not a url").is_none());
         match parse_protocol_url("greg://install/intent?modId=5") {
-            Some(ProtocolUrl::Other(_)) => {}
+            Some(ProtocolUrl::Other) => {}
             _ => panic!("expected Other"),
         }
     }
@@ -5173,5 +5741,42 @@ mod protocol_tests {
             Some(ProtocolUrl::AuthCallback { code, .. }) => assert_eq!(code, "AB/C D"),
             _ => panic!("expected callback"),
         }
+    }
+}
+
+#[cfg(test)]
+mod thumbnail_cache_tests {
+    #[test]
+    fn disk_cache_trimming_bounds_owned_files_and_preserves_other_files() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("greg-thumb-disk-{}-{nonce}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("unrelated.txt"), b"keep").unwrap();
+        let huge = std::fs::File::create(dir.join("preview_big.png")).unwrap();
+        huge.set_len(65 * 1024 * 1024).unwrap();
+        drop(huge);
+        for index in 0..140 {
+            std::fs::write(dir.join(format!("preview_{index}.png")), b"x").unwrap();
+        }
+        super::trim_thumbnail_disk_cache(&dir);
+        let owned: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with("preview_"))
+            .collect();
+        assert!(owned.len() <= super::MAX_THUMBNAILS);
+        assert!(
+            owned
+                .iter()
+                .map(|entry| entry.metadata().unwrap().len())
+                .sum::<u64>()
+                <= 64 * 1024 * 1024
+        );
+        assert_eq!(std::fs::read(dir.join("unrelated.txt")).unwrap(), b"keep");
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

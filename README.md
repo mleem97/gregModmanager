@@ -43,6 +43,10 @@
 | Linux x64       | Supported    | Portable ZIP/tarball, DEB, RPM, APK, Arch package                |
 | macOS x64/arm64 | Experimental | Real-Mac validation required; no signed or notarized release yet |
 
+The APK package is experimental until Alpine runtime and Steam compatibility
+have been validated. Native installation and upgrade tests are required before
+publishing the newly prepared installers and packages.
+
 | Requirement    | Version                                |
 | -------------- | -------------------------------------- |
 | Rust toolchain | stable via [rustup](https://rustup.rs) |
@@ -61,7 +65,7 @@
 - **Settings** — workspace folder, game root, language, mod-store mode
 - **Localization** — English + German (minimum), more via the `greg-core` l10n modules
 
-The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full and Decide-later modes, it also exposes a Steam Workshop **Mod Store**. Profile management, manual load-order editing, automatic conflict resolution, and an in-app updater are not currently released features.
+The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full and Decide-later modes, it also exposes a Steam Workshop **Mod Store**. Profile management, manual load-order editing, and automatic conflict resolution are not currently released features.
 
 ## Installation
 
@@ -75,6 +79,12 @@ The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full 
 
 1. Download `gregmodmanager-<version>-linux-x64.tar.gz` (or a DEB/RPM/APK/Arch package) from the [releases page](https://github.com/mleem97/gregModmanager/releases)
 2. Extract the tarball anywhere and start `./gregmodmanager` (or install the package)
+
+The app checks GitHub Releases at startup and can also check from Settings.
+After confirmation it downloads the matching package and opens the installer or
+system package handler. Portable installations receive an archive and must be
+replaced manually. Some Linux desktops need a package handler installed for the
+chosen format. Downloads are verified against GitHub's release-asset SHA-256.
 3. Make sure **Steam is running** before starting the app — `libsteam_api64.so` / `libsteam_api.so` ship next to the binary
 
 ## Dependencies
@@ -118,9 +128,10 @@ For release artifacts, start with `cargo xtask dist` (portable package incl. nat
 Steam library). See [the build-script reference](https://www.google.com/search?q=build/scripts/README.md) and
 [Docker build and test containers](https://www.google.com/search?q=docker/README.md).
 
-The Windows release build produces the portable ZIP via `cargo xtask dist`; the
-Setup EXE is produced best-effort via Inno Setup under Wine (CI parity). Linux
+The Windows release build produces the portable ZIP via `cargo xtask dist` and
+the Setup EXE and MSI via `build/installer/build-windows.ps1` on Windows. Linux
 distro packages are built via `build/scripts/linux/build-rust-packages.sh`.
+See [Jenkins CI and releases](docs/JENKINS.md) for prerequisites and validation.
 
 ## Repository Layout
 

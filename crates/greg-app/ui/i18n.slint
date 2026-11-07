@@ -2,6 +2,14 @@
 // Populated and updated live by the Rust backend (`actions::apply_ui_translations`)
 // whenever the application starts or the user switches language in Settings.
 export global Tr {
+    in-out property <string> build-test-title: "Build test";
+    in-out property <string> build-test-description: "Builds the project with local dependency paths. Project build tasks execute code. This checks compilation, not in-game compatibility. Requires .NET SDK 8+ or Rust.";
+    in-out property <string> build-test-run: "Run build test";
+    in-out property <string> managed-install-title: "Install Workshop item";
+    in-out property <string> managed-install-description: "Download and import into the managed directory. Steam keeps its download cache. Nothing is copied into the game directory.";
+    in-out property <string> managed-install-button: "Install in GameModding";
+    in-out property <string> workspace-title: "Review manager directory";
+    in-out property <string> workspace-description: "Settings replace the target settings, with the previous target saved in the database. Existing mods and projects stay in the previous directory. Game files are not moved.";
     // Shell & Navigation
     in-out property <string> tip-modmanager: "Modmanager";
     in-out property <string> tip-workshop: "Workshop Upload";
@@ -169,6 +177,8 @@ export global Tr {
     // Settings Page
     in-out property <string> settings-section-general: "GENERAL";
     in-out property <string> settings-section-diagnostics: "DIAGNOSTICS";
+    in-out property <string> settings-app-details: "APP DETAILS";
+    in-out property <string> settings-diagnostics-privacy: "Local account details stay on this device. Secrets, identifiers, and local paths are removed from diagnostics.";
     in-out property <string> settings-section-support: "SUPPORT";
     in-out property <string> settings-language: "Language";
     in-out property <string> settings-workspace: "Workspace";
@@ -178,6 +188,7 @@ export global Tr {
     in-out property <string> settings-steam-web-api-key-placeholder: "Optional fallback key when Steam client is offline…";
     in-out property <string> settings-browse: "Browse";
     in-out property <string> settings-apply: "Apply";
+    in-out property <string> settings-check-updates: "Check for updates";
     in-out property <string> settings-run-checks: "Run checks";
     in-out property <string> settings-open-log-folder: "Open log folder";
     in-out property <string> settings-support-bundle: "Support bundle";

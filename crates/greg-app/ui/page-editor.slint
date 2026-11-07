@@ -39,6 +39,7 @@ export component EditorPage inherits VerticalLayout {
 
     callback changed();
     callback save();
+    callback build-test();
     callback publish();
     callback publish-modstore();
     callback cancel-publish();
@@ -282,7 +283,11 @@ export component EditorPage inherits VerticalLayout {
                 wrap: word-wrap;
             }
 
-            SectionTitle { text: Tr.editor-section-checks; }
+            HorizontalLayout {
+                spacing: 8px;
+                SectionTitle { text: Tr.editor-section-checks; horizontal-stretch: 1; }
+                GregButton { text: Tr.build-test-title; has-icon: true; icon: IconSet.Hammer; clicked => { root.build-test(); } }
+            }
             Text {
                 text: root.readiness-text;
                 font-size: 12px;

@@ -1,8 +1,7 @@
 //! Workspace management (`WorkspaceService` port).
 //!
-//! Resolution order: custom path (preferences) → `<GameRoot>/workshop`
-//! (passed in — game discovery lives in `greg-loader`/`greg-steam`) → legacy
-//! `~/DataCenterWS` fallback.
+//! A workspace root is the manager base, containing configuration, logs,
+//! publishing projects and managed game content. Game installs are never bases.
 
 use std::path::{Path, PathBuf};
 
@@ -21,41 +20,139 @@ const PREVIEW_EXTENSIONS: &[&str] = &[".png", ".jpg", ".jpeg", ".gif", ".webp"];
 #[derive(Debug, Clone)]
 pub struct Workspace {
     root: PathBuf,
+    active_game: Option<crate::game_links::GameModdingSlot>,
+    active_game_root: Option<PathBuf>,
 }
 
 impl Workspace {
-    /// Resolves the root: custom path → game workshop dir → legacy fallback.
-    pub fn resolve(custom_path: Option<&str>, game_root: Option<&Path>) -> Self {
-        if let Some(custom) = custom_path {
-            if !custom.trim().is_empty() {
-                let p = PathBuf::from(custom.trim());
-                if p.is_dir() {
-                    return Self { root: p };
-                }
-            }
+    /// Resolve a configured base, then environment/bootstrap settings, then
+    /// `$HOME/GregModmanager`. A new custom directory need not exist yet.
+    /// `game_root` is retained for source compatibility and is not a base.
+    pub fn resolve(custom_path: Option<&str>, _game_root: Option<&Path>) -> Self {
+        let root = custom_path
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(crate::paths::manager_base_dir);
+        Self {
+            root,
+            active_game: None,
+            active_game_root: None,
         }
-        if let Some(game) = game_root {
-            let ws = game.join("workshop");
-            return Self { root: ws };
-        }
-        let fallback = crate::paths::legacy_fallback_workspace().unwrap_or_else(std::env::temp_dir);
-        Self { root: fallback }
     }
 
-    /// Resolved root.
+    /// Manager base, not the Workshop publishing-project directory.
     pub fn root(&self) -> &Path {
         &self.root
     }
-
-    /// `<root>/.templates`.
+    /// Publishing projects, each with `metadata.json` and `content/`.
+    pub fn workshop_dir(&self) -> PathBuf {
+        self.root.join("Workshop")
+    }
+    /// Manager configuration and internal settings database.
+    pub fn configs_dir(&self) -> PathBuf {
+        self.root.join("Configs")
+    }
+    /// Session logs and crash reports.
+    pub fn logs_dir(&self) -> PathBuf {
+        self.root.join("Logs")
+    }
+    /// Managed game content, separated from the game installation.
+    pub fn game_modding_dir(&self) -> PathBuf {
+        self.active_game
+            .as_ref()
+            .map(|game| game.path.clone())
+            .unwrap_or_else(|| self.root.join("GameModding"))
+    }
+    /// Return a workspace view scoped to one registered game installation.
+    /// Settings, logs, publishing projects and ModConfigs still use `root`.
+    pub fn for_game(&self, game_id: &str, game_root: &Path) -> Result<Self> {
+        let slot = crate::game_links::game_modding_slot(&self.root, game_id, game_root)?;
+        let mut workspace = self.clone();
+        workspace.active_game_root = Some(game_root.canonicalize().map_err(io_err)?);
+        workspace.active_game = Some(slot);
+        Ok(workspace)
+    }
+    /// The selected game installation root, when this workspace is scoped.
+    pub fn active_game_root(&self) -> Option<&Path> {
+        self.active_game_root.as_deref()
+    }
+    /// The selected game adapter ID, when this workspace is scoped.
+    pub fn active_game_id(&self) -> Option<&str> {
+        self.active_game.as_ref().map(|game| game.game_id.as_str())
+    }
+    /// Per-game, per-installation managed content root. The installation key
+    /// is opaque so local absolute paths are not exposed in directory names.
+    pub fn game_modding_dir_for(&self, game_id: &str, game_root: &Path) -> Result<PathBuf> {
+        Ok(crate::game_links::game_modding_slot(&self.root, game_id, game_root)?.path)
+    }
+    /// Per-installation Mods link location.
+    pub fn mods_dir_for(&self, game_id: &str, game_root: &Path) -> Result<PathBuf> {
+        Ok(self.game_modding_dir_for(game_id, game_root)?.join("Mods"))
+    }
+    /// Per-installation MelonLoader plugin link location.
+    pub fn melons_dir_for(&self, game_id: &str, game_root: &Path) -> Result<PathBuf> {
+        Ok(self
+            .game_modding_dir_for(game_id, game_root)?
+            .join("Melons"))
+    }
+    /// Per-installation UserLibs link location.
+    pub fn userlibs_dir_for(&self, game_id: &str, game_root: &Path) -> Result<PathBuf> {
+        Ok(self
+            .game_modding_dir_for(game_id, game_root)?
+            .join("UserLibs"))
+    }
+    /// Future content namespaces stay inside the selected game installation's
+    /// managed slot, with Objects established as the first Custom category.
+    pub fn custom_objects_dir_for(&self, game_id: &str, game_root: &Path) -> Result<PathBuf> {
+        Ok(self
+            .game_modding_dir_for(game_id, game_root)?
+            .join("Custom")
+            .join("Objects"))
+    }
+    /// Managed mods.
+    pub fn mods_dir(&self) -> PathBuf {
+        self.game_modding_dir().join("Mods")
+    }
+    /// Managed user libraries.
+    pub fn userlibs_dir(&self) -> PathBuf {
+        self.game_modding_dir().join("UserLibs")
+    }
+    /// Whole game UserData link, when the selected adapter supports it.
+    pub fn user_data_dir(&self) -> PathBuf {
+        self.game_modding_dir().join("UserData")
+    }
+    /// Future custom content roots remain organized by capability.
+    pub fn custom_dir(&self) -> PathBuf {
+        self.game_modding_dir().join("Custom")
+    }
+    /// Managed MelonLoader plugins.
+    pub fn melons_dir(&self) -> PathBuf {
+        self.game_modding_dir().join("Melons")
+    }
+    /// Per-mod configuration, separate from manager configuration.
+    pub fn mod_configs_dir(&self) -> PathBuf {
+        self.root.join("ModConfigs")
+    }
+    /// Publishing templates.
     pub fn templates_dir(&self) -> PathBuf {
-        self.root.join(".templates")
+        self.workshop_dir().join(".templates")
     }
 
-    /// Creates the workspace structure plus a metadata sample.
+    /// Create the standardized base structure without changing existing files.
     pub fn ensure_structure(&self) -> Result<()> {
-        std::fs::create_dir_all(&self.root).map_err(io_err)?;
-        std::fs::create_dir_all(self.templates_dir()).map_err(io_err)?;
+        for dir in [
+            self.configs_dir(),
+            self.logs_dir(),
+            self.workshop_dir(),
+            self.mods_dir(),
+            self.userlibs_dir(),
+            self.melons_dir(),
+            self.mod_configs_dir(),
+            self.templates_dir(),
+        ] {
+            std::fs::create_dir_all(dir).map_err(io_err)?;
+        }
         let sample = self.templates_dir().join("metadata.sample.json");
         if !sample.exists() {
             let meta = WorkshopMetadata {
@@ -69,34 +166,58 @@ impl Workspace {
         Ok(())
     }
 
-    /// Scans project folders (skips dot-folders), sorted by name.
+    /// Discover canonical publishing projects plus old projects directly in the
+    /// base. Legacy project paths remain valid and no files are moved on startup.
     pub fn scan_projects(&self) -> Result<Vec<WorkshopProject>> {
         self.ensure_structure()?;
         let mut list = Vec::new();
-        let entries = std::fs::read_dir(&self.root).map_err(io_err)?;
-        for entry in entries.flatten() {
-            let dir = entry.path();
-            if !dir.is_dir() {
-                continue;
+        let mut names = std::collections::HashSet::new();
+        let mut roots = vec![self.workshop_dir(), self.root.clone()];
+        if crate::paths::default_manager_base_dir().as_deref() == Some(self.root()) {
+            if let Some(legacy) = crate::paths::legacy_fallback_workspace() {
+                if legacy != self.root {
+                    roots.push(legacy);
+                }
             }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
-                continue;
+        }
+        for root in roots {
+            let entries = match std::fs::read_dir(&root) {
+                Ok(entries) => entries,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(io_err(error)),
+            };
+            for entry in entries {
+                let entry = entry.map_err(io_err)?;
+                let dir = entry.path();
+                if !entry.file_type().map_err(io_err)?.is_dir() {
+                    continue;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with('.') {
+                    continue;
+                }
+                // Manager directories and arbitrary folders are not projects.
+                if !dir.join("content").is_dir() && !dir.join("metadata.json").is_file() {
+                    continue;
+                }
+                if !names.insert(name.to_lowercase()) {
+                    continue;
+                }
+                let content = dir.join("content");
+                list.push(WorkshopProject {
+                    name,
+                    content_path: content.clone(),
+                    metadata_path: dir.join("metadata.json"),
+                    root_path: dir,
+                    is_valid_layout: content.is_dir(),
+                });
             }
-            let content = dir.join("content");
-            list.push(WorkshopProject {
-                name,
-                content_path: content.clone(),
-                metadata_path: dir.join("metadata.json"),
-                root_path: dir,
-                is_valid_layout: content.is_dir(),
-            });
         }
         list.sort_by_key(|a| a.name.to_lowercase());
         Ok(list)
     }
 
-    /// Finds the local project owning a Steam Workshop item.
+    /// Find the local project owning a Steam Workshop item.
     pub fn find_project_by_published_file_id(
         &self,
         published_file_id: u64,
@@ -113,43 +234,10 @@ impl Workspace {
         Ok(None)
     }
 
-    /// Moves legacy `~/DataCenterWS` projects into this workspace.
-    /// Returns the number of moved folders.
+    /// Compatibility hook. Legacy projects are discovered in place; automatic
+    /// startup must never move or delete a user's publishing sources.
     pub fn migrate_legacy_projects(&self) -> usize {
-        let Some(legacy) = crate::paths::legacy_fallback_workspace() else {
-            return 0;
-        };
-        if legacy == self.root || !legacy.is_dir() {
-            return 0;
-        }
-        let mut moved = 0;
-        let Ok(entries) = std::fs::read_dir(&legacy) else {
-            return 0;
-        };
-        for entry in entries.flatten() {
-            let dir = entry.path();
-            if !dir.is_dir() {
-                continue;
-            }
-            let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') {
-                continue;
-            }
-            if !dir.join("metadata.json").is_file() && !dir.join("content").is_dir() {
-                continue;
-            }
-            let dest = self.root.join(&name);
-            if dest.exists() {
-                continue;
-            }
-            if std::fs::create_dir_all(&self.root).is_err() {
-                continue;
-            }
-            if std::fs::rename(&dir, &dest).is_ok() {
-                moved += 1;
-            }
-        }
-        moved
+        0
     }
 
     /// Compares current state against the recorded publish hash.
@@ -184,15 +272,22 @@ impl Workspace {
         if !content.is_dir() {
             return ContentStats::default();
         }
-        ContentStats {
+        let mut stats = ContentStats {
             exists: true,
-            total_bytes: dir_size(&content),
-            file_count: walkdir::WalkDir::new(&content)
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.file_type().is_file())
-                .count() as i64,
+            ..Default::default()
+        };
+        for entry in walkdir::WalkDir::new(&content)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.file_type().is_file() {
+                if let Ok(metadata) = entry.metadata() {
+                    stats.total_bytes += metadata.len() as i64;
+                    stats.file_count += 1;
+                }
+            }
         }
+        stats
     }
 }
 
@@ -253,22 +348,32 @@ pub fn compute_publish_hash(
         let Ok(rel) = full.strip_prefix(&content) else {
             return String::new();
         };
-        let Ok(bytes) = std::fs::read(&full) else {
+        let Ok(mut file) = std::fs::File::open(&full) else {
+            return String::new();
+        };
+        let Ok(metadata) = file.metadata() else {
             return String::new();
         };
         let rel = rel.to_string_lossy().replace('\\', "/");
         hasher.update(rel.as_bytes());
         hasher.update([0u8]);
-        hasher.update((bytes.len() as u64).to_be_bytes());
+        hasher.update(metadata.len().to_be_bytes());
         hasher.update([0u8]);
-        hasher.update(&bytes);
+        if !hash_stream(&mut hasher, &mut file, metadata.len()) {
+            return String::new();
+        }
     }
     if !meta.preview_image_relative_path.trim().is_empty() {
         let preview = project_root.join(&meta.preview_image_relative_path);
         if preview.is_file() {
-            match std::fs::read(&preview) {
-                Ok(bytes) => hasher.update(&bytes),
-                Err(_) => return String::new(),
+            let Ok(mut file) = std::fs::File::open(&preview) else {
+                return String::new();
+            };
+            let Ok(metadata) = file.metadata() else {
+                return String::new();
+            };
+            if !hash_stream(&mut hasher, &mut file, metadata.len()) {
+                return String::new();
             }
         }
     }
@@ -282,6 +387,24 @@ pub fn compute_publish_hash(
     );
     hasher.update(meta_line.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+// Bound peak memory independently of mod size while retaining the existing
+// publish-hash wire format. A changing file must not produce a false sync hash.
+fn hash_stream(hasher: &mut Sha256, file: &mut std::fs::File, expected_len: u64) -> bool {
+    use std::io::Read;
+    let mut buffer = [0u8; 64 * 1024];
+    let mut read_bytes = 0u64;
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => return read_bytes == expected_len,
+            Ok(count) => {
+                hasher.update(&buffer[..count]);
+                read_bytes += count as u64;
+            }
+            Err(_) => return false,
+        }
+    }
 }
 
 /// Copies a directory tree recursively.
@@ -333,15 +456,6 @@ fn auto_detect_preview(project_root: &Path, meta: &mut WorkshopMetadata) {
             return;
         }
     }
-}
-
-fn dir_size(dir: &Path) -> i64 {
-    walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok().map(|m| m.len() as i64))
-        .sum()
 }
 
 /// Re-exported pure helpers (single source lives in `greg-core`).
@@ -403,7 +517,11 @@ mod tests {
     #[test]
     fn sync_state_roundtrip() {
         let root = temp_root("sync");
-        let ws = Workspace { root: root.clone() };
+        let ws = Workspace {
+            root: root.clone(),
+            active_game: None,
+            active_game_root: None,
+        };
         let mut meta = base_meta();
         meta.published_file_id = 0;
         save_metadata(&root, &meta).unwrap();
@@ -447,11 +565,60 @@ mod tests {
         std::fs::create_dir_all(root.join("b-proj").join("content")).unwrap();
         std::fs::create_dir_all(root.join("a-proj").join("content")).unwrap();
         std::fs::create_dir_all(root.join(".templates")).unwrap();
-        let ws = Workspace { root: root.clone() };
+        let ws = Workspace {
+            root: root.clone(),
+            active_game: None,
+            active_game_root: None,
+        };
         let projects = ws.scan_projects().unwrap();
         let names: Vec<_> = projects.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["a-proj", "b-proj"]);
         std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn layout_preserves_existing_projects_and_separates_manager_directories() {
+        let base = temp_root("layout");
+        let ws = Workspace::resolve(
+            Some(base.to_str().unwrap()),
+            Some(Path::new("/irrelevant-game")),
+        );
+        assert_eq!(ws.root(), base);
+        ws.ensure_structure().unwrap();
+        for directory in [
+            ws.configs_dir(),
+            ws.logs_dir(),
+            ws.workshop_dir(),
+            ws.mods_dir(),
+            ws.userlibs_dir(),
+            ws.melons_dir(),
+            ws.mod_configs_dir(),
+        ] {
+            assert!(directory.is_dir());
+        }
+        std::fs::create_dir_all(ws.workshop_dir().join("new-project/content")).unwrap();
+        std::fs::create_dir_all(base.join("old-project/content")).unwrap();
+        std::fs::write(base.join("old-project/content/mod.dll"), b"old").unwrap();
+        std::fs::create_dir_all(base.join("unrelated")).unwrap();
+        let projects = ws.scan_projects().unwrap();
+        assert_eq!(projects.len(), 2);
+        assert_eq!(ws.migrate_legacy_projects(), 0);
+        assert_eq!(
+            std::fs::read(base.join("old-project/content/mod.dll")).unwrap(),
+            b"old"
+        );
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn new_custom_base_does_not_need_to_exist() {
+        let parent = temp_root("new-base");
+        let base = parent.join("not-yet-created");
+        let ws = Workspace::resolve(Some(base.to_str().unwrap()), None);
+        assert_eq!(ws.root(), base);
+        ws.ensure_structure().unwrap();
+        assert!(base.join("Workshop").is_dir());
+        std::fs::remove_dir_all(parent).unwrap();
     }
 
     #[test]

@@ -84,14 +84,39 @@ fn sample_thumb() -> slint::Image {
     slint::Image::load_from_path(&logo).unwrap_or_default()
 }
 
+/// Each integration fixture owns a temporary settings DB and manager base;
+/// tests must not rewrite the developer's preferences or scan their mods.
+fn test_state(ui: &crate::MainWindow) -> std::sync::Arc<std::sync::Mutex<crate::state::AppState>> {
+    static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!(
+        "greg-app-fixture-{}-{nonce}-{id}",
+        std::process::id()
+    ));
+    let mut prefs =
+        greg_platform::prefs::SqlitePreferences::try_open_at(&base).expect("isolated settings DB");
+    let game = base.join("TestGame");
+    std::fs::create_dir_all(&game).expect("isolated game root");
+    use greg_core::prefs::Preferences as _;
+    prefs.set_string("GameRootPath", &game.to_string_lossy());
+    let workspace = greg_platform::workspace::Workspace::resolve(base.to_str(), None);
+    crate::state::AppState::with_services(ui.as_weak(), prefs, workspace)
+}
+
 fn sample_ui() -> crate::MainWindow {
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
     ui.window().set_size(slint::LogicalSize::new(1400.0, 900.0));
     ui.set_app_version("1.7.0".into());
     ui.set_steam_ok(true);
+    ui.set_steam_known(true);
     ui.set_steam_text("Steam Connected · Tester".into());
     ui.set_gregapi_ok(false);
+    ui.set_gregapi_known(true);
     ui.set_gregapi_text("gregAPI Offline".into());
     ui.set_modstore_available(false);
     ui.set_login_visible(false);
@@ -444,6 +469,12 @@ fn screenshots() {
     ui.set_profile_hint("tester@example.com".into());
     ui.set_show_profile_menu(true);
     shot(&ui, &window, "10-profile-menu");
+    ui.set_show_profile_menu(false);
+    ui.set_current_page("settings".into());
+    ui.set_workspace_target("/home/example/GregModmanager".into());
+    ui.set_show_workspace_modal(true);
+    shot(&ui, &window, "11-workspace-modal");
+    ui.set_show_workspace_modal(false);
 }
 
 /// Regression test for the upload freeze: project sync-state hashing must
@@ -456,12 +487,12 @@ fn project_sync_hashes_off_ui_thread() {
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     // Temp workspace with one published project (content + recorded hash).
     let tmp = std::env::temp_dir().join(format!("greg-sync-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
-    let root = tmp.join("proj1");
+    let root = tmp.join("Workshop").join("proj1");
     std::fs::create_dir_all(root.join("content")).expect("content dir");
     std::fs::write(root.join("content").join("mod.dll"), vec![7u8; 4096]).expect("content");
     let meta = WorkshopMetadata {
@@ -540,7 +571,7 @@ fn project_sync_hashes_off_ui_thread() {
 fn report_flow_generates_markdown_preview() {
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
     let state = std::sync::Arc::clone(&state);
 
     crate::actions::report_open(&state);
@@ -579,7 +610,7 @@ fn report_flow_generates_markdown_preview() {
 fn report_flow_collects_logs_into_draft() {
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
     let state = std::sync::Arc::clone(&state);
 
     crate::actions::report_open(&state);
@@ -618,13 +649,28 @@ fn report_flow_collects_logs_into_draft() {
 /// Regression test for My Mods Disable / Enable / Remove actions (including
 /// when a search filter is active and when Dolphin / another process has the
 /// game directory open).
+fn wait_for_local_scan(state: &std::sync::Arc<std::sync::Mutex<crate::state::AppState>>) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        {
+            let mut guard = state.lock().expect("state");
+            crate::actions::tick(&mut guard);
+            if !guard.local_scan_running && !guard.local_scan_pending {
+                return;
+            }
+        }
+        assert!(std::time::Instant::now() < deadline, "local scan timed out");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 #[test]
 fn local_toggle_and_remove_work_even_with_filter() {
     use greg_core::prefs::Preferences as _;
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     let tmp = std::env::temp_dir().join(format!(
         "greg-local-ui-test-{}",
@@ -633,7 +679,7 @@ fn local_toggle_and_remove_work_even_with_filter() {
             .expect("time")
             .as_nanos()
     ));
-    let mods_dir = tmp.join("Mods");
+    let mods_dir = tmp.join("GameModding").join("Mods");
     std::fs::create_dir_all(&mods_dir).expect("mods dir");
     std::fs::write(mods_dir.join("Alpha.dll"), b"alpha").expect("alpha");
     std::fs::write(mods_dir.join("Beta.dll"), b"beta").expect("beta");
@@ -644,11 +690,28 @@ fn local_toggle_and_remove_work_even_with_filter() {
         guard
             .prefs
             .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.workspace =
+            greg_platform::workspace::Workspace::resolve(Some(&tmp.to_string_lossy()), None);
         guard.ui().set_current_page("mymods".into());
         guard.ui().set_local_search("beta".into());
         crate::actions::local_refresh(&mut guard);
         prev
     };
+
+    wait_for_local_scan(&state);
+
+    // Search is a memory-only operation: a vanished source does not cause a
+    // rescan or thumbnail lookup on each keystroke. Explicit rescan owns I/O.
+    std::fs::remove_file(mods_dir.join("Beta.dll")).expect("temporarily remove beta");
+    {
+        let mut guard = state.lock().expect("state");
+        let generation = guard.local_scan_generation;
+        guard.ui().set_local_search("BETA".into());
+        crate::actions::local_filter_changed(&mut guard);
+        assert_eq!(guard.local_scan_generation, generation);
+        assert_eq!(guard.ui().get_local_active_rows().row_count(), 1);
+    }
+    std::fs::write(mods_dir.join("Beta.dll"), b"beta").expect("restore beta");
 
     // Only Beta.dll matches the filter, but its `row.index` is 1 in `local_entries`.
     let beta_idx = {
@@ -665,6 +728,7 @@ fn local_toggle_and_remove_work_even_with_filter() {
         mods_dir.join("Beta.dll.disabled").is_file(),
         "Beta.dll should be renamed to Beta.dll.disabled"
     );
+    wait_for_local_scan(&state);
     assert_eq!(ui.get_local_active_rows().row_count(), 0);
     assert_eq!(ui.get_local_inactive_rows().row_count(), 1);
 
@@ -678,6 +742,8 @@ fn local_toggle_and_remove_work_even_with_filter() {
     assert!(ui.get_show_confirm(), "confirm dialog should open");
     crate::actions::confirm_yes(&state);
     assert!(!mods_dir.join("Beta.dll.disabled").exists());
+
+    wait_for_local_scan(&state);
 
     // Restore preference and clean up.
     state
@@ -694,7 +760,7 @@ fn mylibs_install_modal_populates_and_selects_libraries() {
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     let tmp = std::env::temp_dir().join(format!(
         "greg-mylibs-modal-test-{}",
@@ -703,7 +769,7 @@ fn mylibs_install_modal_populates_and_selects_libraries() {
             .expect("time")
             .as_nanos()
     ));
-    let user_libs = tmp.join("UserLibs");
+    let user_libs = tmp.join("GameModding").join("UserLibs");
     std::fs::create_dir_all(&user_libs).expect("UserLibs dir");
     std::fs::write(user_libs.join("Jint.dll"), b"jint").expect("Jint.dll");
 
@@ -713,10 +779,14 @@ fn mylibs_install_modal_populates_and_selects_libraries() {
         guard
             .prefs
             .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.workspace =
+            greg_platform::workspace::Workspace::resolve(Some(&tmp.to_string_lossy()), None);
         guard.ui().set_current_page("mylibs".into());
         crate::actions::local_refresh(&mut guard);
         prev
     };
+
+    wait_for_local_scan(&state);
 
     // Open the Install Libraries modal.
     crate::actions::lib_open_modal(&state);
@@ -770,7 +840,7 @@ fn myplugins_browse_modal_populates_and_selects_plugins() {
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     let tmp = std::env::temp_dir().join(format!(
         "greg-myplugins-modal-test-{}",
@@ -779,7 +849,7 @@ fn myplugins_browse_modal_populates_and_selects_plugins() {
             .expect("time")
             .as_nanos()
     ));
-    let plugins_dir = tmp.join("Plugins");
+    let plugins_dir = tmp.join("GameModding").join("Melons");
     std::fs::create_dir_all(&plugins_dir).expect("Plugins dir");
     std::fs::write(plugins_dir.join("gregPlugin.Companion.dll"), b"companion")
         .expect("Companion.dll");
@@ -790,10 +860,14 @@ fn myplugins_browse_modal_populates_and_selects_plugins() {
         guard
             .prefs
             .set_string("GameRootPath", &tmp.to_string_lossy());
+        guard.workspace =
+            greg_platform::workspace::Workspace::resolve(Some(&tmp.to_string_lossy()), None);
         guard.ui().set_current_page("myplugins".into());
         crate::actions::local_refresh(&mut guard);
         prev
     };
+
+    wait_for_local_scan(&state);
 
     // Open the Browse Plugins modal.
     crate::actions::plugin_open_modal(&state);
@@ -855,7 +929,7 @@ fn workshop_item_3741628037_metadata_and_preview_binds_to_browse_ui() {
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     // Configure Steam Web API key in Settings UI and apply it.
     let old_key = state
@@ -913,9 +987,11 @@ fn workshop_item_3741628037_metadata_and_preview_binds_to_browse_ui() {
     let payload = serde_json::to_string(&detail).expect("json");
     {
         let mut guard = state.lock().expect("state");
+        let key = format!("workshop:{item_id}");
         guard
-            .thumb_done
-            .insert(item_id.to_string(), preview_path.clone());
+            .thumb_urls
+            .insert(key.clone(), detail.preview_image_url.clone());
+        guard.thumb_done.insert(key, preview_path.clone());
         guard.browse_job = Some(crate::worker::JobHandle::spawn(move |_sink| {
             crate::worker::JobOutcome {
                 success: true,
@@ -961,7 +1037,7 @@ fn i18n_language_switch_updates_tr_global_and_navigation() {
 
     let _window = headless_window();
     let ui = crate::MainWindow::new().expect("window");
-    let state = crate::state::AppState::new(ui.as_weak());
+    let state = test_state(&ui);
 
     let old_lang = state
         .lock()
@@ -1004,4 +1080,53 @@ fn i18n_language_switch_updates_tr_global_and_navigation() {
         .expect("state")
         .prefs
         .set_string("AppLanguage", &old_lang);
+}
+
+#[test]
+fn modstore_type_and_search_filter_preserve_provider_slugs() {
+    use greg_core::models::ProjectContentKind;
+    use greg_modstore::models::ModStoreCatalogItem;
+    let _window = headless_window();
+    let ui = crate::MainWindow::new().expect("window");
+    let state = test_state(&ui);
+    let mut guard = state.lock().expect("state");
+    guard.store_items = [
+        (
+            "asset",
+            "Decorative asset",
+            ProjectContentKind::PlacableObject,
+        ),
+        ("library", "Shared Library", ProjectContentKind::Userlib),
+        (
+            "plugin",
+            "Loader Plugin",
+            ProjectContentKind::MelonloaderPlugin,
+        ),
+    ]
+    .into_iter()
+    .map(|(slug, title, kind)| ModStoreCatalogItem {
+        slug: slug.into(),
+        title: title.into(),
+        tags: vec![format!("greg-mod-type:{}", kind.name())],
+        ..Default::default()
+    })
+    .collect();
+    ui.set_st_kind(2);
+    crate::actions::store_filter(&mut guard);
+    assert_eq!(ui.get_st_items().row_count(), 1);
+    assert_eq!(
+        ui.get_st_items().row_data(0).unwrap().slug.as_str(),
+        "library"
+    );
+    ui.set_st_kind(0);
+    ui.set_st_search("PLUGIN".into());
+    crate::actions::store_filter(&mut guard);
+    assert_eq!(ui.get_st_items().row_count(), 1);
+    assert_eq!(
+        ui.get_st_items().row_data(0).unwrap().slug.as_str(),
+        "plugin"
+    );
+    ui.set_st_kind(1);
+    crate::actions::store_filter(&mut guard);
+    assert_eq!(ui.get_st_items().row_count(), 0);
 }

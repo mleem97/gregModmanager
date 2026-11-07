@@ -1,7 +1,9 @@
 //! Desktop UI entry point (Slint main window).
 
 mod actions;
+mod image_cache;
 mod state;
+mod update;
 mod worker;
 
 #[cfg(test)]
@@ -39,11 +41,30 @@ fn main() -> anyhow::Result<()> {
             std::process::exit(0);
         }
     };
-    let state = AppState::new(ui.as_weak());
+    let prefs = greg_platform::prefs::SqlitePreferences::open();
+    if !prefs.is_persistent() {
+        anyhow::bail!(
+            "Cannot open settings database: {}",
+            prefs.last_error().unwrap_or_default()
+        );
+    }
+    if let Some(error) = prefs.take_error() {
+        log.warn(&format!("Legacy preference import: {error}"));
+    }
+    let base = prefs
+        .path()
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("settings database has base directory")
+        .to_path_buf();
+    let workspace = greg_platform::workspace::Workspace::resolve(base.to_str(), None);
+    workspace.ensure_structure()?;
+    let state = AppState::with_services(ui.as_weak(), prefs, workspace);
     state.lock().expect("state").instance_guard = instance;
     wire(&ui, &state);
     AppState::append_log(&state, "gregModmanager started.");
     // Session restore + protocol URLs from our own launch arguments.
+    update::check(&state, false);
     actions::restore_session(&state);
     for arg in std::env::args().skip(1) {
         if arg.starts_with("greg://") {
@@ -129,12 +150,52 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         ui.on_window_close(move || actions::window_close(&state));
     }
 
+    {
+        let state = Arc::clone(state);
+        ui.on_se_confirm_workspace(move || actions::settings_confirm_workspace(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_br_review_install(move || actions::browse_review_install(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_br_install(move || actions::browse_install(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_review_build(move || actions::editor_review_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_run_build(move || actions::editor_run_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_cancel_build(move || actions::editor_cancel_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_st_filter_changed(move || {
+            if let Ok(mut state) = state.lock() {
+                actions::store_filter(&mut state);
+            }
+        });
+    }
     // Local content.
     {
         let state = Arc::clone(state);
         ui.on_local_refresh(move || {
             if let Ok(mut guard) = state.lock() {
                 actions::local_refresh(&mut guard);
+            }
+        });
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_local_filter_changed(move || {
+            if let Ok(mut guard) = state.lock() {
+                actions::local_filter_changed(&mut guard);
             }
         });
     }
@@ -473,6 +534,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_se_apply_modstore_url(move || actions::settings_apply_modstore_url(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_se_check_updates(move || update::check(&state, true));
     }
     {
         let state = Arc::clone(state);

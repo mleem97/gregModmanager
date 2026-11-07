@@ -37,12 +37,73 @@ pub struct GamePathSet {
     pub plugins: PathBuf,
     /// Shared libraries (`{root}/Plugins/Dependencies`).
     pub user_libraries: PathBuf,
+    /// MelonLoader's game-level UserLibs directory.
+    #[serde(default)]
+    pub user_libs: PathBuf,
     /// Mod configs (`{root}/UserData/ModCfg`).
     pub mod_cfg: PathBuf,
     /// Savegames (`{root}/UserData/Saves`).
     pub saves: PathBuf,
+    /// User-specific game data (`{root}/UserData`). This is linked as a unit
+    /// only after a review because it includes saves and other game state.
+    #[serde(default)]
+    pub user_data: PathBuf,
     /// Native workshop delivery folder.
     pub workshop: PathBuf,
+    /// Verified legacy destination for manager `Custom/Objects`, when known.
+    /// `None` deliberately means no link is offered; `StreamingAssets` is
+    /// never linked wholesale.
+    #[serde(default)]
+    pub custom_objects: Option<PathBuf>,
+}
+
+impl GamePathSet {
+    /// Build the reviewed manager-to-game link mappings from adapter-resolved
+    /// paths. Adapter paths outside the installation root are omitted rather
+    /// than widening the manager's write scope.
+    pub fn managed_link_specs(
+        &self,
+        game_root: &Path,
+    ) -> Vec<greg_platform::game_links::ManagedLinkSpec> {
+        use greg_platform::game_links::{ManagedDirectory as D, ManagedLinkSpec as S};
+
+        let relative = |path: &Path| path.strip_prefix(game_root).ok().map(Path::to_path_buf);
+        let mut specs = vec![
+            S {
+                directory: D::Mods,
+                game_relative: relative(&self.mods),
+            },
+            S {
+                directory: D::MelonPlugins,
+                game_relative: relative(&self.plugins),
+            },
+            S {
+                directory: D::UserLibs,
+                game_relative: relative(&self.user_libs),
+            },
+            S {
+                directory: D::UserData,
+                game_relative: relative(&self.user_data),
+            },
+            S {
+                directory: D::CustomObjects,
+                game_relative: self.custom_objects.as_deref().and_then(relative),
+            },
+        ];
+        // An invalid/outside mapping is represented as unavailable so it
+        // remains visible to the review UI without silently escaping the game.
+        for spec in &mut specs {
+            if spec.game_relative.as_ref().is_some_and(|path| {
+                path.as_os_str().is_empty()
+                    || path
+                        .components()
+                        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+            }) {
+                spec.game_relative = None;
+            }
+        }
+        specs
+    }
 }
 
 /// Compatibility verdict.
@@ -294,11 +355,16 @@ impl GameAdapter for DataCenterGameAdapter {
             mods: game_root.join("Mods"),
             plugins: game_root.join("Plugins"),
             user_libraries: game_root.join("Plugins").join("Dependencies"),
+            user_libs: game_root.join("UserLibs"),
             mod_cfg: game_root.join("UserData").join("ModCfg"),
             saves: game_root.join("UserData").join("Saves"),
+            user_data: game_root.join("UserData"),
             workshop: Self::unity_data_dir(game_root)
                 .join("StreamingAssets")
                 .join("Mods"),
+            // The current adapter documents StreamingAssets/Mods for native
+            // Workshop delivery, but no verified Objects child exists yet.
+            custom_objects: None,
         }
     }
 
@@ -386,4 +452,35 @@ pub fn apply_install_plan(plan: &GameInstallPlan) -> Result<Vec<PathBuf>> {
         installed.push(target);
     }
     Ok(installed)
+}
+
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+    use greg_platform::game_links::ManagedDirectory;
+
+    #[test]
+    fn data_center_managed_paths_are_adapter_owned_and_custom_objects_stay_unavailable() {
+        let root =
+            std::env::temp_dir().join(format!("greg-data-center-paths-{}", std::process::id()));
+        let adapter = DataCenterGameAdapter;
+        let paths = adapter.paths(&root);
+        assert_eq!(paths.mods, root.join("Mods"));
+        assert_eq!(paths.plugins, root.join("Plugins"));
+        assert_eq!(paths.user_libs, root.join("UserLibs"));
+        assert_eq!(paths.user_data, root.join("UserData"));
+
+        let specs = paths.managed_link_specs(&root);
+        assert_eq!(specs.len(), 5);
+        assert_eq!(specs[0].directory, ManagedDirectory::Mods);
+        assert_eq!(specs[0].game_relative, Some(PathBuf::from("Mods")));
+        assert_eq!(specs[1].directory, ManagedDirectory::MelonPlugins);
+        assert_eq!(specs[1].game_relative, Some(PathBuf::from("Plugins")));
+        assert_eq!(specs[2].directory, ManagedDirectory::UserLibs);
+        assert_eq!(specs[2].game_relative, Some(PathBuf::from("UserLibs")));
+        assert_eq!(specs[3].directory, ManagedDirectory::UserData);
+        assert_eq!(specs[3].game_relative, Some(PathBuf::from("UserData")));
+        assert_eq!(specs[4].directory, ManagedDirectory::CustomObjects);
+        assert_eq!(specs[4].game_relative, None);
+    }
 }

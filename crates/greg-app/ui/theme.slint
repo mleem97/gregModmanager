@@ -334,10 +334,13 @@ export component WinBtn inherits Rectangle {
     }
 }
 
-// 8px status LED + label, elides gracefully on 800px status bars.
+// Service logo + status label, elides gracefully on 800px status bars.
 export component StatusLed inherits HorizontalLayout {
     in property <bool> ok: false;
     in property <string> text;
+    in property <image> icon;
+    in property <bool> known: true;
+    in property <bool> highlight-white: false;
 
     spacing: 6px;
     alignment: start;
@@ -345,11 +348,14 @@ export component StatusLed inherits HorizontalLayout {
 
     VerticalLayout {
         alignment: center;
-        Rectangle {
-            width: 8px;
-            height: 8px;
-            border-radius: 4px;
-            background: root.ok ? Palette.led-ok : Palette.led-bad;
+        Image {
+            width: 18px;
+            height: 18px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.highlight-white ? #FFFFFF
+                : !root.known ? Palette.on-variant
+                : root.ok ? Palette.led-ok : Palette.led-bad;
         }
     }
 

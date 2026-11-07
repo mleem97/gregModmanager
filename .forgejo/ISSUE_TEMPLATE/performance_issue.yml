@@ -1,0 +1,38 @@
+name: "Performance issue"
+description: "Report slowdowns, freezes, or high resource usage"
+title: "[Performance]: "
+labels: ["performance"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What is slow?
+      placeholder: "Loading projects takes 30s ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      placeholder: "What action causes the slowdown?"
+    validations:
+      required: true
+
+  - type: input
+    id: dataset
+    attributes:
+      label: Project size / count
+      placeholder: "e.g. 120 projects, 2GB content"
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements (optional)
+      description: CPU, memory, timings, profiler snapshots.
+
+  - type: input
+    id: app_version
+    attributes:
+      label: App version
+      placeholder: "e.g. 1.0.2"
