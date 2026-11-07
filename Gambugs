@@ -1,0 +1,156 @@
+# NATIVE GAME BUGS
+
+The Following are Copied from "Waseku" Discord.
+
+- When in multiplayer, when another player is working with a cable and is finished, when I grab it, it resets back to the value when you buy a new spool so 100m, 200m. depending on the type of cable. You do not have to buy a new cable spool anymore.
+- When in multiplayer, sometimes one of the servers in a rack another player has put down, sticks out, When you grab it, you have an extra server and he still has the original one in the rack. You cannot use the server since it does not function (the customers don't count them) , but it is still a dupe
+- I cannot see the technicians when I join the multiplayer from my friend. When I try to assign a task to them it doesnt work. Only the host sees them and can do this.
+    -> Synchronisieren von Technikern durch QOL Mod?
+- When you have a cable spool and try to connect it whilsts its too short, you will need to disconnect it. So in this case my cable was 20.4m and too short to reach the switch I wanted, i disconnected it to grab a new spool and saw that the disconnected length has been added onto my cable length so now I had 40.8m. So the length you disconnect gets added onto the base value of the cable length. so if its 10m you will get 20m etc..
+- sometime trolley starts to flickering while a cable on it. when you grab the cable then trolley gets fixed by change %50 %50 i think. and i had to press reset trolley button
+- in multiplayer custimoer becomes his8 servers but after seconds it goes to 0 and at my find he has 2 the ips are parmanentaly reseting i cant just make the first customer happy bc the ips are reseting
+- hi there. when i try to rename a server via here and then press ESC while renaming... device control panel disappears but rename panel keeps open and movement controls getting activated.
+- i reached 50k xp in one of my save and saved some custom racks. after that i started a fresh game and used that custom rack for first customer. but game tutorial system couldn't detect it and forced to me buy empty cabinet, switch etc. -> DEV ANSWER: custom racks are bound to save ..player should not have access to the designer room in newgame. Refactor the code around cleanup of the rack templates. Now should not be visible when starting new game.
+- The floor and ceiling are completely black/unrendered, and wall textures are glitching. Game runs at around 10-17 FPS. Changing graphics settings to Low/Very Low or switching launch options (-dx11, -force-glcore, -force-vulkan) does not fix the issue.
+System Specifications: CPU: Intel Core i5 (5th Gen - Broadwell) - GPU: Intel HD Graphics 5500 (Integrated GPU only, discrete GPU disabled) - OS: Windows 10
+- i paste some color codes while trying to buy custom colored rack/cables and it goes black after i paste the code. i delete last letter of code and write again by hand (not pasting) for fixing it.
+- When you drive a cart and have switches loaded, you can accidentally press the config button on one of the switches and you cant exit forcing you to quit via alt + f4
+- the tutorial and goals appear under the shop menu (in my opinion they should be on top of it)
+it is enough to add an item to your cart for it to count as an objective completed (buy objective)
+the mouse scroll should be way faster in my opinion
+I think the "back" and "cancel" buttons are redundant in the buy menu since the "cancel" button just goes back and clears your shopping cart
+in my opinion the M1 button should do some of the things the "E" button can (or have both of them do the same thing)
+please make items spawn in the front and not in the back of the container (even tho I do see the artistic intent in the delivery guy not bothering with putting the packages in the convenient spot and that the items always spawn close to each other :))
+if you press Q while entering the cart your camera gets very glitchy
+the enter and exit button should be the same for the cart
+the delivery bay lever should be interactable with when youre using the cart
+when youre using the cable management side rings it says that the "port" is full even tho the rings are usable (I suggest putting a different icon for this)
+the time runs when in the tutorial popup screen
+the sounds still play while in the pause menu
+music just doesent work for some reason now (I think there was some background music by default but I do have the radio turned off so that may be why)
+the game looks way better without any anti-aliasing (or at least the text)
+when you start typing in the IP the 0.0.0.0 should not need to be cleared first in my opinion
+even when you remove a cable it just stays there graphically and logically (as in packets go through)- the cable removing only works sometimes
+
+## User Requests
+
+---
+I would love to see some more balancing to the game and maybe some increased prices in correlation with your level / reputation.
+
+Right now, money and reputation and xp don't matter to be honest. I earn 67 p/s and only spend 19 p/s with all the upgrades and all the technicians. I would love to see this balanced some more.
+
+Make prices higher , maybe higher reputation even higher prices
+Decrease the amount of reputation & xp earned
+Maybe increase upkeep costs
+Add more upkeep costs, generator & cooling room?
+Datacenter rent per section you expand into?
+IPS costs etc.
+
+More type of servers
+Maybe random events? or ransom hacks etc..
+
+A lot of things could work to balance the game and make money worth it again.
+---
+I would love to see a form of structured cabling, perhaps in the form of 12 core MPT cassettes and something like a 24/48 core that you can span between racks
+---
+As someone still learning and who makes mistakes and often rebuilds and moves racks, it would be so nice to be able to just disconnect every cable on a given rack or switch in one go. having to manually perform each disconnect is tedious, slow, and makes me sad.
+---
+Pickup stacks of SFP ports instead of placing one by one - Same as title, change them so that you pick up all 5 and can use the stack in your hand instead of having to do it one by one since that gets very tedious once you start building complex racks
+---
+There should be a DHCP manager machine. Once we connect and configure it, it should automatically update all servers and set the customer configurations correctly.
+---
+Please add a room where players can build and create whatever they want using items available in the store. This would give players more freedom to be creative and experiment with different items. Like a separate lab room with a sandbox mode.
+---
+Change service requests so that there isn't a server amount requirement. Not sure about everyone else's view on this, but my process is usually to set up the allocation prior to accepting the client, then hooking it up as soon as I choose the client. It is a bit annoying that the client is picky about the server count for service requests. As long as the processing power is the same, it shouldn't make much of a difference. This is also speaking as someone who does not have experience with actual clients irl from a datacenter perspective. Although, it is an annoying mechanic to have to swap out preplaced large servers with a larger count of smaller ones just to fulfill a service request for placing a specific number on a subnet rather than just moving the app itself to the subnet.
+
+Or, alternatively, just make it so you can see the required server amount before accepting the client.
+
+Example weird service request:
+Customer wants 26 servers on app 1's new subnet. The minimum speed setup for that is 130,000 IOPS. The customer is paying for 100,000 IOPS on app 1. Their service request is 30,000 IOPS over what they pay for.
+---
+Is MPLS, (VRF/VPRN) a possibility
+Simplified version, but just to keep vrfs separate on router
+Note, use a new type of heavy routers for this
+Also requires a router reflector in your network (no configuration needed for simplicity's sake, just deploy it, and give it a name and select it on the new router type as it's RR, min 2 required) only qsfp ports, 2RU for RR, and 14RU for the core routers.
+RR (2x QFSP28 ports)
+Core router (8x QSFP28, 4xQSFP-DD)
+
+New switches 1, 4,  and 8 RU
+1RU, 16x QSFP28, 2x QFSP-DD
+6RU, 10x QSFP-DD,
+12RU, 24x QSFP-DD
+
+The new router, switches are the only ones that can equip the 400GB QFSP-DD modules
+
+New modules:
+QFSP28 >  100 GB
+QFSP-DD > 400 GB
+
+Meet me room expansion for external connections requiring a variety of connectors or colors depending on demand. Customers want to deploy 3P services and we need to connect their server farm and connections to the internet and connections to the external market. (Think of it as deploying an interconnect to various service providers, we only build the connection)
+
+By default customers should get a max 1Gbit connection and can request upgrades for an extra 1,10 or 100Gb via an SR. Forcing the player to plan their infrastructure to accommodate for future expansion and scalability and sometimes have to replace the switches/cabling to accommodate for the higher bandwidths.
+---
+A copy button for the Coop session id.
+---
+can you add more workers.  wright now there are 6 it would help if we could have more
+---
+Suggestion
+the tutorial and goals appear under the shop menu (in my opinion they should be on top of it)
+
+the mouse scroll should be way faster in my opinion
+
+I think the "back" and "cancel" buttons are redundant in the buy menu since the "cancel" button just goes back and clears your shopping cart
+
+in my opinion the M1 button should do some of the things the "E" button can (or have both of them do the same thing)
+
+please make items spawn in the front and not in the back of the container (even tho I do see the artistic intent in the delivery guy not bothering with putting the packages in the convenient spot and that the items always spawn close to each other :))
+
+the enter and exit button should be the same for the cart
+
+the game looks way better without any anti-aliasing (or at least the text)
+
+when you start typing in the IP the 0.0.0.0 should not need to be cleared first in my opinion
+---
+It's possible to set everything else up from the main desktop,  It seems odd having to specifically press buttons on the devices manually just to change the customer the server is for.
+---
+Please add a comprehensive power system where every server requires electricity—including UPS units, power costs, and everything else associated with it. I don't think I'm the only one who believes such a feature would significantly enrich the game.
+---
+Um die ständigen IP-Adresskonflikte im Spiel zu lösen, bei denen Clients bei Service Requests unweigerlich in die vom Spieler definierten privaten Subnetze eingreifen, solltest du deine bestehende Mod gregMod.IPAM erweitern oder eine gezielte Networking-Modifikation entwickeln. Die Kernfunktion dieses Updates muss es sein, serverseitig zu blockieren, dass Clients RFC1918-Netzwerke oder andere BOGON-Adressen verwenden, indem ihre zugewiesenen Netzwerke strikt auf den Pool der rund 3,7 Milliarden verfügbaren öffentlichen IP-Adressen gezwungen werden. Darüber hinaus kannst du daraus eine komplexe Gameplay-Mechanik für das Verbinden von Unternehmensnetzwerken (B2B-Interconnections) machen: Wenn zwei Unternehmen im Spiel überlappende private IP-Räume nutzen und verbunden werden müssen, entsteht ein Routing-Konflikt, den der Spieler lösen muss. Als Lösungswege könntest du implementieren, dass der Spieler entweder dedizierte Punkt-zu-Punkt-Verbindungen (Dark Fiber) aufbaut, auf Carrier-Grade NAT (100.64.0.0/10) als nicht-routbaren öffentlichen Zwischenraum ausweicht oder über ein Verhandlungssystem (im witzigen "Schere, Stein, Papier"-Stil mit den Netzwerkarchitekten) entscheidet, welche der beiden Parteien ihren IP-Bereich komplett umstrukturieren muss.
+---
+
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---

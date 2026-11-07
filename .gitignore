@@ -6,6 +6,12 @@ publish/
 release-assets/
 /target/
 /dist/
+# Locally staged release packages and their tester instructions.
+/gregmodmanager-*.exe
+/gregmodmanager-*.msi
+/gregmodmanager-*.apk
+/gregmodmanager-*.sha256
+/gregmodmanager-*-TESTANLEITUNG.md
 # Crate-local Cargo targets when a workspace tool is invoked below the root.
 **/target/
 crates/greg-app/ui/.generated/

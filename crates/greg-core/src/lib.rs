@@ -10,6 +10,7 @@ pub mod limits;
 pub mod log;
 pub mod models;
 pub mod prefs;
+pub mod report;
 pub mod upload;
 pub mod util;
 

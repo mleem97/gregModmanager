@@ -1,28 +1,34 @@
 # gregModmanager
 
-> Cross-platform desktop mod manager for the **gregFramework** ecosystem — local Workshop projects, Steam Workshop publishing, Mod Store, and one-click game launch for **Data Center**.
+> Cross-platform desktop mod manager for the **_gregFramework ecosystem_** — local Workshop projects, Steam Workshop publishing, Mod Store, and one-click game launch for **_Data Center_** _(by Waseku)_.
 
-[![Build and Release](https://github.com/mleem97/gregModmanager/actions/workflows/build-and-release.yml/badge.svg)](https://github.com/mleem97/gregModmanager/actions/workflows/build-and-release.yml)
-----
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/greg)
-[![gregFramework](https://img.shields.io/badge/gregFramework-Website-blue?style=for-the-badge)](https://gregframework.eu)
-[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.6.1-orange?style=for-the-badge)](VERSION)
-[![Release](https://img.shields.io/badge/Release-Download-blueviolet?style=for-the-badge&logo=github)](https://github.com/mleem97/gregModmanager/releases)
-[![Sponsors](https://img.shields.io/badge/Sponsors-Support-ea4aaa?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/mleem97)
-[![DotNet](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet)](global.json)
-[![Avalonia](https://img.shields.io/badge/Avalonia-12.1-8c7ff0?style=for-the-badge)](https://avaloniaui.net)
-[![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=for-the-badge&logo=windows)](https://github.com/mleem97/gregModmanager/releases)
-[![Linux](https://img.shields.io/badge/Linux-x64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/mleem97/gregModmanager/releases)
-<!-- TODO(instance): Forgejo CI badge once the instance URL is fixed:
-[![CI](https://img.shields.io/badge/CI-Forgejo-orange?style=for-the-badge)](<forgejo-url>/mleem97/gregModmanager/actions)
--->
+[![Built With Rust](https://forthebadge.com/images/badges/built-with-rust.svg)](https://www.rust-lang.org)
+[![Made With Slint](https://img.shields.io/badge/MADE_WITH-SLINT-%238C7FF0?style=for-the-badge&logo=slate&logoColor=white)](https://slang.dev)
+[![Discord Join](https://img.shields.io/badge/DISCORD-JOIN_GREGFRAMEWORK-%235865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/greg)
+[![Modmanager Website](https://img.shields.io/badge/MODMANAGER-WEBSITE-%23007ACC?style=for-the-badge)](https://modmanager.gregframework.eu)
+[![License Apache](https://forthebadge.com/images/badges/license-apache-2.0.svg)](LICENSE)
+[![Release Version](https://raw.githubusercontent.com/mleem97/gregModmanager/main/VERSION)](https://github.com/mleem97/gregModmanager/releases)
+[![Release Version Staging](https://raw.githubusercontent.com/mleem97/gregModmanager/staging/VERSION)](https://github.com/mleem97/gregModmanager/tree/staging)
+[![Release Version Dev](https://raw.githubusercontent.com/mleem97/gregModmanager/dev/VERSION)](https://github.com/mleem97/gregModmanager/tree/dev)
+[![GitHub Sponsors](https://img.shields.io/badge/GITHUB-SPONSORS-%23EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/mleem97)
+[![Rust Version](https://img.shields.io/badge/RUST-STABLE-%23CE422B?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org)
+[![Slint Version](https://img.shields.io/badge/SLINT-V1.18.1-%238C7FF0?style=for-the-badge&logo=slate&logoColor=white)](https://slang.dev)
+[![Supported OS Linux & Windows](https://img.shields.io/badge/SUPPORTED_OS-LINUX_%7C_WINDOWS-%230078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/mleem97/gregModmanager/releases)
+
+<!-- Alternative mit macOS (Ausgeklammert für später): -->
+<!-- [![Supported OS All](https://img.shields.io/badge/SUPPORTED_OS-LINUX_%7C_WINDOWS_%7C_MACOS(SOON)-%2389B4FA?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/mleem97/gregModmanager/releases) -->
+
+[![Powered by MelonLoader](https://img.shields.io/badge/POWERED_BY-MELONLOADER-%23303030?style=for-the-badge)](https://melonwiki.xyz)
+[![Powered by Datacentermods](https://img.shields.io/badge/POWERED_BY-DATACENTERMODS.COM-%231E1E2E?style=for-the-badge)](https://datacentermods.com)
+
+---
 
 ## Links
 
 - **Repository:** [github.com/mleem97/gregModmanager](https://github.com/mleem97/gregModmanager) (mirror — primary instance is Forgejo)
 - **Discord / Support:** [discord.gg/greg](https://discord.gg/greg)
 - **Website:** [gregframework.eu](https://gregframework.eu)
+- **Modmanager Website:** [modmanager.gregframework.eu](https://modmanager.gregframework.eu)
 - **Releases:** [github.com/mleem97/gregModmanager/releases](https://github.com/mleem97/gregModmanager/releases)
 
 ## Overview
@@ -31,17 +37,21 @@
 
 ## Compatibility
 
-| Platform | Build status | Distribution status |
-| --- | --- | --- |
-| Windows x64 | Supported | Portable ZIP, Inno Setup EXE, WiX MSI |
-| Linux x64 | Supported | Portable ZIP/tarball, DEB, RPM, APK, Arch package |
+| Platform        | Build status | Distribution status                                              |
+| --------------- | ------------ | ---------------------------------------------------------------- |
+| Windows x64     | Supported    | Portable ZIP, Inno Setup EXE, WiX MSI                            |
+| Linux x64       | Supported    | Portable ZIP/tarball, DEB, RPM, APK, Arch package                |
 | macOS x64/arm64 | Experimental | Real-Mac validation required; no signed or notarized release yet |
 
-| Requirement | Version |
-| --- | --- |
-| .NET SDK | pinned in [global.json](global.json) (.NET 10) |
-| Steam client | running (for Workshop features) |
-| Data Center | Steam AppID `4170200` |
+The APK package is experimental until Alpine runtime and Steam compatibility
+have been validated. Native installation and upgrade tests are required before
+publishing the newly prepared installers and packages.
+
+| Requirement    | Version                                |
+| -------------- | -------------------------------------- |
+| Rust toolchain | stable via [rustup](https://rustup.rs) |
+| Steam client   | running (for Workshop features)        |
+| Data Center    | Steam AppID `4170200`                  |
 
 ## Features
 
@@ -53,22 +63,28 @@
 - **With Mods** — launch Data Center with the installed local mods
 - **Headless mode** — scripted/CI publishing without UI
 - **Settings** — workspace folder, game root, language, mod-store mode
-- **Localization** — English + German (minimum), more via `AppStrings` resources
+- **Localization** — English + German (minimum), more via the `greg-core` l10n modules
 
-The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full and Decide-later modes, it also exposes a Steam Workshop **Mod Store**. Profile management, manual load-order editing, automatic conflict resolution, and an in-app updater are not currently released features.
+The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full and Decide-later modes, it also exposes a Steam Workshop **Mod Store**. Profile management, manual load-order editing, and automatic conflict resolution are not currently released features.
 
 ## Installation
 
 ### Windows
 
-1. Download `gregModmanager-<version>-Windows.zip` (or the Setup EXE) from the [releases page](https://github.com/mleem97/gregModmanager/releases)
-2. Extract the ZIP anywhere (or run the installer) and start `GregModmanager.exe`
+1. Download `gregmodmanager-<version>-win-x64.zip` (or the Setup EXE) from the [releases page](https://github.com/mleem97/gregModmanager/releases)
+2. Extract the ZIP anywhere (or run the installer) and start `gregmodmanager.exe`
 3. Make sure **Steam is running** before starting the app
 
 ### Linux
 
-1. Download `gregModmanager-<version>-Linux.tar.gz` (or a DEB/RPM/APK/Arch package) from the [releases page](https://github.com/mleem97/gregModmanager/releases)
-2. Extract the tarball anywhere and start `./GregModmanager` (or install the package)
+1. Download `gregmodmanager-<version>-linux-x64.tar.gz` (or a DEB/RPM/APK/Arch package) from the [releases page](https://github.com/mleem97/gregModmanager/releases)
+2. Extract the tarball anywhere and start `./gregmodmanager` (or install the package)
+
+The app checks GitHub Releases at startup and can also check from Settings.
+After confirmation it downloads the matching package and opens the installer or
+system package handler. Portable installations receive an archive and must be
+replaced manually. Some Linux desktops need a package handler installed for the
+chosen format. Downloads are verified against GitHub's release-asset SHA-256.
 3. Make sure **Steam is running** before starting the app — `libsteam_api64.so` / `libsteam_api.so` ship next to the binary
 
 ## Dependencies
@@ -78,74 +94,88 @@ The desktop UI exposes **Projects**, **New Project**, and **Settings**. In Full 
 - **Steam client** (running — required for Workshop features only)
 - **Data Center** on Steam (AppID `4170200`, for game launch + Workshop target)
 
-### NuGet packages (bundled in release)
+### Rust crates (workspace dependencies)
 
-- Avalonia 12.1.1, Cherry.Facepunch.Steamworks 2.5.0, Microsoft.Extensions.DependencyInjection 10.0.10
+- `slint` / `slint-build` 1.18.1 + `lucide-slint` 1.49.1 — desktop UI (retained mode, single binary)
+- `steamworks` 0.13.1 + `steamworks-sys` — Steam Workshop integration (native library staging)
+- `tokio`, `reqwest` (rustls) — async runtime / Modstore REST + OAuth
+- `serde` / `serde_json`, `thiserror`, `anyhow`, `semver`, `dirs`, `clap`, `rfd`, `notify`, `zip`, `tracing`
 
 ### Build only
 
-- .NET SDK pinned in [global.json](global.json)
-- Inno Setup 6 + WiX CLI 5 (Windows installer artifacts only)
+- Rust toolchain via rustup (stable)
+- `cargo xtask dist` — release build + portable package incl. native Steam library
 - `nfpm` (Linux distro packages only)
 
 ## Build from Source
 
 Requirements:
 
-- .NET SDK pinned in [global.json](global.json)
+- Rust stable toolchain via [rustup](https://rustup.rs)
+- Linux X11 / font / GL development packages for Slint (`libxkbcommon`, `fontconfig`, `freetype6`, `libgl1`) — see [the devcontainer Dockerfile](.devcontainer/Dockerfile) for the full set
 - A running Steam client (only needed for Workshop features, not for build/test)
 
 ```bash
 git clone <forgejo-url>/gregModmanager.git
 cd gregModmanager
-dotnet restore GregModmanager.sln
-dotnet build GregModmanager.sln -c Release
-dotnet test GregModmanager.sln -c Release
-dotnet run --project src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj
+cargo build --workspace
+cargo test --workspace
+cargo run -p greg-app
+
 ```
 
-For release artifacts, start with [the build-script reference](build/scripts/README.md).
-The normal Windows release build requires Inno Setup 6 and WiX CLI 5. Linux
-packages are built directly by the Linux packaging script or from Windows through
-WSL; a non-Windows invocation of `build.ps1` does not create distro packages.
+For release artifacts, start with `cargo xtask dist` (portable package incl. native
+Steam library). See [the build-script reference](https://www.google.com/search?q=build/scripts/README.md) and
+[Docker build and test containers](https://www.google.com/search?q=docker/README.md).
+
+The Windows release build produces the portable ZIP via `cargo xtask dist` and
+the Setup EXE and MSI via `build/installer/build-windows.ps1` on Windows. Linux
+distro packages are built via `build/scripts/linux/build-rust-packages.sh`.
+See [Jenkins CI and releases](docs/JENKINS.md) for prerequisites and validation.
 
 ## Repository Layout
 
 ```text
-src/
-  GregModmanager.Avalonia/       Avalonia desktop application
-  GregModmanager.Core/           models, services, Steam and local-state code
-  GregModmanager.Melons/         MelonLoader integrations, including SubDirectoryFixer
-tests/GregModmanager.Tests/      xUnit test project
-build/                           interactive builders, release scripts, installers
-docker/                          Linux build/test container and Windows-container notes
-docs/                            repository documentation (the tracked wiki content)
-.forgejo/workflows/ + .gitea/workflows/   CI pipelines, byte-identical (Forgejo + Gitea Actions; GitHub is a read-only archive mirror)
-VERSION                          single source of truth for the version (.csproj is the fallback)
+crates/
+  greg-core/                     domain models, docs/changelog logic, errors — NO UI deps
+  greg-platform/                  cfg(target_os) shims (replaces Unix/Windows/MacOs projects)
+  greg-steam/                     Steam Workshop via the `steamworks` crate
+  greg-modstore/                  Modstore REST client (catalog, updates, atomic installs, publish)
+  greg-loader/                    game/MelonLoader discovery, installs, adapters, launch
+  greg-app/                       desktop UI binary (Slint)
+  greg-cli/                       headless publish/status/list binary
+xtask/                           build orchestration (`cargo xtask …`)
+scripts/                         local developer workflow scripts (check, build, run, release)
+build/                           release scripts, installers, Linux packaging
+docker/                          Rust build/test containers
+docs/                            repository documentation
+.github/workflows/               GitHub test builds and guarded promotion
+VERSION                          single source of truth for the version (workspace Cargo.toml is the fallback)
 LICENSE                          Apache 2.0
+
 ```
 
 `SubDirectoryFixer` targets .NET 6 because MelonLoader requires that runtime. It
-is built separately from the main solution and copied to the Avalonia assets by
-`build/scripts/build.ps1`.
+stays frozen in `.reference/modmanager-old/` and is built separately from the
+Rust workspace.
 
 ## Documentation
 
 - [QuickStart guide](QUICKSTART.md)
-- [Documentation index](docs/INDEX.md)
-- [User guide](docs/01_END_USER_GUIDE.md)
-- [Creator guide](docs/02_MOD_CREATOR_GUIDE.md)
-- [Contributor guide](docs/03_CONTRIBUTOR_GUIDE.md)
-- [Build scripts](build/scripts/README.md)
-- [Docker build and test containers](docker/README.md)
-- [Code-signing behaviour](build/installer/CODE_SIGNING.md)
-- [Dependency and licence inventory](EXTERNAL_DEPENDENCIES.md)
+- [Documentation index](https://www.google.com/search?q=docs/INDEX.md)
+- [User guide](https://www.google.com/search?q=docs/01_END_USER_GUIDE.md)
+- [Creator guide](https://www.google.com/search?q=docs/02_MOD_CREATOR_GUIDE.md)
+- [Contributor guide](https://www.google.com/search?q=docs/03_CONTRIBUTOR_GUIDE.md)
+- [Build scripts](https://www.google.com/search?q=build/scripts/README.md)
+- [Docker build and test containers](https://www.google.com/search?q=docker/README.md)
+- [Code-signing behaviour](https://www.google.com/search?q=build/installer/CODE_SIGNING.md)
+- [Dependency and licence inventory](https://www.google.com/search?q=EXTERNAL_DEPENDENCIES.md)
 - [Changelog](CHANGELOG.md)
 
 ## Credits
 
-| Role | Contributor |
-| --- | --- |
+| Role         | Contributor                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------- |
 | **Codebase** | [mleem97](https://github.com/mleem97) ([TeamGreg Modding](https://github.com/teamGregModding)) |
 
 ## Contributing
@@ -154,9 +184,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the **Apache License 2.0**. See [`LICENSE`](LICENSE).
+This project is licensed under the **Apache License 2.0**. See [`LICENSE`](https://www.google.com/search?q=LICENSE).
 
-## 🚀 Join the gregFramework Team!
+## 🚀 Join the gregFramework Team
 
 Building the ultimate modding framework for Data Center is a massive undertaking. gregFramework is currently maintained by a passionate core team of three, and we are looking for fellow creators to help us scale this mission!
 
@@ -166,15 +196,16 @@ Building the ultimate modding framework for Data Center is a massive undertaking
 
 **We are looking for motivated volunteers to join our crew across several roles:**
 
-- 💻 **Code Wizards** (C#, Rust, Lua, TS, GO) — Build and expand the core framework and mod packages
+- 💻 **Code Wizards** (Rust, Lua, TS, GO) — Build and expand the core framework and mod packages
 - 🎨 **Asset Creators** (3D Models, hardware assets) — Bring the framework to life visually
 - 📚 **Technical Writers** — Craft wiki entries, maintain documentation, and write user guides
 - 🎮 **Alpha Testers** — Hunt down bugs, stress-test the framework, and provide critical feedback
 - ⚙️ **System Guardians** — Maintain our Linux servers, Docker containers, and infrastructure
 - 🤝 **Community Managers** — Foster our Discord community, gather feedback, and keep the energy high
 
-Interested in joining the project? Everyone is absolutely welcome! Send us an email at **[apply@gregframework.eu](mailto:apply@gregframework.eu)**, shoot a quick DM, or drop a message on [Discord](https://discord.gg/greg).
+Interested in joining the project? Everyone is absolutely welcome! Send us an email at **[apply@gregframework.eu](https://www.google.com/search?q=mailto%3Aapply%40gregframework.eu)**, shoot a quick DM, or drop a message on [Discord](https://discord.gg/greg).
 
 ---
 
 **gregFramework — powered by the community.**
+

@@ -1,7 +1,9 @@
 //! Desktop UI entry point (Slint main window).
 
 mod actions;
+mod image_cache;
 mod state;
+mod update;
 mod worker;
 
 #[cfg(test)]
@@ -39,11 +41,30 @@ fn main() -> anyhow::Result<()> {
             std::process::exit(0);
         }
     };
-    let state = AppState::new(ui.as_weak());
+    let prefs = greg_platform::prefs::SqlitePreferences::open();
+    if !prefs.is_persistent() {
+        anyhow::bail!(
+            "Cannot open settings database: {}",
+            prefs.last_error().unwrap_or_default()
+        );
+    }
+    if let Some(error) = prefs.take_error() {
+        log.warn(&format!("Legacy preference import: {error}"));
+    }
+    let base = prefs
+        .path()
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("settings database has base directory")
+        .to_path_buf();
+    let workspace = greg_platform::workspace::Workspace::resolve(base.to_str(), None);
+    workspace.ensure_structure()?;
+    let state = AppState::with_services(ui.as_weak(), prefs, workspace);
     state.lock().expect("state").instance_guard = instance;
     wire(&ui, &state);
     AppState::append_log(&state, "gregModmanager started.");
     // Session restore + protocol URLs from our own launch arguments.
+    update::check(&state, false);
     actions::restore_session(&state);
     for arg in std::env::args().skip(1) {
         if arg.starts_with("greg://") {
@@ -129,12 +150,52 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
         ui.on_window_close(move || actions::window_close(&state));
     }
 
+    {
+        let state = Arc::clone(state);
+        ui.on_se_confirm_workspace(move || actions::settings_confirm_workspace(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_br_review_install(move || actions::browse_review_install(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_br_install(move || actions::browse_install(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_review_build(move || actions::editor_review_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_run_build(move || actions::editor_run_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_ed_cancel_build(move || actions::editor_cancel_build(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_st_filter_changed(move || {
+            if let Ok(mut state) = state.lock() {
+                actions::store_filter(&mut state);
+            }
+        });
+    }
     // Local content.
     {
         let state = Arc::clone(state);
         ui.on_local_refresh(move || {
             if let Ok(mut guard) = state.lock() {
                 actions::local_refresh(&mut guard);
+            }
+        });
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_local_filter_changed(move || {
+            if let Ok(mut guard) = state.lock() {
+                actions::local_filter_changed(&mut guard);
             }
         });
     }
@@ -152,6 +213,59 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     }
     {
         let state = Arc::clone(state);
+        ui.on_lib_open_modal(move || actions::lib_open_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_toggle_select(move |idx| actions::lib_toggle_select(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_select_missing(move || actions::lib_select_missing(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_select_all(move || actions::lib_select_all(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_install_selected(move || actions::lib_install_selected(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_lib_close_modal(move || actions::lib_close_modal(&state));
+    }
+    // Browse & Install Plugins ("My Plugins").
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_open_modal(move || actions::plugin_open_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_toggle_select(move |idx| actions::plugin_toggle_select(&state, idx));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_select_missing(move || actions::plugin_select_missing(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_select_all(move || actions::plugin_select_all(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_install_selected(move || actions::plugin_install_selected(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_install_default(move || actions::plugin_install_default(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_plugin_close_modal(move || actions::plugin_close_modal(&state));
+    }
+    {
+        let state = Arc::clone(state);
         ui.on_confirm_yes(move || actions::confirm_yes(&state));
     }
     {
@@ -166,6 +280,39 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_problems_act(move |idx| actions::problems_act(&state, idx));
+    }
+    // Report assistant.
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_generate(move || actions::report_generate(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_collect_logs(move || actions::report_collect_logs(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_cancel(move || actions::report_cancel(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_submit(move || actions::report_submit(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_export(move || actions::report_export(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_attach(move || actions::report_attach(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_yes(move || actions::report_confirm_yes(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_rp_confirm_no(move || actions::report_confirm_no(&state));
     }
     // Packs (Modpacks + Collections share one component).
     {
@@ -390,6 +537,10 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     }
     {
         let state = Arc::clone(state);
+        ui.on_se_check_updates(move || update::check(&state, true));
+    }
+    {
+        let state = Arc::clone(state);
         ui.on_se_run_checks(move || actions::settings_run_checks(&state));
     }
     {
@@ -403,5 +554,13 @@ fn wire(ui: &MainWindow, state: &Arc<Mutex<AppState>>) {
     {
         let state = Arc::clone(state);
         ui.on_se_register_protocol(move || actions::settings_register_protocol(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_se_apply_lang(move || actions::settings_apply_lang(&state));
+    }
+    {
+        let state = Arc::clone(state);
+        ui.on_se_apply_steam_web_api_key(move || actions::settings_apply_steam_web_api_key(&state));
     }
 }

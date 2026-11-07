@@ -1,0 +1,253 @@
+import { LineEdit, TextEdit, ComboBox, ScrollView } from "std-widgets.slint";
+import { IconSet } from "@lucide";
+import { Palette, SectionTitle, GregButton, FieldRow } from "theme.slint";
+import { Tr } from "i18n.slint";
+
+// Universal Report Assistant page: category, free-text description and
+// category-dependent fields, attachments, generated Markdown preview,
+// local export and submission with confirmation.
+// Rust owns the draft state and the workflow steps (validate → preview →
+// confirm → submit / export); this page only renders and forwards user intent.
+
+export component ReportPage inherits Rectangle {
+    // Constant size hints (no dependency on children or parent geometry): the
+    // parent layout stretches this page; the full-size overlay child and the
+    // ScrollView can therefore never feed back into layout info (binding loop /
+    // UI freeze).
+    min-width: 0px;
+    min-height: 0px;
+    preferred-width: 0px;
+    preferred-height: 0px;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+    in-out property <string> title;
+    in-out property <int> category-index: 0;
+    in-out property <[string]> categories;
+    in-out property <string> description;
+    in-out property <string> steps;
+    in-out property <string> expected;
+    in-out property <string> actual;
+    in-out property <string> logs;
+    in-out property <string> environment;
+    in-out property <string> preview;
+    in-out property <string> status;
+    in-out property <string> submission;
+    in-out property <[string]> attachments;
+    in-out property <bool> show-submit-confirm: false;
+    in-out property <string> submit-mode;
+
+    callback generate();
+    callback cancel();
+    callback submit();
+    callback export();
+    callback attach();
+    callback collect-logs();
+    callback confirm-yes();
+    callback confirm-no();
+
+    ScrollView {
+    width: parent.width;
+    height: parent.height;
+    VerticalLayout {
+       
+    spacing: 8px;
+    padding: 18px;
+
+    SectionTitle { text: Tr.report-title; }
+
+    Text {
+        text: Tr.report-subtitle;
+        font-size: 11px;
+        color: Palette.on-variant;
+    }
+
+    FieldRow {
+        label: Tr.report-category;
+        ComboBox {
+            width: 220px;
+            model: root.categories;
+            current-index <=> root.category-index;
+        }
+    }
+
+    FieldRow {
+        label: Tr.report-report-title;
+        LineEdit {
+            text <=> root.title;
+            horizontal-stretch: 1;
+        }
+    }
+
+    Text {
+        text: Tr.report-description;
+        font-size: 12px;
+        color: Palette.on-variant;
+    }
+    TextEdit {
+        text <=> root.description;
+        height: 120px;
+    }
+
+    // Category-dependent sections (conditional layout children).
+    if root.category-index == 0: VerticalLayout {
+        spacing: 8px;
+        Text { text: Tr.report-steps; font-size: 12px; color: Palette.on-variant; }
+        TextEdit { text <=> root.steps; height: 90px; }
+        Text { text: Tr.report-expected; font-size: 12px; color: Palette.on-variant; }
+        TextEdit { text <=> root.expected; height: 90px; }
+        Text { text: Tr.report-actual; font-size: 12px; color: Palette.on-variant; }
+        TextEdit { text <=> root.actual; height: 90px; }
+    }
+    if root.category-index == 1: VerticalLayout {
+        spacing: 8px;
+        Text { text: Tr.report-logs-crash; font-size: 12px; color: Palette.on-variant; }
+        TextEdit { text <=> root.logs; height: 140px; }
+    }
+    if root.category-index == 4: VerticalLayout {
+        spacing: 8px;
+        Text { text: Tr.report-measurements; font-size: 12px; color: Palette.on-variant; }
+        TextEdit { text <=> root.logs; height: 140px; }
+    }
+    if root.category-index == 10: VerticalLayout {
+        spacing: 8px;
+        FieldRow {
+            label: Tr.report-environment;
+            LineEdit {
+                text <=> root.environment;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+
+    // Attachment intake: user-selected files only; names reach the draft and
+    // the preview, contents are validated and sanitized downstream.
+    GregButton {
+        text: Tr.report-attach-file;
+        has-icon: true;
+        icon: IconSet.Paperclip;
+        variant: "ghost";
+        clicked => { root.attach(); }
+    }
+
+    SectionTitle { text: Tr.report-preview-section; }
+
+    TextEdit {
+        text <=> root.preview;
+        height: 140px;
+    }
+
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+        wrap: word-wrap;
+    }
+    Text {
+        text: root.submission;
+        font-size: 11px;
+        color: Palette.primary;
+        wrap: word-wrap;
+    }
+
+    HorizontalLayout {
+        spacing: 10px;
+        GregButton {
+            text: Tr.report-collect-logs;
+            has-icon: true;
+            icon: IconSet.Stethoscope;
+            variant: "ghost";
+            clicked => { root.collect-logs(); }
+        }
+        GregButton {
+            text: Tr.report-generate-preview;
+            has-icon: true;
+            icon: IconSet.RefreshCw;
+            variant: "primary";
+            clicked => { root.generate(); }
+        }
+        GregButton {
+            text: Tr.report-export;
+            has-icon: true;
+            icon: IconSet.Download;
+            variant: "ghost";
+            clicked => { root.export(); }
+        }
+        GregButton {
+            text: Tr.report-submit;
+            has-icon: true;
+            icon: IconSet.Send;
+            variant: "primary";
+            clicked => { root.submit(); }
+        }
+        GregButton {
+            text: Tr.report-cancel;
+            has-icon: true;
+            icon: IconSet.Ban;
+            variant: "ghost";
+            clicked => { root.cancel(); }
+        }
+    }
+
+    }
+    }
+
+    // Submission confirmation: the generated content is shown back before the
+    // delivery attempt starts.
+    if root.show-submit-confirm: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: #00000099;
+        TouchArea { }
+        Rectangle {
+            width: 420px;
+            height: 220px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: Palette.container;
+            border-radius: Palette.radius;
+            border-width: 1px;
+            border-color: Palette.primary;
+            VerticalLayout {
+                padding: 16px;
+                spacing: 10px;
+                alignment: center;
+                Text {
+                    text: Tr.report-confirm-title;
+                    font-size: 14px;
+                    font-weight: 700;
+                    color: Palette.on-surface;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.submit-mode;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: root.status;
+                    font-size: 11px;
+                    color: Palette.on-variant;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+                    GregButton {
+                        text: Tr.report-cancel;
+                        has-icon: true;
+                        icon: IconSet.Ban;
+                        clicked => { root.confirm-no(); }
+                    }
+                    GregButton {
+                        text: Tr.report-submit;
+                        has-icon: true;
+                        icon: IconSet.Send;
+                        clicked => { root.confirm-yes(); }
+                    }
+                }
+            }
+        }
+    }
+}

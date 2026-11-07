@@ -337,6 +337,28 @@ pub(crate) mod real {
 
         fn map_detail(client: &Client, results: &QueryResults, detail: &QueryResult) -> ItemDetail {
             let hints = crate::inference::infer("en", &detail.tags, &detail.description);
+            let is_subscribed = client
+                .ugc()
+                .subscribed_items(false)
+                .contains(&detail.published_file_id);
+            let is_installed = client
+                .ugc()
+                .item_install_info(detail.published_file_id)
+                .is_some();
+            let status_state = match (is_subscribed, is_installed) {
+                (true, true) => "Subscribed · Installed".to_string(),
+                (true, false) => "Subscribed · Download pending".to_string(),
+                (false, true) => "Installed".to_string(),
+                (false, false) => "Available (Steamworks)".to_string(),
+            };
+            let url = if detail.url.trim().is_empty() {
+                format!(
+                    "https://steamcommunity.com/sharedfiles/filedetails/?id={}",
+                    detail.published_file_id.0
+                )
+            } else {
+                detail.url.clone()
+            };
             ItemDetail {
                 published_file_id: detail.published_file_id.0,
                 title: detail.title.clone(),
@@ -349,16 +371,15 @@ pub(crate) mod real {
                 updated: detail.time_updated,
                 score: detail.score,
                 size_bytes: u64::from(detail.file_size),
-                is_subscribed: client
-                    .ugc()
-                    .subscribed_items(false)
-                    .contains(&detail.published_file_id),
+                is_subscribed,
                 visibility: match detail.visibility {
                     PublishedFileVisibility::Public => "Public".into(),
                     PublishedFileVisibility::FriendsOnly => "FriendsOnly".into(),
                     _ => "Private".into(),
                 },
-                url: detail.url.clone(),
+                url,
+                status_state,
+                source: "steamworks".into(),
                 dependency_hint_compact: hints.compact_line,
                 dependency_hint_block: hints.bullet_block,
                 has_dependency_hints: hints.has_any,

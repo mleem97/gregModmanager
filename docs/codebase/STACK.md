@@ -1,65 +1,70 @@
 # Technology Stack
 
-> Owner: gregModmanager maintainers. Evidence: project files and `global.json`.
+> Owner: gregModmanager maintainers. Evidence: workspace `Cargo.toml`, crate
+> manifests, `scripts/`, `.forgejo/workflows/`.
 > Update after a dependency, target framework, SDK, or build-tool change.
 
 ## Runtime Summary
 
 | Area | Value | Evidence |
-|---|---|---|
-| Language | C# | `src/GregModmanager.Core/` |
-| Runtime | .NET 10 (`net10.0`) | `src/GregModmanager.Core/GregModmanager.Core.csproj` |
-| UI | Avalonia 12.1.1 | `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj` |
-| Build | .NET SDK/MSBuild | `GregModmanager.sln`, `global.json` |
+| --- | --- | --- |
+| Language | Rust (latest stable) | `Cargo.toml` (edition 2021) |
+| UI | Slint 1.18.1 + `lucide-slint` 1.49.1 | `crates/greg-app/Cargo.toml`, `crates/greg-app/ui/` |
+| Build | Cargo workspace + `xtask` | `Cargo.toml`, `xtask/` |
+| Tests | `cargo test --workspace` | `scripts/check.sh` |
 
 ## Production Dependencies
 
 | Dependency | Version | Role | Evidence |
-|---|---:|---|---|
-| Avalonia | 12.1.1 | Cross-platform desktop UI | Avalonia project file |
-| Cherry.Facepunch.Steamworks | 2.5.0 | Steam/Workshop integration | Core project file |
-| Microsoft.Extensions.DependencyInjection | 10.0.10 | Service composition | Avalonia project file |
+| --- | ---: | --- | --- |
+| `slint` / `slint-build` | 1.18.1 | Cross-platform desktop UI | `crates/greg-app/Cargo.toml` |
+| `lucide-slint` | 1.49.1 | UI icons via `IconDisplay`/`IconSet` | `crates/greg-app/build.rs` |
+| `steamworks` / `steamworks-sys` | 0.13.1 / 0.13.0 | Steam Workshop integration | `crates/greg-steam/Cargo.toml` |
+| `tokio`, `reqwest` (rustls) | — | Async runtime / Modstore REST + OAuth | `crates/greg-modstore/Cargo.toml` |
+| `serde` / `serde_json` | — | Models, metadata, manifests | `crates/greg-core/Cargo.toml` |
 
 ## Development Toolchain
 
-- xUnit 2.9.3 and Microsoft.NET.Test.Sdk 18.8.1: `tests/...csproj`.
-- Coverlet collector 10.0.1: `tests/...csproj`.
-- Codacy configuration: `.codacy/`.
+- rustfmt + clippy via the Rust toolchain; CI runs `cargo fmt --all -- --check`
+  and `cargo clippy --workspace --all-targets -- -D warnings`.
+- `cargo audit` for RustSec advisories; CI gate in `.forgejo/workflows/rust.yml`.
 
 ## Commands
 
 ```bash
-dotnet restore GregModmanager.sln
-dotnet build src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj -c Release
-DOTNET_ROLL_FORWARD=Major dotnet test tests/GregModmanager.Tests/GregModmanager.Tests.csproj -c Release
-git diff --check
+cargo build --workspace
+cargo test --workspace
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo run -p greg-app
+cargo run -p greg-cli -- publish --path <dir> --changelog <text>
+cargo xtask check
+cargo xtask dist
 ```
 
 ## Configuration
 
-`AppSettings.cs` and `JsonFilePreferences` provide local settings. Native Steam
-libraries and `steam_appid.txt` are copied beside published output.
-Trimming/single-file publishing is enabled in the Avalonia project.
+`crates/greg-platform/src/prefs.rs` (JSON preferences, 0600) and
+`crates/greg-platform/src/workspace.rs` (workspace metadata) provide local
+settings. Native Steam libraries and `steam_appid.txt` are staged beside the
+binaries by `cargo xtask dist`.
 
 ### Environment variables
 
 | Variable | Purpose | Secret? |
 | --- | --- | --- |
-| `DATA_CENTER_GAME_DIR` | override automatic game-root discovery | no |
-| `IS_LOCAL_BUILD`, `IS_LOCAL_TEST_BUILD` | select local development endpoints | no |
-| `MODSTORE_WEB_URL`, `MODSTORE_API_URL` | override primary web/API base URLs | no, but use trusted HTTPS endpoints |
-| `MODSTORE_WEB_FALLBACK_URL`, `MODSTORE_API_FALLBACK_URL` | override the trusted fallback URLs (default `https://datacentermods.home`) | no, but security-sensitive |
-| `MELONLOADER_RELEASES_URL`, `MELONLOADER_LATEST_API_URL` | override MelonLoader release lookup | no |
-| `AUTH_LOGIN_URL_FORMAT`, `AUTH_CALLBACK_REDIRECT_URI` | override desktop authentication flow | no, but security-sensitive |
-| `TELEMETRY_URL`, `GIT_SERVER_URL` | override telemetry/Git endpoints | telemetry credentials are secret; URLs are not |
-| `GREGMODMANAGER_SOURCES`, `STEAM_LIBRARY_PATHS` | add plugin sources or Steam libraries | no |
-| `WORKSHOP_UPLOADER_DEBUG_RUN` | enable uploader diagnostic behaviour | no; development only |
+| `GREG_WORKSPACE` | override automatic workspace root | no |
+| `GREG_MODSTORE_TOKEN` / `--token` | Modstore API token | secret |
+| `GREG_MODSTORE_API_URL` | override Modstore API base URL | no, but use trusted HTTPS endpoints |
+| `TELEMETRY_URL` | telemetry endpoint | telemetry credentials are secret; URLs are not |
+| `IS_LOCAL_TEST_BUILD`, `MODSTORE_WEB_URL`, `MODSTORE_API_URL` | local development endpoints | no |
 
 Never commit endpoint credentials, session tokens, certificate passwords, or
-private keys. Validate any overridden endpoint before distributing a build.
+private keys.
 
 ## Evidence
 
-- `src/GregModmanager.Avalonia/GregModmanager.Avalonia.csproj`
-- `src/GregModmanager.Core/GregModmanager.Core.csproj`
-- `.forgejo/workflows/build-and-release.yml`
+- `Cargo.toml` (workspace)
+- `crates/greg-app/Cargo.toml`
+- `crates/greg-core/Cargo.toml`
+- `.forgejo/workflows/rust.yml`

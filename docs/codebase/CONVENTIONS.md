@@ -1,35 +1,37 @@
 # Coding Conventions
 
-> Owner: gregModmanager maintainers. Evidence: current source and tooling.
+> Owner: gregModmanager maintainers. Evidence: workspace lints, rustfmt, clippy
+> configuration in CI, `scripts/check.sh`.
 > Update after repository-wide conventions or quality gates change.
 
 ## Naming
 
-| Item | Rule | Example | Evidence |
-|---|---|---|---|
-| Files | PascalCase; views pair `.axaml.cs` | `SteamWorkshopService.cs` | `Services/` |
-| Methods | PascalCase; async methods use `Async` | `EnsureCurrentAsync` | installer services |
-| Types | PascalCase; interfaces use `I` | `IGameAdapter` | `GameAdapters/IGameAdapter.cs` |
-| Environment keys | uppercase snake case | `DATA_CENTER_GAME_DIR` | `AppSettings.cs` |
+| Item | Rule | Example |
+| --- | --- | --- |
+| Files | `snake_case.rs` module files | `workspace.rs`, `service.rs` |
+| Modules | PascalCase folder/module names | `pub mod workspace;` |
+| Items | `snake_case` functions/variants, `PascalCase` types | `fn resolve_workspace`, `struct Workspace` |
+| Constants | `SCREAMING_SNAKE_CASE` | `const STEAM_APP_ID: u32 = 4170200;` |
 
 ## Formatting and Quality
 
-No repository-wide formatter was found. Codacy configuration exists under `.codacy/`; nullable analysis and compiler build are active. Run `dotnet build`, `dotnet test` and `git diff --check`.
-
-## Imports
-
-C# namespace imports are explicit where needed; implicit usings are enabled. No barrel files or application-wide alias convention was found.
+- rustfmt defaults via `cargo fmt --all -- --check`.
+- Clippy via `cargo clippy --workspace --all-targets -- -D warnings`.
+- `cargo test --workspace` for all workspace tests.
 
 ## Errors and Logging
 
-Expected service failures commonly return result records; boundary exceptions are logged through `AppFileLog`/`AppLogService`; UI displays user-facing text. Diagnostic payloads must not contain tokens. Correlation/operation context is not yet consistent.
+- Typed errors via `thiserror` in domain crates; `anyhow` at shell boundaries.
+- Structured logs via `tracing` / `tracing-subscriber`.
+- Diagnostic payloads must not contain tokens.
 
 ## Testing
 
-Tests are in `tests/GregModmanager.Tests/` and named `*Tests.cs`. Existing tests use temporary filesystem fixtures and no mocking framework. No coverage threshold is configured.
+- Rust unit + integration tests via `cargo test --workspace`.
+- Temporary filesystem fixtures; cleanup in `Drop`.
 
 ## Evidence
 
-- `.codacy/codacy.yaml`
-- `src/GregModmanager.Core/Services/AppFileLog.cs`
-- `tests/GregModmanager.Tests/GameAdapterTests.cs`
+- `scripts/check.sh`
+- `crates/greg-core/src/error.rs`
+- `crates/greg-platform/src/filelog.rs`

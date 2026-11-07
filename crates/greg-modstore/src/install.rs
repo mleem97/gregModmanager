@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use greg_core::models::ProjectContentKind;
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt as _;
 
@@ -15,16 +16,16 @@ use crate::models::{
     ModStoreRelease, ModStoreUpdate,
 };
 
-/// Manifest location: `<gameRoot>/.greg-modmanager/modstore-installed.json`.
-pub fn manifest_path(game_root: &Path) -> PathBuf {
-    game_root
+/// Manifest location: `<GameModding>/.greg-modmanager/modstore-installed.json`.
+pub fn manifest_path(managed_root: &Path) -> PathBuf {
+    managed_root
         .join(".greg-modmanager")
         .join("modstore-installed.json")
 }
 
 /// Loads the install manifest (empty when missing/corrupt).
-pub fn load_manifest(game_root: &Path) -> ModStoreInstallManifest {
-    let path = manifest_path(game_root);
+pub fn load_manifest(managed_root: &Path) -> ModStoreInstallManifest {
+    let path = manifest_path(managed_root);
     if !path.is_file() {
         return ModStoreInstallManifest {
             schema_version: 1,
@@ -40,16 +41,16 @@ pub fn load_manifest(game_root: &Path) -> ModStoreInstallManifest {
         })
 }
 
-fn save_manifest_entry(game_root: &Path, entry: ModStoreInstalledEntry) {
-    let mut manifest = load_manifest(game_root);
+fn save_manifest_entry(managed_root: &Path, entry: ModStoreInstalledEntry) {
+    let mut manifest = load_manifest(managed_root);
     manifest.installed.retain(|e| e.mod_id != entry.mod_id);
     manifest.installed.push(entry);
     manifest.schema_version = 1;
-    if let Some(dir) = manifest_path(game_root).parent() {
+    if let Some(dir) = manifest_path(managed_root).parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     if let Ok(text) = serde_json::to_string_pretty(&manifest) {
-        let _ = std::fs::write(manifest_path(game_root), text);
+        let _ = std::fs::write(manifest_path(managed_root), text);
     }
 }
 
@@ -77,15 +78,19 @@ impl ModStoreInstaller {
     pub async fn install_item(
         &self,
         item: &ModStoreCatalogItem,
-        game_root: &Path,
+        managed_root: &Path,
         progress: &dyn Fn(u8),
         cancel: &AtomicBool,
     ) -> ModStoreInstallResult {
+        let kind = match item.content_kind() {
+            Ok(kind) => kind,
+            Err(error) => return ModStoreInstallResult::fail(error),
+        };
         self.install_release(
-            &item.id,
-            &item.title,
+            (&item.id, &item.title),
             &item.release,
-            game_root,
+            managed_root,
+            kind,
             progress,
             cancel,
         )
@@ -96,15 +101,20 @@ impl ModStoreInstaller {
     pub async fn install_update(
         &self,
         update: &ModStoreUpdate,
-        game_root: &Path,
+        managed_root: &Path,
         progress: &dyn Fn(u8),
         cancel: &AtomicBool,
     ) -> ModStoreInstallResult {
+        let manifest = load_manifest(managed_root);
+        let kind = match update.content_kind(&manifest) {
+            Ok(kind) => kind,
+            Err(error) => return ModStoreInstallResult::fail(error),
+        };
         self.install_release(
-            &update.mod_id,
-            &update.title,
+            (&update.mod_id, &update.title),
             &update.release,
-            game_root,
+            managed_root,
+            kind,
             progress,
             cancel,
         )
@@ -127,15 +137,23 @@ impl ModStoreInstaller {
 
     async fn install_release(
         &self,
-        mod_id: &str,
-        title: &str,
+        identity: (&str, &str),
         release: &ModStoreRelease,
-        game_root: &Path,
+        managed_root: &Path,
+        kind: ProjectContentKind,
         progress: &dyn Fn(u8),
         cancel: &AtomicBool,
     ) -> ModStoreInstallResult {
+        let (mod_id, title) = identity;
         match self
-            .install_release_inner(mod_id, title, release, game_root, progress, cancel)
+            .install_release_inner(
+                (mod_id, title),
+                release,
+                managed_root,
+                kind,
+                progress,
+                cancel,
+            )
             .await
         {
             Ok(path) => ModStoreInstallResult::ok(
@@ -148,16 +166,27 @@ impl ModStoreInstaller {
 
     async fn install_release_inner(
         &self,
-        mod_id: &str,
-        title: &str,
+        identity: (&str, &str),
         release: &ModStoreRelease,
-        game_root: &Path,
+        managed_root: &Path,
+        kind: ProjectContentKind,
         progress: &dyn Fn(u8),
         cancel: &AtomicBool,
     ) -> Result<PathBuf> {
-        if !game_root.is_dir() {
+        let (mod_id, title) = identity;
+        if mod_id.is_empty()
+            || mod_id.len() > 128
+            || !mod_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
             return Err(ModStoreError::InvalidArtefact(
-                "The Data Center game folder is not configured.".into(),
+                "Invalid Modstore item ID".into(),
+            ));
+        }
+        if !managed_root.is_dir() {
+            return Err(ModStoreError::InvalidArtefact(
+                "The managed GameModding folder is not configured.".into(),
             ));
         }
         let checksum = release.checksum_sha256.as_deref().unwrap_or("");
@@ -172,7 +201,7 @@ impl ModStoreInstaller {
             ));
         }
 
-        let mods_root = game_root.join("Mods").join("GregStore");
+        let mods_root = managed_root.join(kind.installation_dir()).join("GregStore");
         std::fs::create_dir_all(&mods_root)
             .map_err(|e| ModStoreError::Other(format!("cannot create {mods_root:?}: {e}")))?;
         let safe_id: String = mod_id
@@ -285,7 +314,7 @@ impl ModStoreInstaller {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         save_manifest_entry(
-            game_root,
+            managed_root,
             ModStoreInstalledEntry {
                 mod_id: mod_id.to_string(),
                 title: title.to_string(),
@@ -293,6 +322,7 @@ impl ModStoreInstaller {
                 release_id: release.id.clone(),
                 install_path: destination.to_string_lossy().to_string(),
                 installed_at: now.to_string(),
+                mod_type: kind.name().to_string(),
             },
         );
         progress(100);
@@ -372,7 +402,10 @@ fn extract_zip_safely(archive: &Path, destination: &Path) -> Result<()> {
         let mut entry = zip
             .by_index(i)
             .map_err(|e| ModStoreError::InvalidArtefact(format!("bad zip entry: {e}")))?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| ModStoreError::InvalidArtefact(format!("bad zip entry name: {e}")))?
+            .into_owned();
         if name.starts_with('/') || name.starts_with('\\') || name.contains("..") {
             return Err(ModStoreError::InvalidArtefact(format!(
                 "blocked unsafe zip path: {name}"
@@ -457,6 +490,7 @@ mod tests {
                 release_id: "r".into(),
                 install_path: "/x".into(),
                 installed_at: "1".into(),
+                mod_type: ProjectContentKind::Userlib.name().into(),
             },
         );
         assert_eq!(load_manifest(&dir).installed.len(), 1);

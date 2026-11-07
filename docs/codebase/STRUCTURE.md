@@ -1,41 +1,45 @@
 # Codebase Structure
 
-> Owner: gregModmanager maintainers. Evidence: current repository tree and entry
-> points. Update after any project, entry-point, or directory-layout change.
+> Owner: gregModmanager maintainers. Evidence: workspace `Cargo.toml`, crate
+> manifests, repository tree. Update after any crate, entry-point, or
+> directory-layout change.
 
 ## Top-Level Map
 
 | Path | Purpose | Evidence |
-|---|---|---|
-| `src/GregModmanager.Core/` | Models, services, Steam and persistence | repository scan |
-| `src/GregModmanager.Avalonia/` | Desktop entry point, window and pages | `Program.cs`, `MainWindow.axaml.cs` |
-| `tests/GregModmanager.Tests/` | xUnit tests | test project |
-| `build/` | Packaging scripts | repository tree |
-| `src/GregModmanager.Melons/` | MelonLoader-specific integrations | repository tree |
-| `docs/` | Canonical repository documentation | repository tree |
+| --- | --- | --- |
+| `crates/` | Rust workspace: domain, platform, steam, modstore, loader, app, cli | `Cargo.toml` |
+| `xtask/` | Build orchestration (`cargo xtask …`) | `xtask/src/main.rs` |
+| `scripts/` | Local developer workflow scripts | `scripts/` |
+| `build/` | Packaging scripts, installers, Linux packaging | `build/` |
+| `docker/` | Rust build/test containers | `docker/` |
+| `docs/` | Canonical repository documentation | `docs/` |
+| `crates/greg-app/ui/` | Slint UI sources | `crates/greg-app/ui/` |
 
 ## Entry Points
 
-- Main runtime: `src/GregModmanager.Avalonia/Program.cs`.
-- Headless path: `src/GregModmanager.Core/Services/HeadlessRunner.cs`.
-- Native plugin project: `src/GregModmanager.Melons/SubDirectoryFixer/`.
-- Avalonia selects desktop lifetime; `--headless` is handled before UI startup.
+- Desktop runtime: `crates/greg-app/src/main.rs`.
+- Headless path: `crates/greg-cli/src/main.rs`.
+- Native plugin source: `.reference/modmanager-old/src/GregModmanager.Melons/`.
 
 ## Module Boundaries
 
 | Boundary | Owns | Must not own |
-|---|---|---|
-| Core services | Steam, auth, workspace, downloads and local state | Avalonia controls |
-| Game adapters | game detection, paths, capabilities and plans | generic deployment execution |
-| Avalonia views | user interaction, navigation and presentation | generic file ownership rules |
-| Tests | isolated behavior verification | production side effects |
+| --- | --- | --- |
+| Domain crates | Steam, Modstore, game integration, pure logic | UI layout |
+| `greg-platform` | Filesystem/log/telemetry/workspace/platform shims | Domain rules |
+| `greg-app` | UI composition root + presentation | Generic deployment policy |
+| `greg-cli` | Headless commands | UI |
 
 ## Organization
 
-Files use PascalCase C# names and `.axaml`/`.axaml.cs` view pairs. The source is layer-oriented (`Core`, `Avalonia`, `Models`, `Services`, `Steam`); there are no barrel files.
+Rust module layout per crate; no barrel files. Platform-specific code lives in
+`crates/greg-platform` behind `cfg(target_os = …)`; game adapters live in
+`crates/greg-loader`.
 
 ## Evidence
 
-- `GregModmanager.sln`
-- `src/GregModmanager.Avalonia/Program.cs`
-- `src/GregModmanager.Core/Services/GameAdapters/`
+- `Cargo.toml`
+- `crates/greg-app/src/main.rs`
+- `crates/greg-cli/src/main.rs`
+- `.reference/modmanager-old/GregModmanager.sln`

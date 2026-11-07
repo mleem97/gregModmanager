@@ -1,0 +1,49 @@
+name: "Installer / update problem"
+description: "Setup, install, uninstall, or update issue"
+title: "[Installer]: "
+labels: ["bug", "installer"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Problem summary
+      placeholder: "Installer fails / app crashes only after install / update did not replace files ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run setup ...
+        2. Install to default path ...
+        3. Launch app ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: setup_version
+    attributes:
+      label: Setup/app version
+      placeholder: "e.g. 1.0.2"
+
+  - type: input
+    id: install_path
+    attributes:
+      label: Install path
+      placeholder: "e.g. C:\\Program Files\\gregModmanager"
+
+  - type: textarea
+    id: setup_logs
+    attributes:
+      label: Setup logs or messages
+      description: Include any installer error dialogs or logs.
+
+  - type: textarea
+    id: app_logs
+    attributes:
+      label: App logs after install
+      description: Paste relevant lines from `%LOCALAPPDATA%\\gregModmanager\\logs`.
+      render: shell

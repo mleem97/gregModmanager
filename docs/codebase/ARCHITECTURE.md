@@ -1,54 +1,51 @@
 # Architecture
 
-> Owner: gregModmanager maintainers. Evidence: current source. Update after a
-> dependency-injection, protocol, service-boundary, or startup-flow change.
+> Owner: gregModmanager maintainers. Evidence: workspace crate boundaries,
+> `greg-core` rules, `greg-app` composition root.
+> Update after a dependency-injection, protocol, service-boundary, or
+> startup-flow change.
 
 ## Architectural Style
 
-Layered cross-platform desktop client with dependency-injected services and event-driven Workshop/session updates. `Program.BuildServices` composes Core services; Avalonia pages consume them; Steam callbacks and pollers publish status events.
-
-Primary constraints are Steam initialization order, platform-specific native libraries, and local game-file safety.
+Layered desktop client: `greg-app` (composition root + presentation) → domain
+crates (`greg-core`, `greg-steam`, `greg-modstore`, `greg-loader`) →
+infrastructure (`greg-platform`). Primary constraints are Steam initialization
+order, platform-specific native libraries, and local game-file safety.
 
 ## System Flow
 
 ```text
-Program/App -> MainWindow -> injected Core service -> Steam/files/configured HTTPS service -> page/log/dialog
+greg-app main -> AppState -> actions/state/worker -> domain services -> greg-platform -> Steam/files/HTTPS
 ```
 
-Startup preloads Steam and builds dependency injection. `MainWindow` initializes
-the session and workspace. Pages invoke Workshop, authentication, and workspace
-services. Services call native Steamworks, configured HTTPS endpoints, or the
-local filesystem. Results return as records/events and are rendered in Avalonia.
-
-Desktop sign-in returns through `greg://v1/auth/callback`. The protocol handler
-forwards the callback to `SessionManager`; the session manager exchanges it with
-the configured authentication endpoint.
+Startup preloads the Steam backend and builds the state; actions drain jobs on a
+UI-thread timer; background results arrive via channels. Persistence is JSON
+(preferences, workspace metadata, publish hash).
 
 ## Responsibilities
 
-| Module | Owns | Must not own | Evidence |
-|---|---|---|---|
-| `Program`/DI | startup, native preload, registrations | domain rules | `Program.cs` |
-| Core services | Workshop, auth, workspace, downloads | UI layout | `src/GregModmanager.Core/Services/` |
-| Game adapters | Data Center detection, paths, capabilities and plans | arbitrary script execution | `Services/GameAdapters/` |
-| Avalonia views | navigation and user actions | generic deployment policy | `Views/` |
+| Module | Owns | Must not own |
+| --- | --- | --- |
+| `greg-app` | UI navigation, user actions, presentation | Domain rules |
+| Domain crates | Workshop, Modstore, game/deploy logic | UI layout |
+| `greg-platform` | Filesystem/log/telemetry/workspace/process/platform shims | Domain rules |
+| `greg-loader` | Game detection, paths, capabilities, launch | generic execution |
 
 ## Patterns
 
 | Pattern | Location | Reason |
-|---|---|---|
-| Dependency injection | `Program.BuildServices` | shared lifetimes and testability |
-| Adapter registry | `GameAdapterRegistry` | future games without UI rewrites |
-| Event callbacks | `WorkshopSyncOrchestrator`, `SessionManager` | asynchronous status propagation |
+| --- | --- | --- |
+| State | `crates/greg-app/src/state.rs` | shared state behind mutex + timer |
+| Job handling | `crates/greg-app/src/worker.rs` | background isolation, failed outcomes |
+| Adapter registry | `greg-loader` | future games without UI rewrites |
+| Errors | `thiserror` in domain, `anyhow` at shells | typed boundaries |
 
 ## Risks
 
 - General transactional deployment/ownership is not implemented yet.
-- Legacy Steam loader and some path fallbacks still contain Data-Center-specific strings; adapter migration is incremental.
 
 ## Evidence
 
-- `src/GregModmanager.Avalonia/Program.cs`
-- `src/GregModmanager.Avalonia/MainWindow.axaml.cs`
-- `src/GregModmanager.Core/Services/GameAdapters/DataCenterGameAdapter.cs`
-- `src/GregModmanager.Core/Services/SteamWorkshopService.cs`
+- `crates/greg-app/src/main.rs`
+- `crates/greg-core/src/`
+- `crates/greg-loader/src/launch.rs`

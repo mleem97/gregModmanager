@@ -1,0 +1,300 @@
+{
+  "repository": {
+    "repository": {
+      "provider": "gh",
+      "owner": "mleem97",
+      "name": "gregModmanager",
+      "visibility": "Public",
+      "defaultBranch": {
+        "name": "main"
+      },
+      "lastUpdated": "2026-10-27T02:29:40.149Z",
+      "languages": [
+        "CSharp",
+        "Dockerfile",
+        "JSON",
+        "Markdown",
+        "Powershell",
+        "Python",
+        "Rust",
+        "Shell",
+        "XML",
+        "YAML"
+      ],
+      "standards": [
+        {
+          "id": 160487,
+          "name": "AI Policy"
+        },
+        {
+          "id": 160947,
+          "name": "Default coding standard"
+        }
+      ],
+      "gatePolicyName": "Codacy Gate Policy",
+      "problems": []
+    },
+    "lastAnalysedCommit": {
+      "sha": "c11e0cf488b4806ece73e1d7111c73744a738a72",
+      "startedAnalysis": "2026-10-27T02:29:49.252Z",
+      "endedAnalysis": "2026-10-27T02:30:10.705Z"
+    },
+    "issuesCount": 226,
+    "loc": 39041,
+    "coverage": {
+      "status": "None"
+    },
+    "complexFilesPercentage": 27,
+    "duplicationPercentage": 10,
+    "goals": {
+      "maxIssuePercentage": 20,
+      "maxDuplicatedFilesPercentage": 10,
+      "minCoveragePercentage": 60,
+      "maxComplexFilesPercentage": 10,
+      "fileDuplicationBlockThreshold": 1,
+      "fileComplexityValueThreshold": 20
+    }
+  },
+  "pullRequests": [],
+  "issuesOverview": {
+    "categories": [
+      {
+        "name": "BestPractice",
+        "total": 48
+      },
+      {
+        "name": "Performance",
+        "total": 1
+      },
+      {
+        "name": "Security",
+        "total": 73
+      },
+      {
+        "name": "ErrorProne",
+        "total": 14
+      },
+      {
+        "name": "Complexity",
+        "total": 90
+      }
+    ],
+    "languages": [
+      {
+        "name": "CSharp",
+        "total": 91
+      },
+      {
+        "name": "Dockerfile",
+        "total": 1
+      },
+      {
+        "name": "Shell",
+        "total": 12
+      },
+      {
+        "name": "Rust",
+        "total": 85
+      },
+      {
+        "name": "Markdown",
+        "total": 20
+      },
+      {
+        "name": "YAML",
+        "total": 17
+      }
+    ],
+    "levels": [
+      {
+        "name": "High",
+        "total": 73
+      },
+      {
+        "name": "Warning",
+        "total": 141
+      },
+      {
+        "name": "Error",
+        "total": 12
+      }
+    ],
+    "tags": [
+      {
+        "name": "readability",
+        "total": 1
+      },
+      {
+        "name": "security",
+        "total": 24
+      },
+      {
+        "name": "clarity",
+        "total": 1
+      },
+      {
+        "name": "documentation",
+        "total": 1
+      },
+      {
+        "name": "headings",
+        "total": 8
+      },
+      {
+        "name": "fwk:github-actions",
+        "total": 17
+      },
+      {
+        "name": "filesystem",
+        "total": 7
+      }
+    ],
+    "patterns": [
+      {
+        "id": "Semgrep_yaml.github-actions.security.run-shell-injection.run-shell-injection",
+        "title": "Avoid Shell Injection in GitHub Actions run Steps",
+        "total": 2
+      },
+      {
+        "id": "shellcheck_SC2034",
+        "title": "Avoid Unused Variables",
+        "total": 1
+      },
+      {
+        "id": "SonarCSharp_S2760",
+        "title": "Avoid Sequential Tests Checking the Same Condition",
+        "total": 1
+      },
+      {
+        "id": "Semgrep_rust.lang.security.args.args",
+        "title": "Avoid Using args for Security Operations",
+        "total": 3
+      },
+      {
+        "id": "shellcheck_SC2086",
+        "title": "Enforce Double Quoting to Prevent Globbing and Word Splitting",
+        "total": 2
+      },
+      {
+        "id": "Semgrep_rust.lang.security.unsafe-usage.unsafe-usage",
+        "title": "Avoid Unsafe Usage",
+        "total": 2
+      },
+      {
+        "id": "Agentlinter_clarity_naked-conditional",
+        "title": "Avoid naked conditionals — require specific, measurable triggers",
+        "total": 1
+      },
+      {
+        "id": "Semgrep_csharp.lang.security.filesystem.unsafe-path-combine.unsafe-path-combine",
+        "title": "Avoid Unsafe Path.Combine Usage Without Sanitization",
+        "total": 7
+      },
+      {
+        "id": "Semgrep_rust.lang.security.current-exe.current-exe",
+        "title": "Avoid Using current_exe for Security Operations",
+        "total": 3
+      },
+      {
+        "id": "Lizard_nloc-medium",
+        "title": "Limit Function Length (Medium)",
+        "total": 79
+      },
+      {
+        "id": "Agentlinter_consistency_referenced-files-exist",
+        "title": "Ensure referenced files exist",
+        "total": 3
+      },
+      {
+        "id": "SonarCSharp_S3898",
+        "title": "Implement IEquatable<T> on Value Types",
+        "total": 1
+      },
+      {
+        "id": "SonarCSharp_S2339",
+        "title": "Avoid Using Public Constant Members",
+        "total": 6
+      },
+      {
+        "id": "Hadolint_DL3008",
+        "title": "Enforce Pinning Versions in apt-get install",
+        "total": 1
+      },
+      {
+        "id": "shellcheck_SC2015",
+        "title": "Avoid Using `A && B || C` as if-Then-Else",
+        "total": 9
+      },
+      {
+        "id": "SonarCSharp_S2486",
+        "title": "Avoid Ignoring Generic Exceptions",
+        "total": 9
+      },
+      {
+        "id": "SonarCSharp_S6444",
+        "title": "Specify a timeout for regular expressions",
+        "total": 4
+      },
+      {
+        "id": "Semgrep_yaml.github-actions.security.third-party-action-not-pinned-to-commit-sha.third-party-action-not-pinned-to-commit-sha",
+        "title": "Enforce Pinning of Third-Party GitHub Actions to Full Commit SHA",
+        "total": 15
+      },
+      {
+        "id": "markdownlint_MD024",
+        "title": "Avoid Multiple Headings with the Same Content",
+        "total": 8
+      },
+      {
+        "id": "SonarCSharp_S2360",
+        "title": "Avoid Using Optional Parameters",
+        "total": 20
+      },
+      {
+        "id": "Semgrep_rust.lang.security.temp-dir.temp-dir",
+        "title": "Avoid Using temp_dir for Security Operations",
+        "total": 22
+      },
+      {
+        "id": "SonarCSharp_S1172",
+        "title": "Remove Unused Method Parameters",
+        "total": 2
+      },
+      {
+        "id": "Lizard_file-nloc-medium",
+        "title": "Limit File Length (Medium)",
+        "total": 11
+      },
+      {
+        "id": "Semgrep_csharp_injection_rule-CommandInjection",
+        "title": "Avoid OS Command Injection",
+        "total": 6
+      },
+      {
+        "id": "Agentlinter_clarity_escape-hatch-missing",
+        "title": "Require escape hatch for absolute rules",
+        "total": 8
+      }
+    ],
+    "authors": [
+      {
+        "name": "marvinleede@gmail.com",
+        "total": 181
+      },
+      {
+        "name": "52848568+mleem97@users.noreply.github.com",
+        "total": 14
+      }
+    ],
+    "potentialFalsePositives": [
+      {
+        "name": "equalOrAboveThreshold",
+        "total": 0
+      },
+      {
+        "name": "belowThreshold",
+        "total": 226
+      }
+    ]
+  }
+}

@@ -6,5 +6,5 @@ Exec=/usr/bin/gregmodmanager
 TryExec=/usr/bin/gregmodmanager
 Terminal=false
 Categories=Utility;Development;
-Keywords=greg;modmanager;steam;avalonia;
+Keywords=greg;modmanager;steam;rust;slint;
 MimeType=x-scheme-handler/greg;

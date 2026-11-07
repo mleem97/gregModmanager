@@ -1,11 +1,16 @@
 //! Steam error type.
 
 /// Failures from Steam Workshop integration.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SteamError {
     /// Steam client/API unavailable (not running, no user, ...).
     #[error("Steam is not available: {0}")]
     NotAvailable(String),
+    /// Local Steamworks is unavailable and no optional Steam Web API key is configured.
+    #[error(
+        "Steam is not available locally ({0}) and no optional Steam Web API key is configured in Settings."
+    )]
+    WebApiKeyMissing(String),
     /// Native/API call failed.
     #[error("Steam API error: {0}")]
     Api(String),

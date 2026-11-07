@@ -1,7 +1,32 @@
 import { IconSet } from "@lucide";
-import { Palette, IconButton, NavButton, StatusLed, WinBtn, TopBarButton, GregButton } from "theme.slint";
+import { Button, VerticalBox, HorizontalBox, LineEdit, ComboBox, StandardButton, ScrollView } from "std-widgets.slint";
+import {
+    Palette,
+    IconButton,
+    NavButton,
+    StatusLed,
+    WinBtn,
+    TopBarButton,
+    TopIconButton,
+    GregButton,
+    ListCard,
+} from "theme.slint";
 import { AppIcon } from "icons.slint";
-import { NavItem, ProjectRow, CheckRow, BrowseRow, StoreRow, UpdateRow, HealthRow, LocalRow, ProblemRow, PackRow, PackEntryRow } from "models.slint";
+import {
+    NavItem,
+    ProjectRow,
+    CheckRow,
+    BrowseRow,
+    StoreRow,
+    UpdateRow,
+    HealthRow,
+    DiagnosticRow,
+    LocalRow,
+    ProblemRow,
+    PackRow,
+    PackEntryRow,
+    LibInstallRow,
+} from "models.slint";
 import { LocalPage } from "page-local.slint";
 import { PacksPage } from "page-packs.slint";
 import { ProblemsPage } from "page-problems.slint";
@@ -10,40 +35,42 @@ import { EditorPage } from "page-editor.slint";
 import { BrowsePage } from "page-browse.slint";
 import { StorePage } from "page-store.slint";
 import { SettingsPage } from "page-settings.slint";
+import { ReportPage } from "page-report.slint";
+import { Tr } from "i18n.slint";
 
-// Main window: full-height icon bar | header + navigation + content,
-// status bar below. 100% custom chrome (no native frame).
-// Grounded in the old Avalonia MainWindow: TerminalCore palette, header with
-// game-start buttons, login/profile card, Steam + GregApi + MelonLoader status.
+export { Tr }
 
 export component MainWindow inherits Window {
     title: "gregModmanager";
     no-frame: true;
-    preferred-width: 1400px;
-    preferred-height: 900px;
-    min-width: 1024px;
-    min-height: 640px;
-    background: Palette.surface;
+    min-width: 800px;
+    min-height: 600px;
+    preferred-width: 1000px;
+    preferred-height: 700px;
+    background: Palette.container-low;
     icon: @image-url("../../../G.svg");
-    // Native border-drag resize for frameless windows (compositor-side,
-    // Wayland-safe). Manual resize handles are intentionally gone.
     resize-border-width: 6px;
 
     // --- shell state (Rust <-> Slint) ---
-    in-out property <string> app-version;
+    in-out property <string> app-version: "";
     in-out property <string> current-icon: "modmanager";
     in-out property <string> current-page: "mymods";
+    in-out property <bool> ed-needsgreg: true;
     in-out property <bool> nav-visible: true;
     in-out property <string> nav-title: "MODMANAGER";
     in-out property <[NavItem]> nav-items;
     in-out property <bool> steam-ok: false;
+    in-out property <bool> steam-known: false;
     in-out property <string> steam-text: "Steam Disconnected";
     in-out property <bool> gregapi-ok: false;
+    in-out property <bool> gregapi-known: false;
     in-out property <string> gregapi-text: "gregAPI Disconnected";
     in-out property <bool> melonloader-ok: false;
+    in-out property <bool> melonloader-known: false;
     in-out property <string> melonloader-text: "MelonLoader: checking…";
-    in-out property <bool> modstore-available: false;
+    in-out property <bool> modstore-available: true;
     in-out property <bool> login-visible: false;
+    in-out property <bool> show-new-modal: false;
     in-out property <bool> game-running: false;
     in-out property <string> game-text: "Game: stopped";
     in-out property <bool> profile-visible: false;
@@ -56,6 +83,8 @@ export component MainWindow inherits Window {
     in-out property <string> new-folder;
     in-out property <int> new-template;
     in-out property <[string]> new-templates;
+    in-out property <int> project-filter-index: 0;
+    in-out property <[string]> project-filters: ["All", "Published", "Updated", "Unreleased"];
 
     // --- editor page state ---
     in-out property <string> ed-title;
@@ -68,7 +97,6 @@ export component MainWindow inherits Window {
     in-out property <[string]> ed-profiles;
     in-out property <int> ed-modtype;
     in-out property <[string]> ed-modtypes;
-    in-out property <bool> ed-needsgreg;
     in-out property <bool> ed-needsml;
     in-out property <string> ed-changelog;
     in-out property <string> ed-changelog-hint;
@@ -101,6 +129,9 @@ export component MainWindow inherits Window {
     in-out property <string> br-selected;
     in-out property <bool> br-has-detail;
     in-out property <string> br-d-title;
+    in-out property <string> br-d-author;
+    in-out property <string> br-d-status-state;
+    in-out property <image> br-d-preview;
     in-out property <string> br-d-meta;
     in-out property <string> br-d-tags;
     in-out property <string> br-d-desc;
@@ -111,24 +142,52 @@ export component MainWindow inherits Window {
 
     // --- modstore page state ---
     in-out property <string> st-search;
+    in-out property <int> st-kind;
+    in-out property <[string]> st-kinds;
+    callback st-filter-changed();
     in-out property <[StoreRow]> st-items;
     in-out property <[UpdateRow]> st-updates;
     in-out property <float> st-progress;
     in-out property <bool> st-busy;
     in-out property <string> st-status;
 
-    // --- local content page state (My Mods / Plugins / Libs) ---
+    // --- local content page state ---
     in-out property <string> local-title;
     in-out property <string> local-search;
     in-out property <[LocalRow]> local-active-rows;
     in-out property <[LocalRow]> local-inactive-rows;
     in-out property <string> local-status;
+    in-out property <bool> show-lib-modal: false;
+    in-out property <[LibInstallRow]> lib-catalog;
+    in-out property <bool> lib-busy: false;
+    in-out property <string> lib-status;
+    in-out property <bool> show-plugin-modal: false;
+    in-out property <[LibInstallRow]> plugin-catalog;
+    in-out property <bool> plugin-busy: false;
+    in-out property <string> plugin-status;
 
     // --- problems page state ---
     in-out property <[ProblemRow]> problem-rows;
     in-out property <string> problem-status;
 
-    // --- packs page state (one component serves Modpacks + Collections) ---
+    // --- report assistant page state ---
+    in-out property <string> rp-title;
+    in-out property <int> rp-category-index: 0;
+    in-out property <[string]> rp-categories;
+    in-out property <string> rp-description;
+    in-out property <string> rp-steps;
+    in-out property <string> rp-expected;
+    in-out property <string> rp-actual;
+    in-out property <string> rp-logs;
+    in-out property <string> rp-environment;
+    in-out property <string> rp-preview;
+    in-out property <string> rp-status;
+    in-out property <string> rp-submission;
+    in-out property <[string]> rp-attachments;
+    in-out property <bool> rp-submit-confirm: false;
+    in-out property <string> rp-submit-mode;
+
+    // --- packs page state ---
     in-out property <string> pack-kind;
     in-out property <string> pack-title;
     in-out property <[PackRow]> pack-packs;
@@ -137,27 +196,23 @@ export component MainWindow inherits Window {
     in-out property <string> pack-new-name;
     in-out property <string> pack-status;
 
-    // --- confirm dialog ---
+    // --- dialogs & settings ---
     in-out property <bool> show-confirm: false;
     in-out property <string> confirm-text;
-
-    // --- bug report dialog (all Greg mods & programs) ---
     in-out property <bool> show-bug-dialog: false;
-
-    // --- profile session menu ---
     in-out property <bool> show-profile-menu: false;
-
-    // --- settings page state ---
     in-out property <string> se-workspace;
     in-out property <string> se-gameroot;
     in-out property <int> se-lang;
     in-out property <[string]> se-langs;
     in-out property <string> se-modstore-url;
+    in-out property <string> se-steam-web-api-key;
     in-out property <string> se-telemetry-text;
     in-out property <[HealthRow]> se-health;
+    in-out property <[DiagnosticRow]> se-diagnostics;
     in-out property <[string]> se-log;
 
-    // --- shell callbacks ---
+    // --- callbacks ---
     callback icon-clicked(string);
     callback nav-clicked(string);
     callback start-game(string);
@@ -169,22 +224,42 @@ export component MainWindow inherits Window {
     callback window-maximize();
     callback window-close();
 
-    // --- local content callbacks ---
     callback local-refresh();
+    callback local-filter-changed();
     callback local-toggle(int);
     callback local-remove(int);
     callback local-open-folder();
+    callback lib-open-modal();
+    callback lib-toggle-select(int);
+    callback lib-select-missing();
+    callback lib-select-all();
+    callback lib-install-selected();
+    callback lib-close-modal();
+    callback plugin-open-modal();
+    callback plugin-toggle-select(int);
+    callback plugin-select-missing();
+    callback plugin-select-all();
+    callback plugin-install-selected();
+    callback plugin-install-default();
+    callback plugin-close-modal();
     callback confirm-yes();
     callback confirm-no();
     callback bug-open-manager();
     callback bug-open-org();
     callback bug-close();
 
-    // --- problems callbacks ---
     callback problems-refresh();
     callback problems-act(int);
 
-    // --- packs callbacks ---
+    callback rp-generate();
+    callback rp-cancel();
+    callback rp-submit();
+    callback rp-export();
+    callback rp-attach();
+    callback rp-collect-logs();
+    callback rp-confirm-yes();
+    callback rp-confirm-no();
+
     callback packs-create();
     callback packs-select(int);
     callback packs-toggle(int);
@@ -196,17 +271,24 @@ export component MainWindow inherits Window {
     callback packs-import();
     callback packs-apply(int);
 
-    // --- projects callbacks ---
     callback project-refresh();
     callback project-open(string);
     callback project-open-folder();
     callback project-create();
     callback project-view-steam(string);
+    callback project-filter-changed(int);
 
-    // --- editor callbacks ---
     callback ed-changed();
     callback ed-save();
     callback ed-publish();
+    callback ed-review-build();
+    callback ed-run-build();
+    callback ed-cancel-build();
+    in-out property <bool> show-build-modal: false;
+    in-out property <bool> build-busy: false;
+    in-out property <bool> build-can-run: false;
+    in-out property <string> build-summary;
+    in-out property <string> build-output;
     callback ed-publish-modstore();
     callback ed-cancel-publish();
     callback ed-pick-preview();
@@ -216,7 +298,6 @@ export component MainWindow inherits Window {
     callback ed-dep-remove(int);
     callback ed-view-steam();
 
-    // --- browse callbacks ---
     callback br-go();
     callback br-filter-changed();
     callback br-cancel();
@@ -225,117 +306,140 @@ export component MainWindow inherits Window {
     callback br-next();
     callback br-subscribe-toggle();
     callback br-import();
+    callback br-review-install();
+    callback br-install();
+    in-out property <bool> show-managed-install-modal: false;
+    in-out property <string> managed-install-target;
     callback br-view-steam();
 
-    // --- modstore callbacks ---
     callback st-refresh();
     callback st-check-updates();
     callback st-cancel();
     callback st-install(int);
     callback st-install-update(int);
 
-    // --- settings callbacks ---
+    callback se-apply-lang();
+    in-out property <bool> show-workspace-modal: false;
+    in-out property <string> workspace-target;
+    in-out property <string> workspace-error;
+    callback se-confirm-workspace();
     callback se-apply-workspace();
     callback se-browse-workspace();
     callback se-apply-gameroot();
     callback se-browse-gameroot();
     callback se-apply-modstore-url();
+    callback se-apply-steam-web-api-key();
+    callback se-check-updates();
     callback se-run-checks();
     callback se-open-logs();
     callback se-make-bundle();
     callback se-register-protocol();
 
-    // Full-window frame: 1px outline. The icon bar takes the complete left
-    // height; header, content and status bar live in the right column.
     Rectangle {
-        width: parent.width;
-        height: parent.height;
         background: Palette.surface;
-        border-width: 1px;
-        border-color: Palette.outline;
+        border-radius: 10px;
 
         HorizontalLayout {
-            width: parent.width;
-            height: parent.height;
             spacing: 0px;
 
-            // Far-left icon bar, full height. Logo first.
+            // Far-left icon bar, full height.
             Rectangle {
                 width: 64px;
-                background: Palette.container-low;
+                background: Palette.avatar-bg;
+                border-bottom-right-radius: 20px;
+                border-top-right-radius: 20px;
+
                 VerticalLayout {
-                    width: parent.width;
-                    height: parent.height;
                     padding-bottom: 8px;
                     spacing: 4px;
-                    // Logo pinned flush to the very top — always first.
-                    // Square 64x64 cell, 48x48 tile, G centered with
-                    // padding all around. All geometry explicit.
+
+                    // Logo container (fixed 64x64, no overflowing min-size blocks)
                     Rectangle {
                         width: 64px;
                         height: 64px;
-                        logo-touch := TouchArea {
-                            width: parent.width;
-                            height: parent.height;
-                            mouse-cursor: pointer;
-                            clicked => { root.icon-clicked("modmanager"); }
-                        }
-                        Rectangle {
-                            width: 48px;
-                            height: 48px;
+                        Image {
+                            source: @image-url("../../../G.svg");
+                            width: 32px;
+                            height: 30px;
                             x: (parent.width - self.width) / 2;
                             y: (parent.height - self.height) / 2;
-                            background: Palette.container;
-                            border-radius: Palette.radius;
-                            border-width: 1px;
-                            border-color: Palette.outline;
-                            Image {
-                                source: @image-url("../../../G.svg");
-                                width: 32px;
-                                height: 30px;
-                                x: (parent.width - self.width) / 2;
-                                y: (parent.height - self.height) / 2;
-                                image-fit: contain;
+                            image-fit: contain;
+                        }
+
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.icon-clicked("modmanager");
                             }
                         }
                     }
-                    Rectangle { height: 2px; }
-                    HorizontalLayout {
-                        alignment: center;
+
+                    VerticalLayout {
+                        cross-axis-alignment: center;
                         IconButton {
                             icon: IconSet.LayoutGrid;
-                            tip: "Modmanager";
+                            tip: Tr.tip-modmanager;
                             active: root.current-icon == "modmanager";
-                            clicked => { root.icon-clicked("modmanager"); }
+                            clicked => {
+                                root.icon-clicked("modmanager");
+                            }
                         }
-                    }
-                    HorizontalLayout {
-                        alignment: center;
+
                         IconButton {
                             icon: IconSet.Upload;
-                            tip: "Workshop Upload";
+                            tip: Tr.tip-workshop;
                             active: root.current-icon == "workshop";
-                            clicked => { root.icon-clicked("workshop"); }
+                            clicked => {
+                                root.icon-clicked("workshop");
+                            }
                         }
-                    }
-                    HorizontalLayout {
-                        alignment: center;
+
                         IconButton {
                             icon: IconSet.ShoppingBag;
-                            tip: "Modstore";
+                            tip: Tr.tip-modstore;
                             active: root.current-icon == "modstore";
                             enabled: root.modstore-available;
-                            clicked => { root.icon-clicked("modstore"); }
+                            clicked => {
+                                root.icon-clicked("modstore");
+                            }
                         }
-                    }
-                    HorizontalLayout {
-                        alignment: center;
+
                         IconButton {
                             icon: IconSet.Settings;
-                            tip: "Settings";
+                            tip: Tr.tip-settings;
                             active: root.current-icon == "settings";
-                            clicked => { root.icon-clicked("settings"); }
+                            clicked => {
+                                root.icon-clicked("settings");
+                            }
                         }
+
+                        IconButton {
+                            icon: IconSet.Bug;
+                            tip: Tr.tip-report-bug;
+                            clicked => {
+                                root.bug-open-manager();
+                            }
+                        }
+
+                        IconButton {
+                            icon: root.profile-visible ? IconSet.LogOut : IconSet.LogIn;
+                            tip: root.profile-visible ? Tr.tip-logout : Tr.tip-login;
+                            danger: root.profile-visible;
+                            clicked => {
+                                if (root.profile-visible) {
+                                    root.profile-menu-clicked("logout");
+                                } else {
+                                    root.login-clicked();
+                                }
+                            }
+                        }
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 0;
+                        vertical-stretch: 0;
+                        alignment: start;
+                        spacing: 4px;
                     }
                 }
             }
@@ -345,7 +449,7 @@ export component MainWindow inherits Window {
                 horizontal-stretch: 1;
                 spacing: 0px;
 
-                // Header with native window-move area behind the controls.
+                // Header with window-move area.
                 Rectangle {
                     height: 42px;
                     background: Palette.container-low;
@@ -353,69 +457,77 @@ export component MainWindow inherits Window {
                         width: parent.width;
                         height: parent.height;
                     }
+
                     HorizontalLayout {
-                        // Fill the 42px top bar so controls can be vertically centered.
-                        height: parent.height;
                         padding-left: 14px;
                         padding-right: 6px;
                         spacing: 8px;
-                        Text {
-                            text: "GREGMODMANAGER";
-                            font-size: 11px;
-                            // Nexa Black (italic needs a Black-Italic font
-                            // file, which is not installed — weight only).
-                            font-family: "Nexa Black";
-                            font-weight: 900;
-                            letter-spacing: 1px;
-                            color: Palette.on-variant;
-                            vertical-alignment: center;
+
+                        Rectangle {
+                            horizontal-stretch: 1;
                         }
-                        Rectangle { horizontal-stretch: 1; }
-                        // Keep the game controls as a centered group instead
-                        // of letting the leading stretch push them right.
+
                         HorizontalLayout {
-                            // Keep the centered control group at the full top-bar height.
-                            height: parent.height;
-                            // 42px top bar - 30px button = 6px padding on each side.
                             padding-top: 6px;
                             padding-bottom: 6px;
                             spacing: 8px;
                             alignment: center;
-                            // Start Game is the safe vanilla launch. With
-                            // Mods is the explicit opt-in for Mods/.
-                            TopBarButton {
-                                text: "Start Game";
-                                btn-width: 96px;
-                                clicked => { root.start-game("vanilla"); }
+
+                            if !root.game-running: TopIconButton {
+                                icon: IconSet.Play;
+                                tip: Tr.tip-start-game-vanilla;
+                                text: Tr.btn-start-game;
+                                clicked => {
+                                    root.start-game("vanilla");
+                                }
                             }
-                            TopBarButton {
-                                text: "With Mods";
-                                btn-width: 96px;
-                                clicked => { root.start-game("mods"); }
+
+                            if !root.game-running: TopIconButton {
+                                icon: IconSet.PlayCircle;
+                                tip: Tr.tip-start-game-mods;
+                                text: Tr.btn-start-game-mods;
+                                clicked => {
+                                    root.start-game("mods");
+                                }
                             }
-                            if root.game-running: TopBarButton {
-                                text: "Stop";
-                                btn-width: 72px;
-                                clicked => { root.stop-game(); }
+
+                            if root.game-running: TopIconButton {
+                                icon: IconSet.Square;
+                                tip: Tr.tip-stop-game;
+                                text: Tr.btn-stop-game;
+                                clicked => {
+                                    root.stop-game();
+                                }
                             }
                         }
-                        Rectangle { horizontal-stretch: 1; }
+
+                        Rectangle {
+                            horizontal-stretch: 1;
+                        }
+
                         if root.login-visible: TopBarButton {
-                            text: "Login";
+                            text: Tr.btn-login;
                             btn-width: 72px;
-                            clicked => { root.login-clicked(); }
+                            clicked => {
+                                root.login-clicked();
+                            }
                         }
+
                         if root.profile-visible: Rectangle {
                             height: 34px;
-                            min-width: 180px;
+                            preferred-width: 180px;
+                            min-width: 0px;
                             background: Palette.container;
                             border-radius: Palette.radius;
                             border-width: 1px;
                             border-color: Palette.outline;
-                            touch := TouchArea {
+                            TouchArea {
                                 mouse-cursor: pointer;
-                                clicked => { root.profile-clicked(); }
+                                clicked => {
+                                    root.profile-clicked();
+                                }
                             }
+
                             HorizontalLayout {
                                 padding-left: 8px;
                                 padding-right: 10px;
@@ -434,6 +546,7 @@ export component MainWindow inherits Window {
                                         y: (parent.height - self.height) / 2;
                                     }
                                 }
+
                                 VerticalLayout {
                                     alignment: center;
                                     Text {
@@ -441,89 +554,126 @@ export component MainWindow inherits Window {
                                         font-size: 12px;
                                         font-weight: 700;
                                         color: Palette.on-surface;
+                                        overflow: elide;
                                     }
+
                                     Text {
                                         text: root.profile-hint;
                                         font-size: 10px;
                                         color: Palette.on-variant;
+                                        overflow: elide;
                                     }
                                 }
                             }
                         }
+
                         HorizontalLayout {
                             spacing: 0px;
                             WinBtn {
                                 icon: IconSet.Minus;
-                                clicked => { root.window-minimize(); }
+                                clicked => {
+                                    root.window-minimize();
+                                }
                             }
+
                             WinBtn {
                                 icon: root.maximized ? IconSet.Copy : IconSet.Square;
-                                clicked => { root.window-maximize(); }
+                                clicked => {
+                                    root.window-maximize();
+                                }
                             }
+
                             WinBtn {
                                 icon: IconSet.X;
                                 danger: true;
-                                clicked => { root.window-close(); }
+                                clicked => {
+                                    root.window-close();
+                                }
                             }
                         }
                     }
                 }
 
-                // Main row: navigation beside the icon bar + content.
+                // Main row: responsive navigation + content pages.
                 HorizontalLayout {
                     spacing: 0px;
                     vertical-stretch: 1;
 
-                    // Conditional navigation.
+                    // Conditional responsive navigation.
                     if root.nav-visible: Rectangle {
-                        width: 200px;
+                        min-width: 140px;
+                        preferred-width: 175px;
+                        max-width: 200px;
+                        horizontal-stretch: 0;
                         background: Palette.container-low;
+
                         VerticalLayout {
                             padding: 14px;
-                            spacing: 6px;
                             alignment: start;
-                            Text {
-                                text: root.nav-title;
-                                font-size: 11px;
-                                font-weight: 700;
-                                letter-spacing: 2px;
-                                color: Palette.primary;
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                alignment: start;
+                                Rectangle {
+                                    width: 24px;
+                                    height: 24px;
+                                    background: Palette.avatar-bg;
+                                    border-radius: 12px;
+                                    AppIcon {
+                                        icon: IconSet.LayoutGrid;
+                                        size: 14px;
+                                        stroke: Palette.primary;
+                                        x: (parent.width - self.width) / 2;
+                                        y: (parent.height - self.height) / 2;
+                                    }
+                                }
+
+                                Text {
+                                    text: root.nav-title;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    letter-spacing: 2px;
+                                    color: Palette.primary;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
                             }
+
                             for item in root.nav-items: NavButton {
                                 label: item.label;
                                 active: root.current-page == item.id;
-                                clicked => { root.nav-clicked(item.id); }
+                                clicked => {
+                                    root.nav-clicked(item.id);
+                                }
                             }
                         }
                     }
 
-                    // Content pages (single visible page stretches to fill).
+                    // Content pages container.
                     Rectangle {
                         horizontal-stretch: 1;
                         background: Palette.surface;
+
                         VerticalLayout {
-                            width: parent.width;
-                            height: parent.height;
-                            // No `alignment: start` here: every page fills
-                            // the viewport via vertical-stretch and scrolls
-                            // its list region internally (ScrollView). With
-                            // start-alignment, stretch is ignored, pages
-                            // render at preferred height and long lists grow
-                            // past the window (or stretched boxes collapse).
+                            vertical-stretch: 1;
+
                             if root.current-page == "mymods" || root.current-page == "myplugins" || root.current-page == "mylibs": LocalPage {
-                                // Stretched to the viewport: the list box
-                                // inside takes the leftover space and scrolls
-                                // instead of growing past the window.
                                 vertical-stretch: 1;
+                                is-libs: root.current-page == "mylibs";
+                                is-plugins: root.current-page == "myplugins";
                                 title <=> root.local-title;
                                 search <=> root.local-search;
                                 active-rows <=> root.local-active-rows;
                                 inactive-rows <=> root.local-inactive-rows;
                                 status <=> root.local-status;
                                 refresh => { root.local-refresh(); }
+                                filter-changed => { root.local-filter-changed(); }
                                 toggle(idx) => { root.local-toggle(idx); }
                                 remove(idx) => { root.local-remove(idx); }
                                 open-folder => { root.local-open-folder(); }
+                                open-lib-modal => { root.lib-open-modal(); }
+                                open-plugin-modal => { root.plugin-open-modal(); }
+                                install-plugins => { root.plugin-install-default(); }
                             }
                             if root.current-page == "problems": ProblemsPage {
                                 vertical-stretch: 1;
@@ -552,30 +702,14 @@ export component MainWindow inherits Window {
                                 import-pack => { root.packs-import(); }
                                 apply-pack(idx) => { root.packs-apply(idx); }
                             }
-                            if root.current-page == "projects": ProjectsPage {
+                            if root.current-page == "projects" || root.current-page == "new": ProjectsPage {
                                 vertical-stretch: 1;
                                 search <=> root.project-search;
                                 rows <=> root.projects;
-                                new-folder <=> root.new-folder;
-                                new-template <=> root.new-template;
-                                templates <=> root.new-templates;
                                 refresh => { root.project-refresh(); }
                                 open-project(path) => { root.project-open(path); }
                                 open-folder => { root.project-open-folder(); }
-                                create-project => { root.project-create(); }
-                                view-on-steam(id) => { root.project-view-steam(id); }
-                            }
-                            if root.current-page == "new": ProjectsPage {
-                                vertical-stretch: 1;
-                                search <=> root.project-search;
-                                rows <=> root.projects;
-                                new-folder <=> root.new-folder;
-                                new-template <=> root.new-template;
-                                templates <=> root.new-templates;
-                                refresh => { root.project-refresh(); }
-                                open-project(path) => { root.project-open(path); }
-                                open-folder => { root.project-open-folder(); }
-                                create-project => { root.project-create(); }
+                                request-new-project => { root.show-new-modal = true; }
                                 view-on-steam(id) => { root.project-view-steam(id); }
                             }
                             if root.current-page == "editor": EditorPage {
@@ -612,6 +746,7 @@ export component MainWindow inherits Window {
                                 changed => { root.ed-changed(); }
                                 save => { root.ed-save(); }
                                 publish => { root.ed-publish(); }
+                                build-test => { root.ed-review-build(); }
                                 cancel-publish => { root.ed-cancel-publish(); }
                                 pick-preview => { root.ed-pick-preview(); }
                                 add-shot => { root.ed-add-shot(); }
@@ -634,6 +769,9 @@ export component MainWindow inherits Window {
                                 selected <=> root.br-selected;
                                 has-detail <=> root.br-has-detail;
                                 d-title <=> root.br-d-title;
+                                d-author <=> root.br-d-author;
+                                d-status-state <=> root.br-d-status-state;
+                                d-preview <=> root.br-d-preview;
                                 d-meta <=> root.br-d-meta;
                                 d-tags <=> root.br-d-tags;
                                 d-desc <=> root.br-d-desc;
@@ -641,20 +779,24 @@ export component MainWindow inherits Window {
                                 d-subscribed <=> root.br-d-subscribed;
                                 status <=> root.br-status;
                                 busy <=> root.br-busy;
-                    refresh => { root.br-go(); }
-                    search-go => { root.br-go(); }
-                    filter-changed => { root.br-filter-changed(); }
-                    cancel => { root.br-cancel(); }
+                                refresh => { root.br-go(); }
+                                search-go => { root.br-go(); }
+                                filter-changed => { root.br-filter-changed(); }
+                                cancel => { root.br-cancel(); }
                                 select(id) => { root.br-select(id); }
                                 prev-page => { root.br-prev(); }
                                 next-page => { root.br-next(); }
                                 subscribe-toggle => { root.br-subscribe-toggle(); }
                                 import-item => { root.br-import(); }
+                                install-item => { root.br-review-install(); }
                                 view-on-steam => { root.br-view-steam(); }
                             }
                             if root.current-page == "modstore": StorePage {
                                 vertical-stretch: 1;
                                 search <=> root.st-search;
+                                kind <=> root.st-kind;
+                                kinds <=> root.st-kinds;
+                                filter-changed => { root.st-filter-changed(); }
                                 items <=> root.st-items;
                                 updates <=> root.st-updates;
                                 progress <=> root.st-progress;
@@ -673,50 +815,91 @@ export component MainWindow inherits Window {
                                 lang <=> root.se-lang;
                                 langs <=> root.se-langs;
                                 modstore-url <=> root.se-modstore-url;
+                                steam-web-api-key <=> root.se-steam-web-api-key;
                                 telemetry-text <=> root.se-telemetry-text;
                                 health <=> root.se-health;
+                                diagnostics <=> root.se-diagnostics;
                                 log <=> root.se-log;
+                                apply-lang => { root.se-apply-lang(); }
                                 apply-workspace => { root.se-apply-workspace(); }
                                 browse-workspace => { root.se-browse-workspace(); }
                                 apply-gameroot => { root.se-apply-gameroot(); }
                                 browse-gameroot => { root.se-browse-gameroot(); }
                                 apply-modstore-url => { root.se-apply-modstore-url(); }
+                                apply-steam-web-api-key => { root.se-apply-steam-web-api-key(); }
+                                check-updates => { root.se-check-updates(); }
                                 run-checks => { root.se-run-checks(); }
                                 open-logs => { root.se-open-logs(); }
                                 make-bundle => { root.se-make-bundle(); }
                                 register-protocol => { root.se-register-protocol(); }
                             }
+                            if root.current-page == "report": ReportPage {
+                                vertical-stretch: 1;
+                                title <=> root.rp-title;
+                                category-index <=> root.rp-category-index;
+                                categories <=> root.rp-categories;
+                                description <=> root.rp-description;
+                                steps <=> root.rp-steps;
+                                expected <=> root.rp-expected;
+                                actual <=> root.rp-actual;
+                                logs <=> root.rp-logs;
+                                environment <=> root.rp-environment;
+                                preview <=> root.rp-preview;
+                                status <=> root.rp-status;
+                                submission <=> root.rp-submission;
+                                attachments <=> root.rp-attachments;
+                                show-submit-confirm <=> root.rp-submit-confirm;
+                                submit-mode <=> root.rp-submit-mode;
+                                generate => { root.rp-generate(); }
+                                collect-logs => { root.rp-collect-logs(); }
+                                cancel => { root.rp-cancel(); }
+                                submit => { root.rp-submit(); }
+                                export => { root.rp-export(); }
+                                attach => { root.rp-attach(); }
+                                confirm-yes => { root.rp-confirm-yes(); }
+                                confirm-no => { root.rp-confirm-no(); }
+                            }
                         }
                     }
                 }
 
-                // Bottom status bar: Steam + GregApi + MelonLoader LEDs.
+                // Bottom status bar.
                 Rectangle {
                     height: 30px;
                     background: Palette.container-low;
+
                     HorizontalLayout {
                         padding-left: 12px;
                         padding-right: 12px;
                         spacing: 18px;
+                        alignment: end;
+
                         StatusLed {
                             ok: root.steam-ok;
                             text: root.steam-text;
+                            icon: @image-url("assets/steam-icon.svg");
+                            known: root.steam-known;
+                            highlight-white: root.game-running;
                         }
+
                         StatusLed {
                             ok: root.gregapi-ok;
                             text: root.gregapi-text;
+                            icon: @image-url("assets/greg-status.svg");
+                            known: root.gregapi-known;
                         }
+
                         StatusLed {
                             ok: root.melonloader-ok;
                             text: root.melonloader-text;
+                            icon: @image-url("assets/melonloader.svg");
+                            known: root.melonloader-known;
                         }
-                        Text {
-                            text: root.game-text;
-                            font-size: 11px;
-                            color: Palette.on-variant;
-                            vertical-alignment: center;
+
+                        Rectangle {
+                            horizontal-stretch: 1;
                         }
-                        Rectangle { horizontal-stretch: 1; }
+
                         Text {
                             text: "v" + root.app-version;
                             font-size: 11px;
@@ -728,12 +911,213 @@ export component MainWindow inherits Window {
             }
         }
 
-        // Modal confirm dialog (e.g. local file removal).
+        // --- Modals & Overlays ---
+
+        if root.show-build-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(760px, parent.width - 40px);
+                height: min(560px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.build-test-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: Tr.build-test-description; wrap: word-wrap; font-size: 12px; color: Palette.on-variant; }
+                    ScrollView {
+                        height: 100px;
+                        Text { text: root.build-summary; color: Palette.primary; font-size: 12px; wrap: word-wrap; }
+                    }
+                    ScrollView {
+                        vertical-stretch: 1;
+                        Text { text: root.build-output; color: Palette.on-surface; font-size: 11px; wrap: word-wrap; }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; visible: root.build-busy; clicked => { root.ed-cancel-build(); } }
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-build-modal = false; } }
+                        GregButton { text: Tr.build-test-run; enabled: root.build-can-run && !root.build-busy; variant: "primary"; clicked => { root.ed-run-build(); } }
+                    }
+                }
+            }
+        }
+
+
+        if root.show-managed-install-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(540px, parent.width - 40px);
+                height: 280px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.managed-install-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: root.br-d-title; font-size: 13px; color: Palette.on-surface; overflow: elide; }
+                    Text { text: root.managed-install-target; wrap: word-wrap; font-size: 12px; color: Palette.primary; }
+                    Text { text: Tr.managed-install-description; wrap: word-wrap; font-size: 12px; color: Palette.on-variant; }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-managed-install-modal = false; } }
+                        GregButton { text: Tr.managed-install-button; variant: "primary"; clicked => { root.br-install(); } }
+                    }
+                }
+            }
+        }
+
+
+        if root.show-workspace-modal: Rectangle {
+            background: #00000099;
+            TouchArea { }
+            Rectangle {
+                width: min(560px, parent.width - 40px);
+                height: 380px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    Text { text: Tr.workspace-title; font-size: 16px; font-weight: 700; color: Palette.on-surface; }
+                    Text { text: root.workspace-target; wrap: word-wrap; color: Palette.primary; font-size: 12px; }
+                    Text {
+                        text: "Configs/ · Logs/ · Workshop/\nGameModding/Mods/ · GameModding/UserLibs/\nGameModding/Melons/ · ModConfigs/";
+                        color: Palette.on-surface; font-size: 12px;
+                    }
+                    Text { text: Tr.workspace-description; wrap: word-wrap; color: Palette.on-variant; font-size: 12px; }
+                    Text { text: root.workspace-error; wrap: word-wrap; color: Palette.error; font-size: 12px; }
+                    Rectangle { vertical-stretch: 1; }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: 8px;
+                        GregButton { text: Tr.modal-cancel; clicked => { root.show-workspace-modal = false; } }
+                        GregButton { text: Tr.settings-apply; variant: "primary"; clicked => { root.se-confirm-workspace(); } }
+                    }
+                }
+            }
+        }
+
+
+        if root.show-new-modal: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+
+            TouchArea {
+                clicked => {
+                    root.show-new-modal = false;
+                }
+            }
+
+            Rectangle {
+                width: 420px;
+                height: 260px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+
+                TouchArea {}
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 14px;
+
+                    Text {
+                        text: Tr.new-modal-title;
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: Palette.on-surface;
+                    }
+
+                    VerticalLayout {
+                        spacing: 4px;
+                        Text {
+                            text: Tr.new-modal-folder-name;
+                            font-size: 11px;
+                            color: Palette.on-variant;
+                        }
+
+                        LineEdit {
+                            text <=> root.new-folder;
+                            placeholder-text: Tr.new-modal-folder-placeholder;
+                        }
+                    }
+
+                    VerticalLayout {
+                        spacing: 4px;
+                        Text {
+                            text: Tr.new-modal-template;
+                            font-size: 11px;
+                            color: Palette.on-variant;
+                        }
+
+                        ComboBox {
+                            model: root.new-templates;
+                            current-index <=> root.new-template;
+                        }
+                    }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: end;
+                        GregButton {
+                            text: Tr.modal-cancel;
+                            has-icon: true;
+                            icon: IconSet.Ban;
+                            clicked => {
+                                root.show-new-modal = false;
+                            }
+                        }
+
+                        GregButton {
+                            text: Tr.new-modal-create-open;
+                            has-icon: true;
+                            icon: IconSet.Plus;
+                            variant: "primary";
+                            clicked => {
+                                root.project-create();
+                                root.show-new-modal = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if root.show-confirm: Rectangle {
             width: parent.width;
             height: parent.height;
             background: #00000099;
-            TouchArea { }
+            TouchArea {}
+
             Rectangle {
                 width: 380px;
                 height: 150px;
@@ -743,6 +1127,7 @@ export component MainWindow inherits Window {
                 border-radius: Palette.radius;
                 border-width: 1px;
                 border-color: Palette.primary;
+
                 VerticalLayout {
                     padding: 16px;
                     spacing: 10px;
@@ -754,33 +1139,39 @@ export component MainWindow inherits Window {
                         wrap: word-wrap;
                         horizontal-alignment: center;
                     }
+
                     HorizontalLayout {
                         spacing: 10px;
                         alignment: center;
                         GregButton {
-                            text: "Delete";
+                            text: Tr.confirm-delete;
                             has-icon: true;
                             icon: IconSet.Trash2;
                             variant: "danger";
-                            clicked => { root.confirm-yes(); }
+                            clicked => {
+                                root.confirm-yes();
+                            }
                         }
+
                         GregButton {
-                            text: "Cancel";
+                            text: Tr.confirm-cancel;
                             has-icon: true;
                             icon: IconSet.Ban;
-                            clicked => { root.confirm-no(); }
+                            clicked => {
+                                root.confirm-no();
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Bug report dialog: entry point for all Greg mods & programs.
         if root.show-bug-dialog: Rectangle {
             width: parent.width;
             height: parent.height;
             background: #00000099;
-            TouchArea { }
+            TouchArea {}
+
             Rectangle {
                 width: 420px;
                 height: 230px;
@@ -790,94 +1181,487 @@ export component MainWindow inherits Window {
                 border-radius: Palette.radius;
                 border-width: 1px;
                 border-color: Palette.primary;
+
                 VerticalLayout {
                     padding: 16px;
                     spacing: 10px;
                     alignment: center;
                     Text {
-                        text: "Report a Bug";
+                        text: Tr.bug-dialog-title;
                         font-size: 14px;
                         font-weight: 700;
                         color: Palette.on-surface;
                         horizontal-alignment: center;
                     }
+
                     Text {
-                        text: "What is the bug about?";
+                        text: Tr.bug-dialog-subtitle;
                         font-size: 11px;
                         color: Palette.on-variant;
                         horizontal-alignment: center;
                     }
+
                     GregButton {
-                        text: "gregModmanager (this app)";
+                        text: Tr.bug-dialog-this-app;
                         has-icon: true;
                         icon: IconSet.LayoutGrid;
-                        clicked => { root.bug-open-manager(); }
+                        clicked => {
+                            root.bug-open-manager();
+                        }
                     }
+
                     GregButton {
-                        text: "Other Greg mods & programs";
+                        text: Tr.bug-dialog-other-mods;
                         has-icon: true;
                         icon: IconSet.Package;
-                        clicked => { root.bug-open-org(); }
+                        clicked => {
+                            root.bug-open-org();
+                        }
                     }
+
                     GregButton {
-                        text: "Cancel";
+                        text: Tr.modal-cancel;
                         has-icon: true;
                         icon: IconSet.Ban;
-                        clicked => { root.bug-close(); }
+                        clicked => {
+                            root.bug-close();
+                        }
                     }
                 }
             }
         }
+
         if root.show-profile-menu && root.profile-visible: Rectangle {
             width: parent.width;
             height: parent.height;
             TouchArea {
                 mouse-cursor: pointer;
-                clicked => { root.profile-clicked(); }
+                clicked => {
+                    root.profile-clicked();
+                }
             }
+
             Rectangle {
                 width: 220px;
-                // Explicit height: Rectangle children fill, so the card and
-                // its buttons need fixed geometry (4 x 32px + padding/gaps).
                 height: 164px;
-                // Header height + card: anchored top-right under the profile card.
                 x: parent.width - self.width - 70px;
                 y: 44px;
                 background: Palette.container;
                 border-radius: Palette.radius;
                 border-width: 1px;
                 border-color: Palette.outline;
+
                 VerticalLayout {
                     padding: 8px;
                     spacing: 4px;
                     alignment: start;
                     GregButton {
-                        text: "My Mods";
+                        text: Tr.btn-my-mods;
                         has-icon: true;
                         icon: IconSet.Package;
-                        clicked => { root.profile-menu-clicked("mymods"); }
+                        clicked => {
+                            root.profile-menu-clicked("mymods");
+                        }
                     }
+
                     GregButton {
-                        text: "Upload";
+                        text: Tr.btn-upload;
                         has-icon: true;
                         icon: IconSet.Upload;
-                        clicked => { root.profile-menu-clicked("upload"); }
+                        clicked => {
+                            root.profile-menu-clicked("upload");
+                        }
                     }
+
                     GregButton {
-                        text: "Settings";
+                        text: Tr.btn-settings;
                         has-icon: true;
                         icon: IconSet.Settings;
-                        clicked => { root.profile-menu-clicked("settings"); }
+                        clicked => {
+                            root.profile-menu-clicked("settings");
+                        }
                     }
+
                     GregButton {
-                        text: "Logout";
+                        text: Tr.btn-logout;
                         has-icon: true;
                         icon: IconSet.LogOut;
-                        clicked => { root.profile-menu-clicked("logout"); }
+                        clicked => {
+                            root.profile-menu-clicked("logout");
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.show-lib-modal: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+
+            TouchArea {
+                clicked => {
+                    if (!root.lib-busy) {
+                        root.lib-close-modal();
+                    }
+                }
+            }
+
+            Rectangle {
+                width: min(580px, parent.width - 40px);
+                height: min(490px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+
+                TouchArea {}
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: Tr.lib-modal-title;
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                            }
+                            Text {
+                                text: Tr.lib-modal-subtitle;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+                            GregButton {
+                                text: Tr.modal-select-missing;
+                                enabled: !root.lib-busy;
+                                clicked => { root.lib-select-missing(); }
+                            }
+                            GregButton {
+                                text: Tr.modal-select-all;
+                                enabled: !root.lib-busy;
+                                clicked => { root.lib-select-all(); }
+                            }
+                        }
+                    }
+
+                    ListCard {
+                        vertical-stretch: 1;
+                        min-height: 200px;
+                        ScrollView {
+                            width: parent.width;
+                            height: parent.height;
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 4px;
+                                for row in root.lib-catalog: Rectangle {
+                                    height: 40px;
+                                    background: row.selected ? Palette.avatar-bg : Palette.container;
+                                    border-radius: Palette.radius;
+                                    border-width: 1px;
+                                    border-color: row.selected ? Palette.primary : Palette.outline;
+
+                                    TouchArea {
+                                        mouse-cursor: root.lib-busy ? default : pointer;
+                                        clicked => {
+                                            if (!root.lib-busy) {
+                                                root.lib-toggle-select(row.index);
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+                                        Rectangle {
+                                            width: 18px;
+                                            height: 18px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: row.selected ? Palette.primary : Palette.outline;
+                                            background: row.selected ? Palette.primary : Palette.container-low;
+                                            if row.selected: AppIcon {
+                                                icon: IconSet.Check;
+                                                size: 12px;
+                                                stroke: Palette.on-primary;
+                                                x: (parent.width - self.width) / 2;
+                                                y: (parent.height - self.height) / 2;
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            alignment: center;
+                                            Text {
+                                                text: row.name;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                color: Palette.on-surface;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: row.detail;
+                                                font-size: 10px;
+                                                color: Palette.on-variant;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: 78px;
+                                            height: 22px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 11px;
+                                            background: Palette.container-low;
+                                            border-width: 1px;
+                                            border-color: row.installed ? Palette.secondary : Palette.outline;
+                                            Text {
+                                                text: row.installed ? Tr.modal-installed : Tr.modal-missing;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: row.installed ? Palette.secondary : Palette.on-variant;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: root.lib-status;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        overflow: elide;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: end;
+                        GregButton {
+                            text: Tr.modal-cancel;
+                            has-icon: true;
+                            icon: IconSet.Ban;
+                            enabled: !root.lib-busy;
+                            clicked => {
+                                root.lib-close-modal();
+                            }
+                        }
+                        GregButton {
+                            text: root.lib-busy ? Tr.modal-installing : Tr.modal-install-selected;
+                            has-icon: true;
+                            icon: IconSet.Plus;
+                            variant: "primary";
+                            enabled: !root.lib-busy;
+                            clicked => {
+                                root.lib-install-selected();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.show-plugin-modal: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: #00000099;
+
+            TouchArea {
+                clicked => {
+                    if (!root.plugin-busy) {
+                        root.plugin-close-modal();
+                    }
+                }
+            }
+
+            Rectangle {
+                width: min(580px, parent.width - 40px);
+                height: min(460px, parent.height - 40px);
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                background: Palette.container;
+                border-radius: Palette.radius-lg;
+                border-width: 1px;
+                border-color: Palette.primary;
+
+                TouchArea {}
+
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: space-between;
+                        VerticalLayout {
+                            spacing: 2px;
+                            Text {
+                                text: Tr.plugin-modal-title;
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: Palette.on-surface;
+                            }
+                            Text {
+                                text: Tr.plugin-modal-subtitle;
+                                font-size: 11px;
+                                color: Palette.on-variant;
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            alignment: end;
+                            GregButton {
+                                text: Tr.modal-select-missing;
+                                enabled: !root.plugin-busy;
+                                clicked => { root.plugin-select-missing(); }
+                            }
+                            GregButton {
+                                text: Tr.modal-select-all;
+                                enabled: !root.plugin-busy;
+                                clicked => { root.plugin-select-all(); }
+                            }
+                        }
+                    }
+
+                    ListCard {
+                        vertical-stretch: 1;
+                        min-height: 180px;
+                        ScrollView {
+                            width: parent.width;
+                            height: parent.height;
+                            VerticalLayout {
+                                padding: 6px;
+                                spacing: 4px;
+                                for row in root.plugin-catalog: Rectangle {
+                                    height: 44px;
+                                    background: row.selected ? Palette.avatar-bg : Palette.container;
+                                    border-radius: Palette.radius;
+                                    border-width: 1px;
+                                    border-color: row.selected ? Palette.primary : Palette.outline;
+
+                                    TouchArea {
+                                        mouse-cursor: root.plugin-busy ? default : pointer;
+                                        clicked => {
+                                            if (!root.plugin-busy) {
+                                                root.plugin-toggle-select(row.index);
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        spacing: 10px;
+
+                                        Rectangle {
+                                            width: 18px;
+                                            height: 18px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 4px;
+                                            border-width: 1px;
+                                            border-color: row.selected ? Palette.primary : Palette.outline;
+                                            background: row.selected ? Palette.primary : Palette.container-low;
+                                            if row.selected: AppIcon {
+                                                icon: IconSet.Check;
+                                                size: 12px;
+                                                stroke: Palette.on-primary;
+                                                x: (parent.width - self.width) / 2;
+                                                y: (parent.height - self.height) / 2;
+                                            }
+                                        }
+
+                                        VerticalLayout {
+                                            horizontal-stretch: 1;
+                                            min-width: 0px;
+                                            alignment: center;
+                                            Text {
+                                                text: row.name;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                color: Palette.on-surface;
+                                                overflow: elide;
+                                            }
+                                            Text {
+                                                text: row.detail;
+                                                font-size: 10px;
+                                                color: Palette.on-variant;
+                                                overflow: elide;
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: 78px;
+                                            height: 22px;
+                                            y: (parent.height - self.height) / 2;
+                                            border-radius: 11px;
+                                            background: Palette.container-low;
+                                            border-width: 1px;
+                                            border-color: row.installed ? Palette.secondary : Palette.outline;
+                                            Text {
+                                                text: row.installed ? Tr.modal-installed : Tr.modal-missing;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: row.installed ? Palette.secondary : Palette.on-variant;
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: root.plugin-status;
+                        font-size: 11px;
+                        color: Palette.on-variant;
+                        overflow: elide;
+                    }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: end;
+                        GregButton {
+                            text: Tr.modal-cancel;
+                            has-icon: true;
+                            icon: IconSet.Ban;
+                            enabled: !root.plugin-busy;
+                            clicked => {
+                                root.plugin-close-modal();
+                            }
+                        }
+                        GregButton {
+                            text: root.plugin-busy ? Tr.modal-installing : Tr.modal-install-selected;
+                            has-icon: true;
+                            icon: IconSet.Plus;
+                            variant: "primary";
+                            enabled: !root.plugin-busy;
+                            clicked => {
+                                root.plugin-install-selected();
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
-

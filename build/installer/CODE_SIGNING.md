@@ -16,59 +16,61 @@ machine, but that does not establish trust for other users.
 From the repository root on Windows:
 
 ```powershell
-.\build\scripts\build.ps1 -SigningMode self-signed
+.\build\installer\create-selfsigned-codesign-cert.ps1
 ```
 
-The script signs Windows PE payloads, the Setup EXE, and the MSI when those
-artifacts are built. Certificate subjects include a random build value so each
-build uses a distinct certificate.
+The script creates a self-signed code-signing certificate in the current user
+certificate store and prints the certificate thumbprint. Use that thumbprint with
+`build/installer/sign-authenticode.ps1`:
 
-CI exposes the same per-build `auto`, `self-signed`, and `none` choices. It does
-not accept PFX/Thumbprint secrets, by design.
+```powershell
+$env:CODE_SIGN_THUMBPRINT = '<thumbprint>'
+.\build\installer\sign-authenticode.ps1 -Path 'D:\dist\gregmodmanager-<version>-Windows\gregmodmanager.exe'
+```
+
+The CI workflow (`.forgejo/workflows/build-and-release.yml` and its byte-identical
+Gitea copy) performs the same per-build self-signed step via `osslsigncode` for the
+Windows portable executable (best-effort; skipped when the signing secret or the
+tooling is missing). CI does not accept PFX/Thumbprint secrets, by design.
 
 ## Create a reusable local test certificate
 
 `build/installer/create-selfsigned-codesign-cert.ps1` creates a manually managed
 local certificate with its own subject and lifetime. It is separate from the
-ephemeral certificate created by `build.ps1`; use it only for controlled test
-machines and keep its private key out of the repository.
+ephemeral certificate flow above; use it only for controlled test machines and
+keep its private key out of the repository.
 
 ## Build with an existing certificate
 
 Use **exactly one** of the following environment values and select `pfx` mode:
 
 ```powershell
-$env:CODE_SIGN_THUMBPRINT = '40_HEX_CHARACTER_THUMBPRINT'
-.\build\scripts\build.ps1 -SigningMode pfx
-```
-
-```powershell
 $env:CODE_SIGN_PFX = 'D:\secure\codesign.pfx'
 $env:CODE_SIGN_PFX_PASSWORD = 'read-from-your-secret-store'
-.\build\scripts\build.ps1 -SigningMode pfx
+.\build\installer\sign-authenticode.ps1 -Path 'D:\dist\gregmodmanager-<version>-Windows\gregmodmanager.exe' -PfxPath 'D:\secure\codesign.pfx'
 ```
 
 Do not put the PFX, password, thumbprint, or base64-encoded certificate in the
-repository, a checked-in `.env`, logs, or documentation. `auto` and
-`self-signed` intentionally discard existing PFX/thumbprint environment values;
-choose `pfx` when reusing a certificate.
+repository, a checked-in `.env`, logs, or documentation. `auto` and `self-signed`
+intentionally discard existing PFX/thumbprint environment values; choose `pfx`
+when reusing a certificate.
 
-## Sign an existing Setup EXE
+## Sign an existing file
 
 ```powershell
-.\build\scripts\build.ps1 -SignOnly -SigningMode pfx `
-  -SetupPath 'D:\dist\gregModmanager-1.6.1-Windows.exe'
+.\build\installer\sign-authenticode.ps1 -Path 'D:\dist\gregmodmanager-<version>-Windows\gregmodmanager.exe' -Thumbprint '40_HEX_CHARACTER_THUMBPRINT'
 ```
 
-`-SignOnly` does not restore, publish, or invoke Inno Setup/WiX. It requires a
-Windows host, an existing Setup EXE, and usable Authenticode tooling.
+`-Path` selects the file to sign; `-Thumbprint` signs with a certificate from the
+Windows certificate store, `-PfxPath` signs with a PFX file. The script requires a
+Windows host with the Windows SDK (`signtool.exe`) available.
 
 ## Verification
 
 On Windows, inspect the file's **Digital Signatures** tab or run:
 
 ```powershell
-Get-AuthenticodeSignature 'D:\dist\gregModmanager-1.6.1-Windows.exe' |
+Get-AuthenticodeSignature 'D:\dist\gregmodmanager-<version>-Windows\gregmodmanager.exe' |
   Format-List Status, StatusMessage, SignerCertificate
 ```
 

@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, Thumb, GregButton, ListCard } from "theme.slint";
 import { LocalRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 // Local content page (My Mods / My Plugins / My Libs). One component, the
 // title and rows differ per kind. Enable/disable renames .dll files,
@@ -18,11 +19,17 @@ export component LocalPage inherits VerticalLayout {
     in-out property <[LocalRow]> active-rows;
     in-out property <[LocalRow]> inactive-rows;
     in-out property <string> status;
+    in property <bool> is-libs: false;
+    in property <bool> is-plugins: false;
 
     callback refresh();
+    callback filter-changed();
     callback toggle(int);
     callback remove(int);
     callback open-folder();
+    callback open-lib-modal();
+    callback open-plugin-modal();
+    callback install-plugins();
 
     spacing: 8px;
     padding: 18px;
@@ -39,30 +46,47 @@ export component LocalPage inherits VerticalLayout {
             alignment: center;
             LineEdit {
                 text <=> root.search;
-                placeholder-text: "Filter…";
+                placeholder-text: Tr.local-filter-placeholder;
                 horizontal-stretch: 1;
+                edited(_) => { root.filter-changed(); }
+            }
+            if root.is-libs: GregButton {
+                text: Tr.local-install-libs;
+                has-icon: true;
+                icon: IconSet.Plus;
+                variant: "primary";
+                clicked => { root.open-lib-modal(); }
+            }
+            if root.is-plugins: GregButton {
+                text: Tr.local-browse-plugins;
+                has-icon: true;
+                icon: IconSet.Search;
+                clicked => { root.open-plugin-modal(); }
+            }
+            if root.is-plugins: GregButton {
+                text: Tr.local-install-plugins;
+                has-icon: true;
+                icon: IconSet.Plus;
+                variant: "primary";
+                clicked => { root.install-plugins(); }
             }
             GregButton {
-                text: "Rescan";
+                text: Tr.local-rescan;
                 has-icon: true;
                 icon: IconSet.RefreshCw;
                 clicked => { root.refresh(); }
             }
             GregButton {
-                text: "Open folder";
+                text: Tr.local-open-folder;
                 has-icon: true;
                 icon: IconSet.FolderOpen;
                 clicked => { root.open-folder(); }
             }
         }
     }
-    Text {
-        text: root.status;
-        font-size: 11px;
-        color: Palette.on-variant;
-    }
 
-    SectionTitle { text: "ACTIVE (" + root.active-rows.length + ")"; }
+
+    SectionTitle { text: Tr.local-active-section + " (" + root.active-rows.length + ")"; }
     ListCard {
         vertical-stretch: 1;
         min-height: 140px;
@@ -73,7 +97,7 @@ export component LocalPage inherits VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
                 if root.active-rows.length == 0: Text {
-                    text: "No active entries.";
+                    text: Tr.local-no-active;
                     font-size: 12px;
                     color: Palette.on-variant;
                     horizontal-alignment: center;
@@ -99,6 +123,7 @@ export component LocalPage inherits VerticalLayout {
                         }
                         VerticalLayout {
                             horizontal-stretch: 1;
+                            min-width: 0px;
                             alignment: center;
                             Text {
                                 text: row.name;
@@ -115,13 +140,13 @@ export component LocalPage inherits VerticalLayout {
                             }
                         }
                         GregButton {
-                            text: "Disable";
+                            text: Tr.local-disable;
                             has-icon: true;
                             icon: IconSet.Power;
                             clicked => { root.toggle(row.index); }
                         }
                         GregButton {
-                            text: "Remove";
+                            text: Tr.local-remove;
                             has-icon: true;
                             icon: IconSet.Trash2;
                             variant: "danger";
@@ -133,7 +158,7 @@ export component LocalPage inherits VerticalLayout {
         }
     }
 
-    SectionTitle { text: "DISABLED (" + root.inactive-rows.length + ")"; }
+    SectionTitle { text: Tr.local-disabled-section + " (" + root.inactive-rows.length + ")"; }
     ListCard {
         vertical-stretch: 1;
         min-height: 110px;
@@ -144,7 +169,7 @@ export component LocalPage inherits VerticalLayout {
                 padding: 6px;
                 spacing: 2px;
                 if root.inactive-rows.length == 0: Text {
-                    text: "No disabled entries.";
+                    text: Tr.local-no-disabled;
                     font-size: 12px;
                     color: Palette.on-variant;
                     horizontal-alignment: center;
@@ -170,6 +195,7 @@ export component LocalPage inherits VerticalLayout {
                         }
                         VerticalLayout {
                             horizontal-stretch: 1;
+                            min-width: 0px;
                             alignment: center;
                             Text {
                                 text: row.name;
@@ -186,14 +212,14 @@ export component LocalPage inherits VerticalLayout {
                             }
                         }
                         GregButton {
-                            text: "Enable";
+                            text: Tr.local-enable;
                             has-icon: true;
                             icon: IconSet.Power;
                             variant: "primary";
                             clicked => { root.toggle(row.index); }
                         }
                         GregButton {
-                            text: "Remove";
+                            text: Tr.local-remove;
                             has-icon: true;
                             icon: IconSet.Trash2;
                             variant: "danger";
@@ -203,5 +229,12 @@ export component LocalPage inherits VerticalLayout {
                 }
             }
         }
+    }
+
+    Text {
+        text: root.status;
+        font-size: 11px;
+        color: Palette.on-variant;
+        overflow: elide;
     }
 }

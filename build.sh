@@ -6,4 +6,4 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "$script_dir/build/scripts/linux/build-avalonia-packages.sh" "$@"
+exec bash "$script_dir/build/scripts/linux/build-rust-packages.sh" "$@"

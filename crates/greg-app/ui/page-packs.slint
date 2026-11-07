@@ -3,6 +3,7 @@ import { ScrollView } from "std-widgets.slint";
 import { IconSet } from "@lucide";
 import { Palette, SectionTitle, GregButton, ListCard } from "theme.slint";
 import { PackRow, PackEntryRow } from "models.slint";
+import { Tr } from "i18n.slint";
 
 // Modpacks and shareable collections share one component; `kind` selects
 // the backing data ("pack" | "collection"). Master-detail: packs left,
@@ -54,19 +55,19 @@ export component PacksPage inherits VerticalLayout {
                     alignment: center;
                     LineEdit {
                         text <=> root.new-name;
-                        placeholder-text: "New name…";
+                        placeholder-text: Tr.packs-new-name-placeholder;
                         horizontal-stretch: 1;
                         min-width: 120px;
                     }
                     GregButton {
-                        text: "New";
+                        text: Tr.packs-new;
                         has-icon: true;
                         icon: IconSet.Plus;
                         variant: "primary";
                         clicked => { root.create(); }
                     }
                     GregButton {
-                        text: "Import";
+                        text: Tr.packs-import;
                         has-icon: true;
                         icon: IconSet.Download;
                         clicked => { root.import-pack(); }
@@ -110,7 +111,7 @@ export component PacksPage inherits VerticalLayout {
                                 }
                             }
                             GregButton {
-                                text: pack.enabled ? "On" : "Off";
+                                text: pack.enabled ? Tr.packs-on : Tr.packs-off;
                                 has-icon: true;
                                 icon: pack.enabled ? IconSet.Eye : IconSet.EyeOff;
                                 clicked => { root.toggle-pack(pack.index); }
@@ -135,26 +136,26 @@ export component PacksPage inherits VerticalLayout {
                     spacing: 6px;
                     alignment: center;
                     GregButton {
-                        text: "Apply";
+                        text: Tr.packs-apply;
                         has-icon: true;
                         icon: IconSet.Check;
                         variant: "primary";
                         clicked => { root.apply-pack(root.selected); }
                     }
                     GregButton {
-                        text: "Add local file";
+                        text: Tr.packs-add-local-file;
                         has-icon: true;
                         icon: IconSet.Plus;
                         clicked => { root.add-local-file(); }
                     }
                     GregButton {
-                        text: "Export";
+                        text: Tr.packs-export;
                         has-icon: true;
                         icon: IconSet.Upload;
                         clicked => { root.export-pack(root.selected); }
                     }
                     GregButton {
-                        text: "Delete pack";
+                        text: Tr.packs-delete-pack;
                         has-icon: true;
                         icon: IconSet.Trash2;
                         variant: "danger";
@@ -194,13 +195,13 @@ export component PacksPage inherits VerticalLayout {
                                 }
                             }
                             GregButton {
-                                text: entry.enabled ? "On" : "Off";
+                                text: entry.enabled ? Tr.packs-on : Tr.packs-off;
                                 has-icon: true;
                                 icon: entry.enabled ? IconSet.Eye : IconSet.EyeOff;
                                 clicked => { root.toggle-entry(entry.index); }
                             }
                             GregButton {
-                                text: "Remove";
+                                text: Tr.packs-remove;
                                 has-icon: true;
                                 icon: IconSet.Trash2;
                                 variant: "danger";

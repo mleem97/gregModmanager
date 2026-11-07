@@ -1,0 +1,26 @@
+name: "Documentation improvement"
+description: "Report missing/unclear docs or suggest documentation updates"
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Docs location
+      placeholder: "README.md section, wiki page, etc."
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing?
+      placeholder: "This section is outdated / missing install steps ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested change
+      placeholder: "Replace/add text ..."

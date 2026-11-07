@@ -7,7 +7,108 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Release distribution
+
+- Prepare Windows installers and Linux packages with upgrade-safe installation,
+  GitHub release publishing, and an in-app update check.
+
+### Changed
+
+- Migrated checked-in CI configuration to the native Jenkins quality/build
+  matrix and removed former Actions workflows; automated release publication,
+  coverage uploading and notifications still require replacement jobs.
+
+- Unified the manager base under `$HOME/GregModmanager` (custom bases retained),
+  with Configs, Logs, Workshop, GameModding and ModConfigs; added cached SQLite
+  settings with legacy import and a reviewed base-switch dialog.
+- Added controlled Workshop installation into managed Mods/Melons/UserLibs,
+  typed Modstore installs and a shared publishing configuration for both services.
+- Added an editor build-test dialog with real SDK diagnostics and dependency paths.
+- Moved local content scanning off the UI thread and cached search results;
+  replaced synthetic preview pixels with bounded real image decoding and caches.
+- Added verified managed-runtime launch gating and a reviewable external
+  gregCore/Companion/loader integration patch; live runtime verification remains
+  a deployment prerequisite.
+
+- Replaced Steam, gregAPI and MelonLoader status dots with uniformly sized,
+  monochrome service logos, including the upstream MelonWiki logo. Icons show
+  red for unavailable, gray for unknown/checking and green for available.
+- Updated the application logo and window icon (`G.svg`).
+- Expanded `.env.example` with runtime/CI settings, separate proposed Discord
+  destinations, Grafana/Loki credentials and GitHub/Bugsink/MantisNext/Plane
+  integration configuration; documented active consumers and full-sync gaps.
+
 ### Added
+
+- "Browse Plugins" modal and "Install Plugins" button in the "My Plugins" view: "Browse Plugins" lets users select and install official MelonLoader plugins (`Il2CppAssemblyFixerPlugin.dll`, `gregPlugin.Companion.dll`, `gregPlugin.ExplorerBridge.dll`, `gregPlugin.SteamModfix.dll`), while "Install Plugins" automatically downloads and installs the latest release of the IL2CPP Assembly Fixer directly from Datacentermods (`git.datacentermods.com`) with automatic fallback to GitHub releases.
+- Two-tier Steam Workshop metadata and preview image resolver (`greg-steam::web_api` + `WorkshopService::item_details` / `fetch_item_metadata_and_preview`): queries local Steamworks IPC first and falls back to the Steam Web API (`IPublishedFileService/GetDetails/v1/` + `ISteamRemoteStorage/GetPublishedFileDetails/v1/` + `ISteamUser/GetPlayerSummaries/v0002/`) when an optional Steam Web API key is configured, with asynchronous preview image downloading and full `BrowsePage` UI integration (including direct lookup by Workshop Item ID such as `3741628037`).
+- Complete 100% Internationalization (i18n) across the Slint frontend (`Tr` global singleton in `ui/i18n.slint`) and Rust backend (`greg-core::l10n` across all 9 supported languages `en`, `de`, `fr`, `es`, `it`, `ja`, `pl`, `ru`, `zh` with transparent English fallback and live language switching in `SettingsPage`).
+- "Install Libraries" button (`+`) and modal in the "My Libs" view to select and install the 9 gregFramework runtime libraries (`Acornima.dll`, `Jint.dll`, `LiteDB.dll`, `Mono.Cecil.dll`, `MoonSharp.Interpreter.dll`, `NLayer.dll`, `Newtonsoft.Json.dll`, `Python.Runtime.dll`, `dnlib.dll`) into `{GameRoot}/UserLibs` (from local NuGet cache or NuGet v3 flat container), plus case-sensitive Linux scanning of `UserLibs`.
+- Cross-platform build infrastructure: `build-profiles/` (9 targets), `schemas/build-manifest.schema.json`, `build-images/` container definitions, `smoke/` programs, and `cargo xtask profiles|validate`.
+- Documentation: `docs/PLATFORMS.md`, `docs/APPLE-SDK-LICENSING.md`, `docs/CONTAINERS.md`, `docs/CI-CD.md`, `docs/TROUBLESHOOTING.md`, `docs/ROADMAP.md`.
+
+- Optional error reporting via Bugsink (Sentry-SDK compatible) for the CLI,
+  enabled by setting `BUGSINK_DSN` / `SENTRY_DSN`.
+- New crates `eu-greg-error-reporting` and `eu-greg-bug-report-form` with structured error reports and bug-report form model/validation.
+- Fixed `cli-main` crate import alias for steam integration and removed stray doc comments causing clippy errors.
+- CI: Codacy code coverage — workspace-weites LCOV-Report via `cargo tarpaulin`, hochgeladen mit dem Codacy
+  Coverage Reporter bei jedem Push/PR (Job `coverage` in `rust.yml`); benötigt das Geheimnis `CODACY_PROJECT_TOKEN`.
+### Fixed
+
+- FULL-RUST configuration alignment: devcontainer moved from the .NET/Avalonia
+  SDK image to a Rust (rustup + Slint) image with the Rust VS Code extension;
+  release-changelog version promotion now bumps the workspace `Cargo.toml` (the
+  referenced .NET project no longer exists); the stale C# GitHub build workflow
+  was removed and the release-train CI (promote/train + quality gates) moved
+  into the byte-identical Forgejo/Gitea workflow set; build wrapper, Steam/Proton
+  notes, and documentation were aligned to the Rust workspace.
+- Residual C# era tooling removed after the full-Rust migration: obsolete
+  .NET/Avalonia build scripts (builder menus, PowerShell build helpers, Avalonia
+  package scripts, apt/local-test/Linux-package scripts) deleted; quality gates
+  (`scripts/greg-gates.sh`) reduced to the Rust toolchain path; Codacy
+  language/tool configuration switched from C# to Rust; Windows installer
+  signing/installer documentation aligned to the Rust-era scripts.
+
+- Der Modmanager wurde nach einem Spielstart unbenutzbar — es gab keinen
+  funktionierenden Weg, das Spiel aus der App zu stoppen. `stop_game()`
+  killt laufende Game-Prozesse und reconnectet Steamworks danach; der
+  Stop-Button im Header ersetzt die Start-Buttons während ein Spiel läuft.
+
+### Added
+
+- Local developer workflow scripts in `scripts/` (quality gate, dev build, app
+  start from source, headless CLI, release builds incl. Windows/Linux/macOS) and
+  the recurring local-workflow inventory in `AUDIT_LOCAL_DEV_WORKFLOWS.md`.
+- Universal Report Assistant: new central `Report` tab in the modmanager
+  navigation (replaces the former bug-only link-out entry). Category
+  selection (bug, crash, feature, improvement, performance, compatibility,
+  UI/UX, documentation, installation, configuration, security, other),
+  free-text description and category-dependent fields (steps, expected /
+  actual behavior, logs, environment), plus a generated Markdown preview
+  with validation, secret redaction and log truncation from the new
+  `greg-core::report` domain. Submission to GitHub issues follows in a
+  later phase; the local fallback tracker hand-off stays available.
+- Universal Report Assistant foundation completed: versioned shared report
+  schema (`REPORT_SCHEMA_VERSION`, report id, creation timestamp, source
+  product, transmission mode, submission state, external issue reference),
+  typed submission lifecycle (`draft` → `in_progress` → `submitted` / `failed`
+  / `cancelled`) and transmission modes (`user_direct` / `operator_service` /
+  `local_export`), environment snapshot (OS + app version) auto-collected for
+  new drafts, optional user-provided environment override, optional
+  additional context section in the generated issue body, and local Markdown
+  export (`greg_core::report::export_markdown`) via user-chosen save location.
+- Universal Report Assistant UI: submission state surfaced in the page,
+  attachment intake (validated user-selected file names) and a submission
+  confirmation step before any delivery attempt; local export writes the
+  sanitized Markdown body to disk. Submission via direct GitHub or operator
+  service channels is intentionally not claimed before the backend report
+  intake is deployed; the local export remains the supported delivery path.
+- Universal Report Assistant: env-gated GitHub issue delivery implemented via
+  the GitHub Issues API (`POST /repos/{repo}/issues`) using
+  `GREG_GITHUB_TOKEN` + `GREG_GITHUB_ISSUE_TARGET_REPO`; delivery is only
+  attempted when the credentials are configured, otherwise the local export
+  fallback remains active. Committed `.env.example` documents the
+  configuration keys for builds and CI (secrets are never committed).
 
 - Experimental macOS support for Steam library discovery, Unity `.app` game
   bundles, and macOS process supervision. Native Mac validation, signing, and

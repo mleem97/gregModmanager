@@ -8,6 +8,7 @@
 //! [`PublishPlan::from_project`] is pure (zip + request shaping) and
 //! unit-tested; only [`PublishPlan::execute`] touches the network.
 
+use greg_core::models::{ProjectContentKind, WorkshopMetadata};
 use std::path::{Path, PathBuf};
 
 use crate::error::{ModStoreError, Result};
@@ -40,6 +41,9 @@ pub enum PublishPayload {
 /// Metadata for the submit call (mirrors the web UploadWizard fields).
 #[derive(Debug, Clone, Default)]
 pub struct PublishMetadata {
+    /// Explicit shared type. None supports legacy callers; metadata.json-based
+    /// publishers always set this and reject unsupported values.
+    pub mod_type: Option<String>,
     /// Existing mod id for updates; `None` creates a new mod.
     pub mod_id: Option<String>,
     pub title: String,
@@ -55,6 +59,31 @@ pub struct PublishMetadata {
     pub support_url: Option<String>,
     pub min_game_version: Option<String>,
     pub recommended_game_version: Option<String>,
+}
+
+impl PublishMetadata {
+    /// One metadata.json feeds both providers. Only provider IDs remain separate.
+    pub fn from_workshop(
+        meta: &WorkshopMetadata,
+        description: impl Into<String>,
+        changelog: impl Into<String>,
+    ) -> Self {
+        Self {
+            mod_type: Some(meta.mod_type.clone()),
+            mod_id: (!meta.modstore_id.trim().is_empty()).then(|| meta.modstore_id.clone()),
+            title: meta.title.clone(),
+            version: meta.version.clone(),
+            description: description.into(),
+            changelog: changelog.into(),
+            category: meta.category.clone(),
+            license: meta.license.clone(),
+            tags: meta.publication_tags(),
+            installation: meta.installation.clone(),
+            support_url: meta.support_url.clone(),
+            min_game_version: meta.min_game_version.clone(),
+            recommended_game_version: meta.recommended_game_version.clone(),
+        }
+    }
 }
 
 /// A ready-to-send publish (bytes + shaped requests).
@@ -75,11 +104,37 @@ pub struct PublishPlan {
 impl PublishPlan {
     /// Zips or reads `payload` and shapes the submit body from `meta`.
     pub fn from_project(payload: &PublishPayload, meta: &PublishMetadata) -> Result<Self> {
+        let kind = match meta.mod_type.as_deref() {
+            Some(name) => Some(ProjectContentKind::parse(name).ok_or_else(|| {
+                ModStoreError::InvalidArtefact(format!("Unknown project content type: {name}"))
+            })?),
+            None => ProjectContentKind::from_publication_tags(&meta.tags)
+                .map_err(ModStoreError::InvalidArtefact)?,
+        };
+        let mut tags = meta.tags.clone();
+        if let Some(kind) = kind {
+            tags.retain(|tag| {
+                !tag.trim()
+                    .split_once(':')
+                    .is_some_and(|(prefix, _)| prefix.eq_ignore_ascii_case("greg-mod-type"))
+            });
+            tags.push(format!("greg-mod-type:{}", kind.name()));
+        }
         let (file_name, bytes) = match payload {
-            PublishPayload::Directory { dir, file_name } => {
-                (file_name.clone(), zip_dir_bytes(dir, file_name)?)
-            }
+            PublishPayload::Directory { dir, file_name } => (
+                file_name.clone(),
+                zip_dir_bytes_with_kind(dir, file_name, kind)?,
+            ),
             PublishPayload::File { path } => {
+                if std::fs::metadata(path)
+                    .map_err(|e| ModStoreError::Other(e.to_string()))?
+                    .len()
+                    > MAX_UPLOAD_BYTES
+                {
+                    return Err(ModStoreError::InvalidArtefact(
+                        "upload exceeds the 500 MiB limit".into(),
+                    ));
+                }
                 let bytes = std::fs::read(path).map_err(|e| {
                     ModStoreError::Other(format!("cannot read {}: {e}", path.display()))
                 })?;
@@ -117,7 +172,7 @@ impl PublishPlan {
             github_url: None,
             file_key: None,
             file_url: None,
-            tags: (!meta.tags.is_empty()).then(|| meta.tags.clone()),
+            tags: (!tags.is_empty()).then_some(tags),
             installation: meta.installation.clone(),
             support_url: meta.support_url.clone(),
             min_game_version: meta.min_game_version.clone(),
@@ -168,6 +223,14 @@ impl PublishPlan {
 
 /// Zips `dir` (files at the archive root) into memory.
 pub fn zip_dir_bytes(dir: &Path, arc_name: &str) -> Result<Vec<u8>> {
+    zip_dir_bytes_with_kind(dir, arc_name, None)
+}
+
+fn zip_dir_bytes_with_kind(
+    dir: &Path,
+    arc_name: &str,
+    kind: Option<ProjectContentKind>,
+) -> Result<Vec<u8>> {
     if !dir.is_dir() {
         return Err(ModStoreError::InvalidArtefact(format!(
             "not a directory: {}",
@@ -185,8 +248,16 @@ pub fn zip_dir_bytes(dir: &Path, arc_name: &str) -> Result<Vec<u8>> {
             let entries = std::fs::read_dir(&current).map_err(|e| {
                 ModStoreError::Other(format!("cannot scan {}: {e}", current.display()))
             })?;
-            for entry in entries.flatten() {
+            for entry in entries {
+                let entry = entry.map_err(|e| ModStoreError::Other(e.to_string()))?;
                 let path = entry.path();
+                if entry
+                    .file_type()
+                    .map_err(|e| ModStoreError::Other(e.to_string()))?
+                    .is_symlink()
+                {
+                    continue;
+                }
                 if path.is_dir() {
                     stack.push(path);
                     continue;
@@ -195,17 +266,16 @@ pub fn zip_dir_bytes(dir: &Path, arc_name: &str) -> Result<Vec<u8>> {
                     ModStoreError::Other(format!("cannot relativize {}: {e}", path.display()))
                 })?;
                 let name = rel.to_string_lossy().replace('\\', "/");
-                if name.is_empty() {
+                if name.is_empty() || (kind.is_some() && name == "greg-modmanager.meta.json") {
                     continue;
                 }
                 empty = false;
                 zip.start_file(name, options)
                     .map_err(|e| ModStoreError::Other(format!("cannot zip {arc_name}: {e}")))?;
-                let bytes = std::fs::read(&path).map_err(|e| {
+                let mut file = std::fs::File::open(&path).map_err(|e| {
                     ModStoreError::Other(format!("cannot read {}: {e}", path.display()))
                 })?;
-                use std::io::Write as _;
-                zip.write_all(&bytes)
+                std::io::copy(&mut file, &mut zip)
                     .map_err(|e| ModStoreError::Other(format!("cannot zip {arc_name}: {e}")))?;
             }
         }
@@ -214,6 +284,14 @@ pub fn zip_dir_bytes(dir: &Path, arc_name: &str) -> Result<Vec<u8>> {
                 "nothing to upload in {}",
                 dir.display()
             )));
+        }
+        if let Some(kind) = kind {
+            zip.start_file("greg-modmanager.meta.json", options)
+                .map_err(|e| ModStoreError::Other(e.to_string()))?;
+            use std::io::Write as _;
+            let marker = serde_json::json!({"modType": kind.name()});
+            zip.write_all(marker.to_string().as_bytes())
+                .map_err(|e| ModStoreError::Other(e.to_string()))?;
         }
         zip.finish()
             .map_err(|e| ModStoreError::Other(format!("cannot zip {arc_name}: {e}")))?;
@@ -277,7 +355,7 @@ mod tests {
         let cursor = std::io::Cursor::new(&bytes);
         let mut zip = zip::ZipArchive::new(cursor).unwrap();
         let mut names: Vec<String> = (0..zip.len())
-            .map(|i| zip.by_index(i).unwrap().name().to_string())
+            .map(|i| zip.by_index(i).unwrap().name().unwrap().into_owned())
             .collect();
         names.sort();
         assert_eq!(names, vec!["a.txt", "sub/b.txt"]);
@@ -307,6 +385,79 @@ mod tests {
         assert_eq!(plan.submit.description.as_deref(), Some("Desc"));
         assert!(plan.submit.file_key.is_none());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn one_shared_config_classifies_both_request_and_archive() {
+        for kind in [
+            ProjectContentKind::Userlib,
+            ProjectContentKind::MelonloaderPlugin,
+            ProjectContentKind::DataCenterMod,
+            ProjectContentKind::PlacableObject,
+        ] {
+            let dir = tmp_content(
+                kind.name(),
+                &[
+                    ("mod.dll", b"fake"),
+                    ("greg-modmanager.meta.json", br#"{"modType":"stale"}"#),
+                ],
+            );
+            let shared = WorkshopMetadata {
+                title: "Shared project".into(),
+                version: "2.0.0".into(),
+                published_file_id: 123,
+                modstore_id: "store-id".into(),
+                mod_type: kind.name().into(),
+                category: Some("Automation".into()),
+                license: Some("Apache-2.0".into()),
+                ..Default::default()
+            };
+            let meta = PublishMetadata::from_workshop(&shared, "README markdown", "release notes");
+            let plan = PublishPlan::from_project(
+                &PublishPayload::Directory {
+                    dir: dir.clone(),
+                    file_name: "mod.zip".into(),
+                },
+                &meta,
+            )
+            .unwrap();
+            assert_eq!(plan.submit.mod_id.as_deref(), Some("store-id"));
+            assert_eq!(plan.submit.category.as_deref(), Some("Automation"));
+            assert_eq!(plan.submit.license.as_deref(), Some("Apache-2.0"));
+            assert_eq!(
+                ProjectContentKind::from_publication_tags(plan.submit.tags.as_ref().unwrap())
+                    .unwrap(),
+                Some(kind)
+            );
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&plan.bytes)).unwrap();
+            assert_eq!(archive.len(), 2);
+            let mut marker = archive.by_name("greg-modmanager.meta.json").unwrap();
+            let value: serde_json::Value = serde_json::from_reader(&mut marker).unwrap();
+            assert_eq!(value["modType"], kind.name());
+            assert!(!value.as_object().unwrap().contains_key("publishedFileId"));
+            assert_eq!(
+                std::fs::read_to_string(dir.join("greg-modmanager.meta.json")).unwrap(),
+                r#"{"modType":"stale"}"#
+            );
+            drop(marker);
+            drop(archive);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
+    fn unknown_explicit_type_is_rejected_before_packaging() {
+        let meta = PublishMetadata {
+            mod_type: Some("../../outside".into()),
+            ..Default::default()
+        };
+        assert!(PublishPlan::from_project(
+            &PublishPayload::File {
+                path: PathBuf::from("not-read.dll")
+            },
+            &meta
+        )
+        .is_err());
     }
 
     #[test]

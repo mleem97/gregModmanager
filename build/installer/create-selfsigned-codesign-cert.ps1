@@ -2,7 +2,7 @@
 # Der Name erscheint in der Signatur — Windows kann trotzdem „Unbekannter Herausgeber“ anzeigen,
 # weil kein vertrauender Stamm (öffentliche CA) beteiligt ist. Siehe installer\CODE_SIGNING.md
 #
-# Einmal ausführen, Thumbprint notieren, dann sign-authenticode.ps1 oder build.ps1 -Sign nutzen.
+# Einmal ausführen, Thumbprint notieren, dann sign-authenticode.ps1 -Thumbprint nutzen.
 #Requires -Version 5.1
 param(
     [string]$CommonName = 'mleem97',

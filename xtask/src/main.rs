@@ -219,6 +219,10 @@ fn dist(target: Option<&str>, out: Option<PathBuf>) -> Result<()> {
     let root = workspace_root();
     let (os, _arch, tag) = parse_target(target);
     let version = workspace_version(&root)?;
+    let release_version = std::fs::read_to_string(root.join("VERSION"))?;
+    if release_version.trim() != version {
+        bail!("VERSION and Cargo workspace version disagree");
+    }
     println!("xtask dist: version={version} tag={tag}");
 
     // 1. Release build.

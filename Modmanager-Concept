@@ -1,0 +1,38 @@
+# Greg Modmanager Konzept
+
+## Modmanager für "Data Center" (Rust/Slint)
+
+Ich arbeite in Rust und Slint an einem Modmanager für ein Spiel "Data Center" - Jedoch wird es schnell unübersichtlich bei vielen Mods. Unser Ziel ist ein "Capable"-Allroundwerkzeug für den Moduser und den Modersteller - sodass er quasi ein unverzichtbarer Teil des Mod-Universums des Games wird.
+
+Der Modmanager hat aktuell 4 "Main Tabs" - Modmanager (EndUser), Steam Workshop (Uploader und Dev-Manager), Modstore (Combined SteamWorkshop und Datacentermods.com Modstore), Settings (Sprache, Workspace (ordner der alles beinhaltet für den Upload getrennt nach Mod), Spieleverzeichnis (Default (Windows C:\{steamlibrary} - aber auch für linux (Proton) und mac (steam native), Custom (Externe Anbieter wie GOG oder Epic zb.) - idealerweise muss der Default Pfad automatisch erkannt werden.), GregFrameworkTelemetrie (Grafana, Bugtracking, Errorlogging (Bugsink) )
+
+Ausserdem Gibt es (jedoch in der Top-Bar) "Start Game" (Ohne Mods), "WithMods" (erklärt sich von selbst) und "Stop" (wo ich nicht weiss woher es kommt) sowie Login, für den Modstore.
+
+Die 4 Tabs beinhalten:
+"Modmanager":
+- Meine Mods
+- Meine Plugins (Melonloader Plugins)
+- Meine Libs
+- Modpacks / Collections (wo die sich unterscheiden sollen weiss ich noch nich so ganz)
+- Problems (Soll in die Statusbar unten im fenster verschoben werden, da es nicht nur daten für den Enduser sondern auch für den Modpublisher hat)
+- Report a Bug
+
+"Steam Workshop" (aktuell noch Workshop Upload, vielleicht finden wir noch einen passenden namen):
+- Neues Projekt -> Müssen wir überarbeiten, mit einem "Mod-Creation-Assistenten" der dem User hilft alles korrekt anzulegen, für Steam und für den Modstore.
+- Meine Projekte
+- Browse -> Muss nach "Modstore" verschoben werden
+- Subscribed - ist eigentlich ja schon "Meine Mods"
+- Favorites - Gehört eigentlich auch nach "Modmanager" aber auch in "Modstore"
+
+"Modstore":
+- Enthält aktuell nichts ausser eine leere Liste und ein paar Buttons. Also keine "Unterseiten" wie bei den anderen.
+- Später Steam und Modstore downloads. Ist ein Mod in Steam und im Modstore, bevorzugt Steam nehmen, außer die Version im Modstore ist neuer.
+
+"Settings" - Ja ergibt sich von selbst denke ich.
+
+Ich will noch folgende Funktionen hinzufügen:
+Discord Login - Mindestens für Bug Reports, aber auch um "Bugreports" zu posten.
+Github Login - Für einen Git Import und auch Reports im namen des Users direkt in den Issues, später auch als Login für Datacentermods.com
+Datacentermods Git Login - Für einen Git Import und auch Reports im namen des Users direkt in den Issues, später auch als Login für Datacentermods.com
+Bugreport-Logik: Bugs direkt als Issues in die GitRemotes posten. Falls der User nicht registriert ist, wird unsere (muss noch erstellt werden) Github Action/App/Workflow verwendet, um dies zu tun. Ansonsten wenn möglich die Daten des Users nehmen.
+Bugreport-Assistent: "Report" Tab, der Usermeldungen/Requests annimmt und direkt in meinen Flow integriert. (gregLint, meine VSIX, die dann auch via Datacentermods.com synct welche Mods Meldungen haben. (Diese werden dann auch im Modmanager angezeigt) - Der user soll ausserdem die möglichkeit haben, OpenAI API und Claude API Kompatibele Agenten anzubinden, um sich den stand seiner Projekte zusammenfasssen zu lassen. oder der enduser der dann auch lokal sich seinen Report komplett erstellen lassen kann. (Text Only, ausser Modell kann Vision)

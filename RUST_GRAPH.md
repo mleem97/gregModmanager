@@ -106,6 +106,8 @@ Rules:
 | `rfd` | native file dialogs | Avalonia `StorageProvider` |
 | `notify` | workspace file watching | polling fallbacks |
 | `zip` | content export/packaging | `System.IO.Compression` |
+| `rusqlite` (bundled SQLite) | cached persistent settings in Configs/settings.sqlite3 | JSON preference rewrites |
+| `image` (PNG/JPEG/GIF/WebP) | bounded real preview decoding in greg-steam | synthetic preview pixels |
 | `tracing` | structured logs | `AppFileLog` / `AppLogService` |
 
 Keep-a-Changelog section parsing and Markdown→Steam-BBCode conversion are
@@ -204,4 +206,12 @@ layout (binding loop — Slint warns and may panic at runtime).
   `AddItemPreviewFile`; download: details query with additional-previews
   flag into `screenshots/` on import — both over `steamworks-sys`, the
   safe 0.13.1 API has no wrappers).
-- [x] Rust CI jobs (fmt, clippy, test, cross-build) in `.forgejo/` + `.gitea/`.
+- [x] Jenkins native quality/build matrix (Linux, Windows, macOS) and opt-in GitHub release pipeline; native package validation remains required.
+
+## Managed workspace
+
+The selected base owns Configs, Logs, Workshop publishing projects, GameModding
+(Mods/UserLibs/Melons), ModConfigs and bounded caches. See [WORKSPACE.md](docs/WORKSPACE.md).
+Settings live in greg-platform SQLite with an in-memory cache; greg-core keeps
+UI-free preference and shared project metadata contracts. greg-loader owns SDK
+build verification, managed import and runtime handshake validation.

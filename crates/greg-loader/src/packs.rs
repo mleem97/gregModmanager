@@ -7,7 +7,7 @@ use std::path::Path;
 
 use greg_core::models::ModCollectionDefinition;
 
-use crate::error::Result;
+use crate::error::{LoaderError, Result};
 
 /// What applying one pack did.
 #[derive(Debug, Default)]
@@ -50,7 +50,6 @@ pub fn apply_pack(
     subscribe: Option<&dyn Fn(u64) -> std::result::Result<(), String>>,
     unsubscribe: Option<&dyn Fn(u64) -> std::result::Result<(), String>>,
 ) -> Result<ApplyReport> {
-    let _ = game_root;
     let mut report = ApplyReport::default();
     if !collection.enabled {
         report.errors.push(format!(
@@ -62,13 +61,35 @@ pub fn apply_pack(
     for entry in &collection.items {
         if let Some(path) = entry.local_path.as_deref() {
             let path = Path::new(path);
+            // Collection files can be imported from untrusted sources. Local
+            // entries are only allowed below the selected managed content root.
+            if let Err(error) = validate_local_member(game_root, path) {
+                report.errors.push(format!("{}: {error}", entry.title));
+                continue;
+            }
+            let mut actual = path.to_path_buf();
+            if !actual.exists() {
+                let raw = path.to_string_lossy();
+                actual = match raw.strip_suffix(".disabled") {
+                    Some(enabled_path) => enabled_path.into(),
+                    None => format!("{raw}.disabled").into(),
+                };
+            }
+            if let Err(error) = validate_local_member(game_root, &actual) {
+                report.errors.push(format!("{}: {error}", entry.title));
+                continue;
+            }
+            let currently_enabled = !actual
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .ends_with(".disabled");
             let probe = crate::local_content::LocalContentEntry {
                 name: entry.title.clone(),
                 detail: String::new(),
-                enabled: !entry.enabled,
-                path: path.to_path_buf(),
+                enabled: currently_enabled,
+                path: actual,
             };
-            // set_enabled flips to the target state; probe carries the inverse.
             match crate::local_content::set_enabled(&probe, entry.enabled) {
                 Ok(_) => {
                     if entry.enabled {
@@ -110,6 +131,32 @@ pub fn apply_pack(
     Ok(report)
 }
 
+fn validate_local_member(root: &Path, path: &Path) -> Result<()> {
+    crate::sync::validate_managed_path(root)?;
+    crate::sync::validate_managed_path(path)?;
+    let root = root.canonicalize().map_err(crate::error::io_err)?;
+    // An enabled or disabled spelling may currently exist.
+    let parent = path
+        .parent()
+        .ok_or_else(|| LoaderError::InvalidArtefact("local pack entry has no parent".into()))?;
+    let parent = parent.canonicalize().map_err(crate::error::io_err)?;
+    if !parent.starts_with(&root) {
+        return Err(LoaderError::InvalidArtefact(
+            "local pack entry is outside managed content".into(),
+        ));
+    }
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if name.is_empty() || name.contains(['/', '\\']) {
+        return Err(LoaderError::InvalidArtefact(
+            "invalid local pack file name".into(),
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,6 +193,33 @@ mod tests {
         assert_eq!(report.disabled_local, 1);
         assert!(dll.to_string_lossy().ends_with(".disabled") || !dll.exists());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn refuses_local_paths_outside_managed_root() {
+        let base = std::env::temp_dir().join(format!(
+            "greg-pack-bounds-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let root = base.join("GameModding");
+        std::fs::create_dir_all(&root).unwrap();
+        let outside = base.join("outside.dll");
+        std::fs::write(&outside, b"user file").unwrap();
+        let pack = pack_with(vec![ModCollectionEntry {
+            title: "outside".into(),
+            local_path: Some(outside.to_string_lossy().into_owned()),
+            enabled: false,
+            ..Default::default()
+        }]);
+        let report = apply_pack(&pack, &root, None, None).unwrap();
+        assert_eq!(report.disabled_local, 0);
+        assert_eq!(report.errors.len(), 1);
+        assert!(outside.is_file());
+        std::fs::remove_dir_all(base).unwrap();
     }
 
     #[test]

@@ -210,7 +210,10 @@ pub fn extract_zip_safely(bytes: &[u8], destination: &Path) -> Result<()> {
         let mut entry = zip
             .by_index(i)
             .map_err(|e| LoaderError::InvalidArtefact(format!("bad zip entry: {e}")))?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| LoaderError::InvalidArtefact(format!("bad zip entry name: {e}")))?
+            .into_owned();
         if name.starts_with('/') || name.starts_with('\\') || name.contains("..") {
             return Err(LoaderError::InvalidArtefact(format!(
                 "blocked unsafe zip path: {name}"

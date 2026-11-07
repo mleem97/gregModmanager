@@ -1,0 +1,367 @@
+--- a/gregCore/src/gregCore.Patches/ModLoader/VanillaModloaderSilencer.cs
++++ b/gregCore/src/gregCore.Patches/ModLoader/VanillaModloaderSilencer.cs
+@@ -33,0 +34,38 @@
++
++
++    /// <summary>Managed mode accepts only the known IL2CPP signatures and a
++    /// verified prefix for every dangerous routine. Unknown builds fail closed.</summary>
++    public static void NeutralizeRequired(HarmonyLib.Harmony harmony)
++    {
++        var types = FindVanillaModLoaderTypes().Where(t => t.FullName == "Il2Cpp.ModLoader").ToArray();
++        if (types.Length != 1) throw new InvalidOperationException("Exactly one Il2Cpp.ModLoader is required.");
++        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
++        var loadAll = types[0].GetMethod("LoadAllMods", flags, null, Type.EmptyTypes, null);
++        var loadPack = types[0].GetMethod("LoadModPack", flags, null, new[] { typeof(string) }, null);
++        if (loadAll == null || loadAll.ReturnType != typeof(void) || loadPack == null || loadPack.ReturnType != typeof(void))
++            throw new InvalidOperationException("Unsupported native asset-reader signatures.");
++        var readerPrefix = typeof(ManagedWorkspaceGuard).GetMethod(nameof(ManagedWorkspaceGuard.BlockLoadAllMods));
++        harmony.Patch(loadAll, prefix: new HarmonyLib.HarmonyMethod(readerPrefix));
++        if (HarmonyLib.Harmony.GetPatchInfo(loadAll)?.Prefixes.Any(p => p.owner == harmony.Id && p.PatchMethod == readerPrefix) != true)
++            throw new InvalidOperationException("Managed asset-reader prefix was not installed.");
++        foreach (var name in BlockedMethods)
++        {
++            var methods = types[0].GetMethods(flags).Where(m => m.Name == name).ToArray();
++            if (methods.Length != 1) throw new InvalidOperationException("Missing or ambiguous method: " + name);
++            var target = methods[0];
++            var args = target.GetParameters();
++            bool signature = name switch
++            {
++                "SyncWorkshopThenLoadAll" => args.Length == 0 && target.ReturnType == typeof(IEnumerator),
++                "CopyDirectory" => args.Length == 2 && args.All(a => a.ParameterType == typeof(string)) && target.ReturnType == typeof(void),
++                "LoadDll" => args.Length == 2 && args[0].ParameterType == typeof(string) && args[1].ParameterType.Name == "DllEntry" && target.ReturnType == typeof(void),
++                _ => false,
++            };
++            if (!signature || !TryPatch(harmony, types[0], name))
++                throw new InvalidOperationException("Unsupported vanilla method signature: " + name);
++            var expected = typeof(VanillaModloaderSilencer).GetMethod(name == "SyncWorkshopThenLoadAll" ? nameof(BlockCoroutinePrefix) : nameof(BlockMethodPrefix), BindingFlags.NonPublic | BindingFlags.Static);
++            var patches = HarmonyLib.Harmony.GetPatchInfo(target);
++            if (patches == null || !patches.Prefixes.Any(p => p.owner == harmony.Id && p.PatchMethod == expected))
++                throw new InvalidOperationException("Vanilla prefix verification failed: " + name);
++        }
++    }
+@@ -126 +164 @@
+-    private static bool BlockCoroutinePrefix(ref IEnumerator __result, MethodBase __originalMethod)
++    private static bool BlockCoroutinePrefix(global::Il2Cpp.ModLoader __instance, ref IEnumerator __result, MethodBase __originalMethod)
+@@ -128,0 +167,2 @@
++        if (Environment.GetEnvironmentVariable("GREGMODMANAGER_MANAGED") == "1")
++            ManagedWorkspaceGuard.LoadNativeMods(__instance);
+--- a/gregCore/src/gregCore.Main/Core/GregCoreMod.cs
++++ b/gregCore/src/gregCore.Main/Core/GregCoreMod.cs
+@@ -47,0 +48,2 @@
++            // Required before any framework or game initialization in managed mode.
++            gregCore.GameLayer.Patches.ModLoader.ManagedWorkspaceGuard.Initialize();
+--- /dev/null
++++ b/gregCore/src/gregCore.Patches/ModLoader/ManagedWorkspaceGuard.cs
+@@ -0,0 +1,146 @@
++using System.Text.Json;
++using HarmonyLib;
++
++namespace gregCore.GameLayer.Patches.ModLoader;
++
++/// <summary>Managed workspace contract v1. Readiness is emitted only after
++/// actual patch and early source-registration verification, never by descriptor.</summary>
++public static class ManagedWorkspaceGuard
++{
++    public static void Initialize()
++    {
++        if (Environment.GetEnvironmentVariable("GREGMODMANAGER_MANAGED") != "1") return;
++        try
++        {
++            var session = Required("GREGMODMANAGER_SESSION");
++            var ready = Path.GetFullPath(Required("GREGMODMANAGER_READY"));
++            var root = Path.GetFullPath(Required("GREGMODMANAGER_ROOT"));
++            if (!session.All(c => ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) || c == '-'))
++                throw new InvalidOperationException("Invalid manager session.");
++            RejectLinkedAncestors(root);
++            RejectLinkedAncestors(ready);
++            var expected = Path.Combine(root, "Configs", "runtime", session + ".ready.json");
++            if (!string.Equals(ready, expected, StringComparison.Ordinal))
++                throw new InvalidOperationException("Readiness path does not belong to manager session.");
++            using var sources = JsonDocument.Parse(File.ReadAllText(ready + ".sources.json"));
++            var record = sources.RootElement;
++            if (record.GetProperty("schemaVersion").GetInt32() != 1
++                || record.GetProperty("session").GetString() != session
++                || !record.GetProperty("managedSources").GetBoolean())
++                throw new InvalidOperationException("Early Companion source registration was not acknowledged.");
++            var harmony = new HarmonyLib.Harmony("gregCore.managed-workspace.v1");
++            VanillaModloaderSilencer.NeutralizeRequired(harmony);
++            // Atomic publication: no reader may observe a partial acknowledgement.
++            var tmp = ready + ".tmp";
++            File.WriteAllText(tmp, JsonSerializer.Serialize(new { schemaVersion = 1, session,
++                vanillaBlocked = true, managedSources = true }));
++            File.Move(tmp, ready, true);
++        }
++        catch (Exception error)
++        {
++            // MelonLoader catches initialization exceptions and could otherwise
++            // continue with vanilla copying. A managed launch must stop instead.
++            Environment.FailFast("Managed workspace guard failed before game initialization.", error);
++        }
++    }
++
++
++    private static readonly HashSet<IntPtr> LoadedNativeInstances = new();
++
++    public static bool BlockLoadAllMods(global::Il2Cpp.ModLoader __instance)
++    {
++        LoadNativeMods(__instance);
++        return false;
++    }
++
++    public static void LoadNativeMods(global::Il2Cpp.ModLoader instance)
++    {
++        try
++        {
++            if (instance == null || instance.Pointer == IntPtr.Zero)
++                throw new InvalidOperationException("Native loader instance is unavailable.");
++            if (!LoadedNativeInstances.Add(instance.Pointer)) return;
++            var root = Path.Combine(Path.GetFullPath(Required("GREGMODMANAGER_ROOT")), "GameModding", "Mods");
++            RejectLinkedAncestors(root);
++            if (!Directory.Exists(root)) return;
++            var pending = new Stack<string>();
++            pending.Push(root);
++            while (pending.Count != 0)
++            {
++                var path = pending.Pop();
++                var info = new DirectoryInfo(path);
++                if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
++                    throw new InvalidOperationException("Linked native package: " + path);
++                foreach (var file in info.EnumerateFiles())
++                    if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
++                        throw new InvalidOperationException("Linked native asset: " + file.FullName);
++                var config = Path.Combine(path, "config.json");
++                if (File.Exists(config))
++                {
++                    using var document = JsonDocument.Parse(File.ReadAllText(config));
++                    ValidateAssetReferences(document.RootElement, path);
++                    // Original read-only asset reader. LoadDll remains blocked.
++                    instance.LoadModPack(path);
++                    continue;
++                }
++                foreach (var directory in info.EnumerateDirectories().OrderBy(d => d.Name, StringComparer.Ordinal))
++                    if (!directory.Name.StartsWith('.') && !directory.Name.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase))
++                        pending.Push(directory.FullName);
++            }
++        }
++        catch (Exception error) { Environment.FailFast("Managed native asset loading failed.", error); }
++    }
++
++    private static void ValidateAssetReferences(JsonElement value, string package)
++    {
++        if (value.ValueKind == JsonValueKind.Array)
++        {
++            foreach (var item in value.EnumerateArray()) ValidateAssetReferences(item, package);
++        }
++        else if (value.ValueKind == JsonValueKind.Object)
++        {
++            foreach (var property in value.EnumerateObject())
++            {
++                if (property.NameEquals("dlls") && property.Value.ValueKind == JsonValueKind.Array && property.Value.GetArrayLength() != 0)
++                    throw new InvalidOperationException("Native DLL entries are not allowed in managed asset packages; use Melon mods.");
++                if (property.Name is "modelFile" or "textureFile" or "iconFile")
++                {
++                    var relative = property.Value.GetString() ?? "";
++                    if (relative.Length == 0) continue;
++                    if (Path.IsPathRooted(relative) || relative.Contains(':')
++                        || relative.Split(new[] { '/', '\\' }).Any(segment => segment == ".."))
++                        throw new InvalidOperationException("Native asset escapes package: " + relative);
++                    var resolved = Path.GetFullPath(Path.Combine(package, relative));
++                    foreach (var part in relative.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries))
++                        if (part == ".") throw new InvalidOperationException("Ambiguous native asset path.");
++                    // Reject linked parents as well as linked asset files.
++                    for (var candidate = resolved; candidate != package; candidate = Path.GetDirectoryName(candidate)!)
++                    {
++                        if (string.IsNullOrEmpty(candidate)) throw new InvalidOperationException("Native asset path escaped package.");
++                        if ((File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
++                            throw new InvalidOperationException("Native asset path contains a link.");
++                    }
++                }
++                else ValidateAssetReferences(property.Value, package);
++            }
++        }
++    }
++
++
++    private static void RejectLinkedAncestors(string path)
++    {
++        for (string? current = Path.GetFullPath(path); current != null; current = Path.GetDirectoryName(current))
++        {
++            try
++            {
++                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
++                    throw new InvalidOperationException("Managed path contains a linked ancestor: " + current);
++            }
++            catch (FileNotFoundException) { }
++            catch (DirectoryNotFoundException) { }
++        }
++    }
++
++    private static string Required(string name) => Environment.GetEnvironmentVariable(name)
++        is { Length: > 0 } value ? value : throw new InvalidOperationException(name + " is required.");
++}
+--- /dev/null
++++ b/gregPlugin.Melons/gregPlugin.Companion/ManagedWorkspaceContract.cs
+@@ -0,0 +1,98 @@
++using System.Text.Json;
++using GregCompanion.Configuration;
++
++namespace GregCompanion;
++
++/// <summary>Pre-folder-scan managed contract; normal-plugin fallback is too late.</summary>
++public static class ManagedWorkspaceContract
++{
++    public static bool Enabled => Environment.GetEnvironmentVariable("GREGMODMANAGER_MANAGED") == "1";
++
++    public static void ApplyPolicy(SteamModfixConfiguration config)
++    {
++        if (!Enabled) return;
++        config.Enabled = true;
++        config.Sources.SteamWorkshop = false;
++        config.Sources.StreamingAssets = false;
++        config.Staging.EnableDllStaging = false;
++        config.Staging.EnableStreamingAssetsSync = false;
++        config.Staging.EnablePluginSanitize = false;
++        config.Loading.EnableNativeLibraries = false;
++        config.Security.AllowSymbolicLinks = false;
++    }
++
++    public static string Root => Path.GetFullPath(Required("GREGMODMANAGER_ROOT"));
++    private static string Session => Required("GREGMODMANAGER_SESSION");
++    private static string Ready
++    {
++        get
++        {
++            var path = Path.GetFullPath(Required("GREGMODMANAGER_READY"));
++            RejectLinkedAncestors(path);
++            var expected = Path.Combine(Root, "Configs", "runtime", Session + ".ready.json");
++            if (path != expected) throw new InvalidOperationException("Invalid readiness path.");
++            return path;
++        }
++    }
++
++    public static void SourcesReady()
++    {
++        if (!Enabled) return;
++        var path = Ready + ".sources.json";
++        File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(new {
++            schemaVersion = 1, session = Session, managedSources = true }));
++        File.Move(path + ".tmp", path, true);
++    }
++
++    public static void RequireEarlyBootstrap()
++    {
++        if (!Enabled) return;
++        try
++        {
++            using var doc = JsonDocument.Parse(File.ReadAllText(Ready + ".sources.json"));
++            if (doc.RootElement.GetProperty("session").GetString() != Session
++                || !doc.RootElement.GetProperty("managedSources").GetBoolean())
++                throw new InvalidOperationException("Invalid early source acknowledgement.");
++        }
++        catch (Exception error) { Environment.FailFast("Managed mode requires pre-folder-scan Companion bootstrap.", error); }
++    }
++
++    public static IEnumerable<string> SafeDirectories(string root)
++    {
++        RejectLinkedAncestors(root);
++        if (!Directory.Exists(root)) yield break;
++        var pending = new Stack<string>();
++        pending.Push(root);
++        while (pending.Count != 0)
++        {
++            var path = pending.Pop();
++            var info = new DirectoryInfo(path);
++            if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
++                throw new InvalidOperationException("Managed source contains a link: " + path);
++            foreach (var file in info.EnumerateFiles())
++                if ((file.Attributes & FileAttributes.ReparsePoint) != 0)
++                    throw new InvalidOperationException("Managed source contains a linked file: " + file.FullName);
++            yield return path;
++            foreach (var child in info.EnumerateDirectories().OrderBy(d => d.Name, StringComparer.Ordinal))
++                if (!child.Name.StartsWith('.') && !child.Name.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)) pending.Push(child.FullName);
++        }
++    }
++
++
++    private static void RejectLinkedAncestors(string path)
++    {
++        for (string? current = Path.GetFullPath(path); current != null; current = Path.GetDirectoryName(current))
++        {
++            try
++            {
++                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
++                    throw new InvalidOperationException("Managed path contains a linked ancestor: " + current);
++            }
++            catch (FileNotFoundException) { }
++            catch (DirectoryNotFoundException) { }
++        }
++    }
++
++    private static string Required(string name) => Environment.GetEnvironmentVariable(name)
++        is { Length: > 0 } value ? value : throw new InvalidOperationException(name + " is required.");
++}
+--- a/gregPlugin.Melons/gregPlugin.Companion/StartupBootstrap.cs
++++ b/gregPlugin.Melons/gregPlugin.Companion/StartupBootstrap.cs
+@@ -45,0 +46 @@
++        if (ok) ManagedWorkspaceContract.SourcesReady();
+@@ -54 +55,6 @@
+-    internal static SteamModfixConfiguration LoadConfiguration(string? explicitPath = null) => SteamModfixConfiguration.Load(explicitPath ?? Path.Combine(MelonEnvironment.UserDataDirectory, "gregPlugin.SteamModfix", "config.json"));
++    internal static SteamModfixConfiguration LoadConfiguration(string? explicitPath = null)
++    {
++        var config = SteamModfixConfiguration.Load(explicitPath ?? Path.Combine(MelonEnvironment.UserDataDirectory, "gregPlugin.SteamModfix", "config.json"));
++        ManagedWorkspaceContract.ApplyPolicy(config);
++        return config;
++    }
+--- a/gregPlugin.Melons/gregPlugin.Companion/WorkshopModLoader.cs
++++ b/gregPlugin.Melons/gregPlugin.Companion/WorkshopModLoader.cs
+@@ -18,0 +19 @@
++        ManagedWorkspaceContract.RequireEarlyBootstrap();
+--- a/gregPlugin.Melons/gregPlugin.Companion/Discovery/GregModmanagerSourceProvider.cs
++++ b/gregPlugin.Melons/gregPlugin.Companion/Discovery/GregModmanagerSourceProvider.cs
+@@ -10,0 +11,9 @@
++        if (ManagedWorkspaceContract.Enabled)
++        {
++            var managed = Path.Combine(ManagedWorkspaceContract.Root, "GameModding");
++            var rank = SourcePriority.For(config, MelonSourceProvider.GregModmanager);
++            foreach (var (folder, type) in new[] { ("UserLibs", MelonSourceType.UserLibs), ("Melons", MelonSourceType.Plugins), ("Mods", MelonSourceType.Mods) })
++                foreach (var directory in ManagedWorkspaceContract.SafeDirectories(Path.Combine(managed, folder)))
++                    Register(registry, directory, type, directory, rank);
++            return;
++        }
+--- a/MelonLoader-net10/MelonLoader/Core.cs
++++ b/MelonLoader-net10/MelonLoader/Core.cs
+@@ -3,0 +4 @@
++using System.Linq;
+@@ -176,0 +178,32 @@
++#if NET6_0_OR_GREATER
++            if (Environment.GetEnvironmentVariable("GREGMODMANAGER_MANAGED") == "1")
++            {
++                try
++                {
++                    string root = MelonEnvironment.GameRootDirectory;
++                    string descriptor = Path.Combine(root, "UserData", "gregModmanager", "runtime-v1.json");
++                    // The manager already verifies hashes before spawning. This
++                    // hook additionally requires the explicit reviewed startup artifact.
++                    using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(descriptor));
++                    var record = doc.RootElement;
++                    if (record.GetProperty("schemaVersion").GetInt32() != 1 || !record.GetProperty("startupHook").GetBoolean())
++                        throw new InvalidOperationException("Managed startup contract unavailable.");
++                    string relative = record.GetProperty("companionPath").GetString();
++                    if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative)
++                        || relative.Split(new[] { '/', '\\' }).Any(p => p == ".."))
++                        throw new InvalidOperationException("Invalid Companion path.");
++                    string path = Path.GetFullPath(Path.Combine(root, relative));
++                    var assembly = Assembly.LoadFrom(path);
++                    var type = assembly.GetType("GregCompanion.StartupBootstrap", throwOnError: true);
++                    var bootstrap = Activator.CreateInstance(type);
++                    var method = type.GetMethod("RegisterBeforeFolderScan", new[] { typeof(string) });
++                    if (method == null || !(method.Invoke(bootstrap, new object[] { null }) is true))
++                        throw new InvalidOperationException("Managed Companion bootstrap failed.");
++                }
++                catch (Exception error) { Environment.FailFast("Managed bootstrap failed before MelonLoader folder scan.", error); }
++            }
++
++#else
++            if (Environment.GetEnvironmentVariable("GREGMODMANAGER_MANAGED") == "1")
++                Environment.FailFast("Managed workspaces require the .NET 6+ loader bootstrap.");
++#endif

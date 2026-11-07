@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="20 50 470 410" role="img" aria-labelledby="title desc">
+<title id="title">Greg Framework – G. Server-Icon</title>
+<desc id="desc">Weißes, kräftiges, geneigtes G mit Punkt. Drei Server-Einschübe sind als transparente Aussparungen in den Querbalken integriert. Transparenter Hintergrund, vollständig aus Vektoren.</desc>
+<defs>
+<mask id="rack" maskUnits="userSpaceOnUse" x="0" y="0" width="1472" height="1306">
+<rect width="1472" height="1306" fill="white"/>
+<g fill="black" transform="translate(728 540) skewX(-9)">
+<rect width="430" height="56" rx="13"/>
+<rect y="78" width="430" height="56" rx="13"/>
+<rect y="156" width="430" height="56" rx="13"/>
+</g>
+</mask>
+</defs>
+<g fill="#F3F5F4" transform="translate(28 54) scale(.31)">
+<path id="letter-g" mask="url(#rack)" d="M1257 200C1155 63 1003 0 801 0 351 0 70 278 9 624-39 898 69 1125 285 1246 367 1292 470 1306 583 1306 821 1306 1013 1238 1123 1096L1244 514H639L592 789H904L875 947C821 985 739 1010 636 1010 421 1010 309 906 349 676 386 457 528 294 758 294 874 294 965 332 1023 397Z"/>
+<path id="period" d="M1472 1096C1472 1202 1395 1286 1286 1286 1172 1286 1100 1227 1117 1120 1133 1022 1209 966 1317 966 1416 966 1472 1010 1472 1096Z"/>
+<g id="server-details" transform="translate(728 540) skewX(-9)">
+<g>
+<circle cx="33" cy="28" r="10"/><circle cx="33" cy="106" r="10"/><circle cx="33" cy="184" r="10"/>
+<rect x="292" y="23" width="105" height="10" rx="5"/>
+<rect x="292" y="101" width="105" height="10" rx="5"/>
+<rect x="292" y="179" width="105" height="10" rx="5"/>
+</g></g>
+</g></svg>

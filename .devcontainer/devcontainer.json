@@ -1,20 +1,17 @@
 {
-  "name": "greg modmanager (avalonia, net10)",
+  "name": "greg modmanager (rust, slint)",
   "build": {
     "dockerfile": "Dockerfile"
   },
   "remoteUser": "vscode",
   "containerEnv": {
-    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
-    "DOTNET_NOLOGO": "1"
+    "CARGO_TERM_COLOR": "always",
+    "RUSTUP_TOOLCHAIN": "stable"
   },
-  "mounts": [
-    "source=greg-modmanager-nuget,target=/home/vscode/.nuget/packages,type=volume"
-  ],
   "customizations": {
     "vscode": {
-      "extensions": ["ms-dotnettools.csharp"]
+      "extensions": ["rust-lang.rust-analyzer"]
     }
   },
-  "postCreateCommand": "dotnet restore GregModmanager.sln"
+  "postCreateCommand": "rustup component add rust-analyzer && cargo fetch"
 }

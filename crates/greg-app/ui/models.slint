@@ -51,6 +51,11 @@ export struct HealthRow {
     ok: bool,
 }
 
+export struct DiagnosticRow {
+    label: string,
+    value: string,
+}
+
 export struct LocalRow {
     name: string,
     detail: string,
@@ -85,5 +90,14 @@ export struct PackEntryRow {
     detail: string,
     enabled: bool,
     // Opaque index into the pack's entries.
+    index: int,
+}
+
+export struct LibInstallRow {
+    name: string,
+    detail: string,
+    installed: bool,
+    selected: bool,
+    // Index into FRAMEWORK_LIBRARIES.
     index: int,
 }

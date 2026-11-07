@@ -1,0 +1,33 @@
+name: "Feature request"
+description: "Suggest a new feature or improvement"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What problem would this feature solve?
+      placeholder: "It's hard to ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: "Add a button/setting/workflow that ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: "Current workaround ..."
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      placeholder: "Mockups, links, examples ..."
