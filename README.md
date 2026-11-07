@@ -149,7 +149,7 @@ scripts/                         local developer workflow scripts (check, build,
 build/                           release scripts, installers, Linux packaging
 docker/                          Rust build/test containers
 docs/                            repository documentation
-.forgejo/workflows/ + .gitea/workflows/   CI pipelines, byte-identical (Forgejo + Gitea Actions; GitHub is a read-only archive mirror)
+.github/workflows/               GitHub test builds and guarded promotion
 VERSION                          single source of truth for the version (workspace Cargo.toml is the fallback)
 LICENSE                          Apache 2.0
 

@@ -4,13 +4,13 @@
 
 - Quality gate: `./scripts/check.sh` (rustfmt, Clippy with warnings denied, tests).
 - Development build: `./scripts/build.sh`; app/CLI helpers are in `scripts/`.
-- Jenkins (`Jenkinsfile`) runs the Rust gates and a workspace build in native
+- Jenkins (`Jenkinsfile`, currently inactive) defines Rust gates and a workspace build in native
   Linux, Windows and macOS matrix agents. Linux installs the compiler, pkg-config
   and Slint native headers; Windows/macOS agents need their native build tools.
-- The former Forgejo/Gitea Actions workflows have been removed in this migration.
-  GitHub Releases is the download and update source.
-- `cargo xtask dist` builds the portable package. Jenkins can build the native
-  installers and publish a GitHub release after the documented validation;
+- GitHub Actions runs test builds while Jenkins is inactive. GitHub Releases is
+  the download and update source; test builds do not publish a release.
+- `cargo xtask dist` builds the portable package. Jenkins is configured to build
+  native installers after the documented validation when it is reactivated;
   see `docs/JENKINS.md`. Signing, Discord and coverage uploads are not automated.
 
 ## Steam Workshop

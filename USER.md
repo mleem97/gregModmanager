@@ -32,5 +32,6 @@
 - Version source of truth: `VERSION` file (the workspace `Cargo.toml` version is
   the fallback).
 - Changelog source of truth: `CHANGELOG.md`.
-- GitHub Releases is the download and update source; Jenkins release
-  publication and validation requirements are documented in `docs/JENKINS.md`.
+- GitHub Releases is the download and update source. GitHub Actions builds
+  test packages while Jenkins is inactive; Jenkins release validation
+  requirements are documented in `docs/JENKINS.md`.

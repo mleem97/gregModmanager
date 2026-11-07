@@ -59,11 +59,12 @@ MelonLoader startup hook described in `docs/integration/managed-runtime.md`.
 | WiX CLI 5 | Windows MSI |
 | nfpm | DEB, RPM, APK, and Arch packages; Alpine additionally needs gcompat and runtime validation |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
-| Jenkins (self-hosted, multi-agent) | CI check/build matrix and opt-in GitHub release publishing (`Jenkinsfile`) |
+| Jenkins (self-hosted, multi-agent; currently inactive) | CI check/build matrix and guarded GitHub release configuration (`Jenkinsfile`) |
+| GitHub Actions | Linux and Windows test-package builds and guarded dev-to-staging promotion |
 | cargo-tarpaulin | optional local workspace LCOV coverage |
 | Codacy Coverage Reporter | local helper can upload LCOV; not currently part of the Jenkins matrix |
 | Former Forgejo/Gitea Actions workflows | removed during Jenkins migration; Discord and coverage jobs still require replacements |
-| GitHub Releases and GitHub CLI | release artifacts and update checks; Jenkins publishes with a scoped credential |
+| GitHub Releases and GitHub CLI | release artifacts and update checks; Jenkins publication is blocked pending package validation |
 
 ## Release formats
 
