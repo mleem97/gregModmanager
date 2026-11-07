@@ -131,7 +131,8 @@ Steam library). See [the build-script reference](https://www.google.com/search?q
 The Windows release build produces the portable ZIP via `cargo xtask dist` and
 the Setup EXE and MSI via `build/installer/build-windows.ps1` on Windows. Linux
 distro packages are built via `build/scripts/linux/build-rust-packages.sh`.
-See [Jenkins CI and releases](docs/JENKINS.md) for prerequisites and validation.
+GitHub Actions publishes stable releases after successful builds on `main`; see
+[GitHub release automation](docs/RELEASES.md) for prerequisites and limitations.
 
 ## Repository Layout
 
