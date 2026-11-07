@@ -384,7 +384,10 @@ pub fn extract_single_zip_entry(bytes: &[u8], entry_path: &str, dest_file: &Path
     let mut found_idx = None;
     for i in 0..zip.len() {
         if let Ok(entry) = zip.by_index(i) {
-            if entry.name().eq_ignore_ascii_case(entry_path) {
+            let name = entry
+                .name()
+                .map_err(|e| LoaderError::InvalidArtefact(format!("bad zip entry name: {e}")))?;
+            if name.eq_ignore_ascii_case(entry_path) {
                 found_idx = Some(i);
                 break;
             }
@@ -762,7 +765,10 @@ fn install_plugin_payload_inner(
             if entry.is_dir() || entry.is_symlink() {
                 continue;
             }
-            let raw_name = entry.name().to_string();
+            let raw_name = entry
+                .name()
+                .map_err(|e| LoaderError::InvalidArtefact(format!("bad zip entry name: {e}")))?
+                .into_owned();
             if raw_name.contains("..") {
                 continue;
             }

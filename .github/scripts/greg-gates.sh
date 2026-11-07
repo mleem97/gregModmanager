@@ -24,8 +24,6 @@ if [ "$BASELINE_FETCH_OK" != true ] || ! git rev-parse --verify "origin/$STAGE^{
 fi
 
 
-CHANGED="$(git diff --name-only "origin/$STAGE...HEAD" 2>/dev/null | sort -u || true)"
-
 # ---------- build ----------
 BUILD_RC=1; WARN_DEV=0; SOL=""
 build_dotnet() {
@@ -55,7 +53,7 @@ case "$KIND" in
   rust)
     if [ -f Cargo.toml ]; then
       cargo build --release >build-dev.log 2>&1; BUILD_RC=$?
-      [ "$BUILD_RC" -eq 0 ] && gpass build "cargo build --release ok" || gfail build "cargo build failed (see build-dev.log)"
+      if [ "$BUILD_RC" -eq 0 ]; then gpass build "cargo build --release ok"; else gfail build "cargo build failed (see build-dev.log)"; fi
     else gfail build "no Cargo.toml"; fi
     ;;
   node)
@@ -64,7 +62,7 @@ case "$KIND" in
       $PM install --frozen-lockfile >build-dev.log 2>&1 || $PM install >>build-dev.log 2>&1
       if node -e "const p=require('./package.json');process.exit(p.scripts&&p.scripts.build?0:1)"; then
         $PM run build >>build-dev.log 2>&1; BUILD_RC=$?
-        [ "$BUILD_RC" -eq 0 ] && gpass build "$PM run build ok" || gfail build "$PM run build failed"
+        if [ "$BUILD_RC" -eq 0 ]; then gpass build "$PM run build ok"; else gfail build "$PM run build failed"; fi
       else gna build "no build script (lint/typecheck only)"; BUILD_RC=0; fi
     else gna build "no package.json"; BUILD_RC=0; fi
     ;;
@@ -75,19 +73,23 @@ esac
 TESTS_RC=1; HAVE_TESTS=false
 case "$KIND" in
   dotnet*)
-    TP="$(find . -path ./obj -prune -o -path ./.git -prune -o -name '*Tests*.csproj' -print 2>/dev/null | grep -v -E '/(obj|bin)/' | head -n 20)"
-    if [ -z "$TP" ]; then gfail tests "no *Tests*.csproj found (add tests to unblock staging)";
+    mapfile -t TP < <(find . -path ./obj -prune -o -path ./.git -prune -o -name '*Tests*.csproj' -print 2>/dev/null | grep -v -E '/(obj|bin)/' | head -n 20)
+    if [ "${#TP[@]}" -eq 0 ]; then gfail tests "no *Tests*.csproj found (add tests to unblock staging)";
     else
       HAVE_TESTS=true
       # coverage-collecting run; results reused by coverage gate
-      dotnet test $TP -c Release --no-build --collect:"XPlat Code Coverage" --results-directory "$PWD/cov-dev" >test-dev.log 2>&1; TESTS_RC=$?
-      [ "$TESTS_RC" -eq 0 ] && gpass tests "dotnet test ok" || gfail tests "dotnet test failed (see test-dev.log)"
+      TESTS_RC=0
+      : >test-dev.log
+      for project in "${TP[@]}"; do
+        dotnet test "$project" -c Release --no-build --collect:"XPlat Code Coverage" --results-directory "$PWD/cov-dev" >>test-dev.log 2>&1 || TESTS_RC=1
+      done
+      if [ "$TESTS_RC" -eq 0 ]; then gpass tests "dotnet test ok"; else gfail tests "dotnet test failed (see test-dev.log)"; fi
     fi
     ;;
   rust)
     if [ -f Cargo.toml ]; then HAVE_TESTS=true
       cargo test >test-dev.log 2>&1; TESTS_RC=$?
-      [ "$TESTS_RC" -eq 0 ] && gpass tests "cargo test ok" || gfail tests "cargo test failed"
+      if [ "$TESTS_RC" -eq 0 ]; then gpass tests "cargo test ok"; else gfail tests "cargo test failed"; fi
     else gfail tests "no Cargo.toml"; fi
     ;;
   node)
@@ -95,7 +97,7 @@ case "$KIND" in
       HAVE_TESTS=true
       if [ -f pnpm-lock.yaml ]; then pnpm test >test-dev.log 2>&1; TESTS_RC=$?
       else npm test >test-dev.log 2>&1; TESTS_RC=$?; fi
-      [ "$TESTS_RC" -eq 0 ] && gpass tests "npm/pnpm test ok" || gfail tests "tests failed"
+      if [ "$TESTS_RC" -eq 0 ]; then gpass tests "npm/pnpm test ok"; else gfail tests "tests failed"; fi
     else gna tests "no test script (annotated)"; TESTS_RC=0; fi
     ;;
   *) gna tests "generic repo (annotated)"; TESTS_RC=0 ;;
@@ -114,7 +116,7 @@ if [ "$HAVE_TESTS" = true ] && [ "$TESTS_RC" -eq 0 ]; then
       if [ -z "$DEV_COV" ]; then gfail coverage "no cobertura output (add coverlet.collector to test projects)";
       else
         rm -rf /tmp/gbase && git worktree add --detach /tmp/gbase "origin/$STAGE" >/dev/null 2>&1
-        (cd /tmp/gbase && dotnet test $TP -c Release --collect:"XPlat Code Coverage" --results-directory /tmp/gbase/cov-base >/tmp/base-test.log 2>&1 || true)
+        (cd /tmp/gbase && for project in "${TP[@]}"; do dotnet test "$project" -c Release --collect:"XPlat Code Coverage" --results-directory /tmp/gbase/cov-base; done >/tmp/base-test.log 2>&1 || true)
         BASE_COV="$(cov_dotnet /tmp/gbase/cov-base)"; [ -z "$BASE_COV" ] && BASE_COV=0
         git worktree remove --force /tmp/gbase >/dev/null 2>&1 || true
         DROP="$(python3 -c "print(round($BASE_COV - $DEV_COV, 2))")"
@@ -159,7 +161,7 @@ case "$KIND" in
   dotnet*)
     if [ -n "$SOL" ]; then
       VULN=$(dotnet list "$SOL" package --vulnerable --include-transitive 2>/dev/null | grep -ciE "high|critical" || true)
-      [ "$VULN" -eq 0 ] && gpass security-deps "0 high/critical vulnerable packages" || gfail security-deps "$VULN high/critical findings"
+      if [ "$VULN" -eq 0 ]; then gpass security-deps "0 high/critical vulnerable packages"; else gfail security-deps "$VULN high/critical findings"; fi
       # warnings delta vs STAGE (staging log from coverage worktree run if present)
       WARN_BASE=0
       if [ -f /tmp/base-test.log ]; then WARN_BASE=$(grep -c "warning CS" /tmp/base-test.log || true); fi
@@ -168,12 +170,15 @@ case "$KIND" in
     else gna security-deps "no solution"; fi
     ;;
   rust)
-    if [ -f Cargo.lock ]; then cargo audit >cargo-audit.log 2>&1 && gpass security-deps "cargo audit clean" || gfail security-deps "cargo audit findings";
+    if [ -f Cargo.lock ]; then
+      if cargo audit >cargo-audit.log 2>&1; then gpass security-deps "cargo audit clean"; else gfail security-deps "cargo audit findings"; fi
     else gfail security-deps "no Cargo.lock (cannot audit dependencies)"; fi
     ;;
   node)
-    if [ -f package-lock.json ]; then npm audit --audit-level=high >npm-audit.log 2>&1 && gpass security-deps "npm audit clean" || gfail security-deps "npm audit high+ findings";
-    elif [ -f pnpm-lock.yaml ]; then pnpm audit --audit-level high >npm-audit.log 2>&1 && gpass security-deps "pnpm audit clean" || gfail security-deps "pnpm audit high+ findings";
+    if [ -f package-lock.json ]; then
+      if npm audit --audit-level=high >npm-audit.log 2>&1; then gpass security-deps "npm audit clean"; else gfail security-deps "npm audit high+ findings"; fi
+    elif [ -f pnpm-lock.yaml ]; then
+      if pnpm audit --audit-level high >npm-audit.log 2>&1; then gpass security-deps "pnpm audit clean"; else gfail security-deps "pnpm audit high+ findings"; fi
     else gna security-deps "no lockfile"; fi
     ;;
   *) gna security-deps "generic repo" ;;
