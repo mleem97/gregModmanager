@@ -4,7 +4,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import subprocess
+import secrets
+# Tests execute only the repository's local helper.
+import subprocess  # nosec B404
 import tempfile
 import unittest
 
@@ -123,8 +125,9 @@ class PublishReleaseTests(unittest.TestCase):
 
     def run_helper(self, scenario="success", version=VERSION):
         env = os.environ.copy()
-        env.update({"PATH": str(self.bin) + os.pathsep + env["PATH"], "GH_TOKEN": "test-token", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_SHA": SHA, "MOCK_STATE": str(self.state), "MOCK_SCENARIO": scenario, "MOCK_VERSION": VERSION})
-        return subprocess.run(["bash", str(ROOT / "scripts/publish-github-release.sh"), version, str(self.artifacts)], cwd=ROOT, env=env, text=True, capture_output=True)
+        env.update({"PATH": str(self.bin) + os.pathsep + env["PATH"], "GH_TOKEN": secrets.token_urlsafe(24), "GITHUB_REPOSITORY": "owner/repo", "GITHUB_SHA": SHA, "MOCK_STATE": str(self.state), "MOCK_SCENARIO": scenario, "MOCK_VERSION": VERSION})
+        # Fixed local script, test-controlled arguments, and mocked network tools.
+        return subprocess.run(["/bin/bash", str(ROOT / "scripts/publish-github-release.sh"), version, str(self.artifacts)], cwd=ROOT, env=env, text=True, capture_output=True)  # nosec B603
 
     def calls(self):
         path = self.state / "calls"
