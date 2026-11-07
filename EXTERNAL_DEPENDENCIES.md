@@ -61,18 +61,18 @@ MelonLoader startup hook described in `docs/integration/managed-runtime.md`.
 | nfpm | DEB, RPM, APK, and Arch packages; Alpine additionally needs gcompat and runtime validation |
 | Docker/Buildx | repeatable Linux build/test targets; not a Windows or macOS GUI emulator |
 | Jenkins (self-hosted, multi-agent; currently inactive) | CI check/build matrix and guarded GitHub release configuration (`Jenkinsfile`) |
-| GitHub Actions | Linux and Windows test-package builds and guarded dev-to-staging promotion |
+| GitHub Actions | Linux and Windows package builds, stable GitHub releases from main, and guarded dev-to-staging promotion |
 | cargo-tarpaulin | optional local workspace LCOV coverage |
 | Codacy Coverage Reporter | local helper can upload LCOV; not currently part of the Jenkins matrix |
 | Former Forgejo/Gitea Actions workflows | removed during Jenkins migration; Discord and coverage jobs still require replacements |
-| GitHub Releases and GitHub CLI | release artifacts and update checks; Jenkins publication is blocked pending package validation |
+| GitHub Releases and GitHub CLI | stable release artifacts and update checks; GitHub Actions publishes after successful checks |
 
 ## Release formats
 
 | Platform | Formats |
 | --- | --- |
 | Windows x64 | portable ZIP, Setup EXE, MSI |
-| Linux x64 | portable ZIP/tarball, DEB, RPM, APK, Arch package |
+| Linux x64 | portable tarball, DEB, RPM, Arch package; APK is experimental and excluded from stable releases |
 | macOS x64/arm64 | experimental `.tar.gz` cross-publish; no signed/notarized release |
 
 The Windows self-signed certificate used by default is newly generated for each

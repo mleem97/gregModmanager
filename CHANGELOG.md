@@ -9,14 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Release distribution
 
+- Publish stable GitHub Releases automatically after successful main-branch
+  checks and Windows/Linux package builds; omit the incompatible Alpine APK.
 - Prepare Windows installers and Linux packages with upgrade-safe installation,
   GitHub release publishing, and an in-app update check.
 
 ### Changed
 
-- Migrated checked-in CI configuration to the native Jenkins quality/build
-  matrix and removed former Actions workflows; automated release publication,
-  coverage uploading and notifications still require replacement jobs.
+- Migrated the quality/build matrix to Jenkins, then restored GitHub Actions
+  for builds and stable releases while Jenkins is inactive. Coverage uploads
+  and notifications still require replacement jobs.
 
 - Unified the manager base under `$HOME/GregModmanager` (custom bases retained),
   with Configs, Logs, Workshop, GameModding and ModConfigs; added cached SQLite

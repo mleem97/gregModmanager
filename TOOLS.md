@@ -7,11 +7,11 @@
 - Jenkins (`Jenkinsfile`, currently inactive) defines Rust gates and a workspace build in native
   Linux, Windows and macOS matrix agents. Linux installs the compiler, pkg-config
   and Slint native headers; Windows/macOS agents need their native build tools.
-- GitHub Actions runs test builds while Jenkins is inactive. GitHub Releases is
-  the download and update source; test builds do not publish a release.
-- `cargo xtask dist` builds the portable package. Jenkins is configured to build
-  native installers after the documented validation when it is reactivated;
-  see `docs/JENKINS.md`. Signing, Discord and coverage uploads are not automated.
+- GitHub Actions builds test packages on pull requests and publishes stable
+  GitHub Releases after successful checks and package builds on `main`.
+- `cargo xtask dist` builds the portable package. Jenkins remains inactive;
+  see `docs/RELEASES.md` for GitHub release behavior and `docs/JENKINS.md` for
+  its separate configuration. Signing, Discord and coverage uploads are not automated.
 
 ## Steam Workshop
 

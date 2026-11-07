@@ -1,8 +1,10 @@
-name: Build test packages
+name: Build packages and publish stable release
 
 on:
   pull_request:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -26,6 +28,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - run: python3 scripts/tests/test_publish_github_release.py
 
   linux:
     name: Linux test packages
@@ -116,3 +119,38 @@ jobs:
             dist/*.exe
             dist/*.msi
             dist/*.sha256
+
+  release:
+    name: Publish stable GitHub release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [quality, linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: stable-release-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Linux packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-test-packages
+          path: release-input/linux
+      - name: Download Windows packages
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-test-packages
+          path: release-input/windows
+      - name: Publish stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(tr -d '\r\n' < VERSION)
+          mkdir release-assets
+          cp release-input/linux/*.tar.gz* release-assets/
+          cp release-input/linux/packages/*.deb* release-input/linux/packages/*.rpm* release-input/linux/packages/*.pkg.tar.zst* release-assets/
+          cp release-input/windows/* release-assets/
+          bash scripts/publish-github-release.sh "$version" release-assets
